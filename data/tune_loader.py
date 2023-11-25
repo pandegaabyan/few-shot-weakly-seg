@@ -1,6 +1,6 @@
 from typing import Type, TypedDict
 
-from data.dataset import FewSparseDataset, FewSparseDatasetKeywordArgs
+from data.dataset import FewSparseDataset, FewSparseDatasetKeywordArgs, SparsityModes
 from torch.utils.data import DataLoader
 
 
@@ -33,7 +33,7 @@ def get_tune_loaders(dataset_class: Type[FewSparseDataset],
                      batch_size: int = 1,
                      num_workers: int = 0
                      ) -> TuneLoaderDict:
-    sparsity_modes = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
+    sparsity_modes: list[SparsityModes] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
     loader_dict = {}
 
     dataset_kwargs.pop('sparsity_mode')
@@ -59,7 +59,7 @@ def get_tune_loaders(dataset_class: Type[FewSparseDataset],
                                                num_classes,
                                                n_shots,
                                                resize_to,
-                                               sparsity_mode='point',
+                                               sparsity_mode=sparsity_mode,
                                                sparsity_value=sparsity_value,
                                                **dataset_kwargs)
                 tune_train_loader = DataLoader(tune_train_set,
