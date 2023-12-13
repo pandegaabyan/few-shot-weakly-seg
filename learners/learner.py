@@ -29,6 +29,9 @@ class MetaLearner(ABC):
         self.tune_loader = tune_loader
         self.func_calc_print_metrics = func_calc_print_metrics
 
+        self.output_path = os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'])
+        self.ckpt_path = os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'])
+
         if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
         else:
@@ -47,36 +50,8 @@ class MetaLearner(ABC):
                                                    gamma=self.config['learn']['scheduler_gamma'],
                                                    last_epoch=-1)
 
-    def meta_train_test(self, epoch: int):
-
-        # Setting network for training mode.
-        self.net.train()
-
-        # List for batch losses.
-        loss_list = list()
-
-        # Iterating over batches.
-        for i in range(1, self.config['learn']['meta_iterations'] + 1):
-            # Randomly selecting datasets.
-            perm = np.random.permutation(len(self.meta_set['train']))
-            print('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(
-                perm[:self.config['learn']['meta_used_datasets']]))
-
-            indices = perm[:self.config['learn']['meta_used_datasets']]
-
-            loss = self.meta_train_step(list(indices))
-            loss_list.extend(loss)
-
-        # Saving meta-model.
-        self.save_net_and_optimizer()
-        # TODO: store timestamp, epoch, loss
-
-        # Printing epoch loss.
-        print('[epoch %d], [train loss %.4f]' % (epoch, np.asarray(loss_list).mean()))
-        print()
-
     @abstractmethod
-    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
+    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         pass
 
     @abstractmethod
@@ -88,6 +63,8 @@ class MetaLearner(ABC):
         n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
         print('# of parameters: ' + str(n_params))
         print()
+
+        # TODO: store all config in json and model in string
 
         # Loading optimizer state in case of resuming training.
         if self.config['learn']['last_stored_epoch'] == -1:
@@ -109,6 +86,32 @@ class MetaLearner(ABC):
                 self.run_sparse_tuning(epoch)
 
             self.scheduler.step()
+
+    def meta_train_test(self, epoch: int):
+
+        # Setting network for training mode.
+        self.net.train()
+
+        # List for batch losses.
+        loss_list = list()
+
+        # Iterating over batches.
+        for i in range(1, self.config['learn']['meta_iterations'] + 1):
+            # Randomly selecting datasets.
+            perm = np.random.permutation(len(self.meta_set['train']))
+            indices = perm[:self.config['learn']['meta_used_datasets']]
+            print('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(indices))
+
+            loss = self.meta_train_test_step(list(indices))
+            loss_list.extend(loss)
+
+        # Saving meta-model.
+        self.save_net_and_optimizer()
+        # TODO: store timestamp, epoch, loss
+
+        # Printing epoch loss.
+        print('[epoch %d], [train loss %.4f]' % (epoch, np.asarray(loss_list).mean()))
+        print()
 
     def run_sparse_tuning(self, epoch: int):
         sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
@@ -134,11 +137,6 @@ class MetaLearner(ABC):
                                      epoch, sparsity_mode)
 
                 print()
-
-    @staticmethod
-    def check_mkdir(dir_name: str):
-        if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
 
     def prepare_meta_batch(self, index: int) -> tuple[Tensor, Tensor, Tensor, Tensor]:
 
@@ -178,6 +176,16 @@ class MetaLearner(ABC):
 
         return x_train, y_train, x_test, y_test
 
+    @staticmethod
+    def check_mkdir(dir_name: str):
+        if not os.path.exists(dir_name):
+            os.mkdir(dir_name)
+
+    def create_output_dir(self, dir_name: str):
+        self.check_mkdir(self.config['save']['output_path'])
+        self.check_mkdir(self.output_path)
+        self.check_mkdir(os.path.join(self.output_path, dir_name))
+
     def save_all_tune_mask(self, tune_loader: DataLoader, sparsity_mode: str):
         dir_name = 'all_tune_masks'
 
@@ -192,9 +200,7 @@ class MetaLearner(ABC):
             for j in range(len(img_name)):
                 stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
                 stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
-                io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                       dir_name,
-                                       f'{img_name[j]} - {sparsity_mode}.png'),
+                io.imsave(os.path.join(self.output_path, dir_name, f'{img_name[j]} - {sparsity_mode}.png'),
                           stored_sparse)
 
     def save_prediction(self, prediction: NDArray, filename: str, sparsity_mode: str):
@@ -204,33 +210,23 @@ class MetaLearner(ABC):
 
         stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
         io.imsave(
-            os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                         dir_name,
-                         f'{filename} - {sparsity_mode}.png'),
+            os.path.join(self.output_path, dir_name, f'{filename} - {sparsity_mode}.png'),
             stored_prediction)
-
-    def create_output_dir(self, dir_name: str):
-        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'], dir_name))
 
     def save_net_and_optimizer(self):
         # Making sure checkpoint and output directories are created.
         self.check_mkdir(self.config['save']['ckpt_path'])
-        self.check_mkdir(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name']))
-        self.check_mkdir(self.config['save']['output_path'])
-        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name']))
+        self.check_mkdir(os.path.join(self.ckpt_path))
 
-        torch.save(self.net.state_dict(),
-                   os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'],
-                                'net.pth'))
-        torch.save(self.meta_optimizer.state_dict(),
-                   os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'],
-                                'meta_optimizer.pth'))
+        torch.save(self.net.state_dict(), os.path.join(self.ckpt_path, 'net.pth'))
+        torch.save(self.meta_optimizer.state_dict(), os.path.join(self.ckpt_path, 'meta_optimizer.pth'))
 
     def load_net_and_optimizer(self):
         self.net.load_state_dict(
-            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth')))
+            torch.load(os.path.join(self.ckpt_path, 'net.pth')))
         self.meta_optimizer.load_state_dict(
-            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth')))
+            torch.load(os.path.join(self.ckpt_path, 'meta_optimizer.pth')))
 
     def calc_print_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str):
+        # TODO: need update, store metrics and message
         self.func_calc_print_metrics(labels, preds, message)

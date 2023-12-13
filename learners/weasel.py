@@ -9,7 +9,7 @@ from learners.learner import MetaLearner
 
 class WeaselLearner(MetaLearner):
 
-    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
+    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         # Acquiring training and test data.
 
         x_train = []

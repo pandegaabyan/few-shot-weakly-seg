@@ -7,7 +7,7 @@ from learners.learner import MetaLearner
 
 class ProtoSegLearner(MetaLearner):
 
-    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
+    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         loss_list = list()
 
         for index in dataset_indices:
