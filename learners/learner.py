@@ -72,10 +72,8 @@ class MetaLearner(ABC):
         # TODO: store timestamp, epoch, loss
 
         # Printing epoch loss.
-        print('--------------------------------------------------------------------')
-        print('[epoch %d], [train loss %.4f]' % (
-            epoch, np.asarray(loss_list).mean()))
-        print('--------------------------------------------------------------------')
+        print('[epoch %d], [train loss %.4f]' % (epoch, np.asarray(loss_list).mean()))
+        print()
 
     @abstractmethod
     def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
@@ -87,9 +85,9 @@ class MetaLearner(ABC):
         pass
 
     def learn(self):
-        print(self.net)
         n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
         print('# of parameters: ' + str(n_params))
+        print()
 
         # Loading optimizer state in case of resuming training.
         if self.config['learn']['last_stored_epoch'] == -1:
@@ -97,6 +95,7 @@ class MetaLearner(ABC):
 
         else:
             print('Training resuming from epoch ' + str(self.config['learn']['last_stored_epoch']) + '...')
+            print()
             self.load_net_and_optimizer()
             curr_epoch = self.config['learn']['last_stored_epoch'] + 1
 
@@ -112,7 +111,6 @@ class MetaLearner(ABC):
             self.scheduler.step()
 
     def run_sparse_tuning(self, epoch: int):
-
         sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
 
         for sparsity_mode in sparsity_modes:
@@ -134,6 +132,8 @@ class MetaLearner(ABC):
 
                 self.tune_train_test(tl['train'], tl['test'],
                                      epoch, sparsity_mode)
+
+                print()
 
     @staticmethod
     def check_mkdir(dir_name: str):
