@@ -37,14 +37,14 @@ class ProtoSegLearner(MetaLearner):
             y_train_linear = y_train.view(y_train.size(0), -1)
             y_test_linear = y_test.view(y_test.size(0), -1)
 
-            prototypes = get_prototypes(emb_train_linear,
-                                        y_train_linear,
-                                        self.config['data']['num_classes'])
+            prototypes = self.get_prototypes(emb_train_linear,
+                                             y_train_linear,
+                                             self.config['data']['num_classes'])
 
-            outer_loss = prototypical_loss(prototypes,
-                                           emb_test_linear,
-                                           y_test_linear,
-                                           ignore_index=-1)
+            outer_loss = self.prototypical_loss(prototypes,
+                                                emb_test_linear,
+                                                y_test_linear,
+                                                ignore_index=-1)
 
             # End of prototyping
 
@@ -99,7 +99,7 @@ class ProtoSegLearner(MetaLearner):
             emb_tr = torch.vstack(emb_train_list)
             y_tr = torch.vstack(y_train_list)
 
-            prototypes = get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
+            prototypes = self.get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
 
             labs_all, prds_all = [], []
 
@@ -118,7 +118,7 @@ class ProtoSegLearner(MetaLearner):
                 emb_test_linear = emb_ts.permute(0, 2, 3, 1).view(
                     emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1))
 
-                p_test_linear = get_predictions(prototypes, emb_test_linear)
+                p_test_linear = self.get_predictions(prototypes, emb_test_linear)
 
                 p_test = p_test_linear.view(p_test_linear.size(0), y_ts.size(1), y_ts.size(2))
 
@@ -135,103 +135,102 @@ class ProtoSegLearner(MetaLearner):
 
         self.calc_print_metrics(labs_all, prds_all, f'"{sparsity_mode}"')
 
+    @staticmethod
+    def get_num_samples(targets, num_classes, dtype=None):
+        """Get the number of annotated pixels for each class"""
+        batch_size = targets.size(0)
 
-# Function to get the number of annotated pixels for each class
-def get_num_samples(targets, num_classes, dtype=None):
-    batch_size = targets.size(0)
+        with torch.no_grad():
+            num_samples = targets.new_zeros((batch_size, num_classes), dtype=dtype)
 
-    with torch.no_grad():
-        num_samples = targets.new_zeros((batch_size, num_classes), dtype=dtype)
+            for i in range(batch_size):
+                trg_i = targets[i]
 
-        for i in range(batch_size):
+                for c in range(num_classes):
+                    num_samples[i, c] += trg_i[trg_i == c].size(0)
+
+        return num_samples
+
+    def get_prototypes(self, embeddings, targets, num_classes):
+        """Compute the prototypes (the mean vector of the embedded training/support
+        points belonging to its class) for each classes in the task.
+        Parameters
+        ----------
+        embeddings : `torch.FloatTensor` instance
+            A tensor containing the embeddings of the support points. This tensor
+            has shape `(batch_size, num_examples, embedding_size)`.
+        targets : `torch.LongTensor` instance
+            A tensor containing the targets of the support points. This tensor has
+            shape `(batch_size, num_examples)`.
+        num_classes : int
+            Number of classes in the task.
+        Returns
+        -------
+        prototypes : `torch.FloatTensor` instance
+            A tensor containing the prototypes for each class. This tensor has shape
+            `(batch_size, num_classes, embedding_size)`.
+        """
+        batch_size, embedding_size = embeddings.size(0), embeddings.size(-1)
+
+        num_samples = self.get_num_samples(targets, num_classes, dtype=embeddings.dtype)
+        num_samples.unsqueeze_(-1)
+        num_samples = torch.max(num_samples, torch.ones_like(num_samples))
+
+        prototypes = embeddings.new_zeros((batch_size, num_classes, embedding_size))
+        indices = targets.unsqueeze(-1).expand_as(embeddings)
+
+        for i in range(indices.size(0)):
             trg_i = targets[i]
+            emb_i = embeddings[i]
 
             for c in range(num_classes):
-                num_samples[i, c] += trg_i[trg_i == c].size(0)
+                prototypes[i, c] += torch.sum(emb_i[trg_i == c], dim=0)
 
-    return num_samples
+        prototypes.div_(num_samples)
 
+        return prototypes
 
-def get_prototypes(embeddings, targets, num_classes):
-    """Compute the prototypes (the mean vector of the embedded training/support
-    points belonging to its class) for each classes in the task.
-    Parameters
-    ----------
-    embeddings : `torch.FloatTensor` instance
-        A tensor containing the embeddings of the support points. This tensor
-        has shape `(batch_size, num_examples, embedding_size)`.
-    targets : `torch.LongTensor` instance
-        A tensor containing the targets of the support points. This tensor has
-        shape `(batch_size, num_examples)`.
-    num_classes : int
-        Number of classes in the task.
-    Returns
-    -------
-    prototypes : `torch.FloatTensor` instance
-        A tensor containing the prototypes for each class. This tensor has shape
-        `(batch_size, num_classes, embedding_size)`.
-    """
-    batch_size, embedding_size = embeddings.size(0), embeddings.size(-1)
+    @staticmethod
+    def prototypical_loss(prototypes, embeddings, targets, **kwargs):
+        """Compute the loss (i.e. negative log-likelihood) for the prototypical
+        network, on the test/query points.
+        Parameters
+        ----------
+        prototypes : `torch.FloatTensor` instance
+            A tensor containing the prototypes for each class. This tensor has shape
+            `(batch_size, num_classes, embedding_size)`.
+        embeddings : `torch.FloatTensor` instance
+            A tensor containing the embeddings of the query points. This tensor has
+            shape `(batch_size, num_examples, embedding_size)`.
+        targets : `torch.LongTensor` instance
+            A tensor containing the targets of the query points. This tensor has
+            shape `(batch_size, num_examples)`.
+        Returns
+        -------
+        loss : `torch.FloatTensor` instance
+            The negative log-likelihood on the query points.
+        """
+        squared_distances = torch.sum((prototypes.unsqueeze(2)
+                                       - embeddings.unsqueeze(1)) ** 2, dim=-1)
+        return functional.cross_entropy(-squared_distances, targets, **kwargs)
 
-    num_samples = get_num_samples(targets, num_classes, dtype=embeddings.dtype)
-    num_samples.unsqueeze_(-1)
-    num_samples = torch.max(num_samples, torch.ones_like(num_samples))
-
-    prototypes = embeddings.new_zeros((batch_size, num_classes, embedding_size))
-    indices = targets.unsqueeze(-1).expand_as(embeddings)
-
-    for i in range(indices.size(0)):
-        trg_i = targets[i]
-        emb_i = embeddings[i]
-
-        for c in range(num_classes):
-            prototypes[i, c] += torch.sum(emb_i[trg_i == c], dim=0)
-
-    prototypes.div_(num_samples)
-
-    return prototypes
-
-
-def prototypical_loss(prototypes, embeddings, targets, **kwargs):
-    """Compute the loss (i.e. negative log-likelihood) for the prototypical
-    network, on the test/query points.
-    Parameters
-    ----------
-    prototypes : `torch.FloatTensor` instance
-        A tensor containing the prototypes for each class. This tensor has shape
-        `(batch_size, num_classes, embedding_size)`.
-    embeddings : `torch.FloatTensor` instance
-        A tensor containing the embeddings of the query points. This tensor has
-        shape `(batch_size, num_examples, embedding_size)`.
-    targets : `torch.LongTensor` instance
-        A tensor containing the targets of the query points. This tensor has
-        shape `(batch_size, num_examples)`.
-    Returns
-    -------
-    loss : `torch.FloatTensor` instance
-        The negative log-likelihood on the query points.
-    """
-    squared_distances = torch.sum((prototypes.unsqueeze(2)
-                                   - embeddings.unsqueeze(1)) ** 2, dim=-1)
-    return functional.cross_entropy(-squared_distances, targets, **kwargs)
-
-
-def get_predictions(prototypes, embeddings):
-    """Compute the accuracy of the prototypical network on the test/query points.
-    Parameters
-    ----------
-    prototypes : `torch.FloatTensor` instance
-        A tensor containing the prototypes for each class. This tensor has shape
-        `(meta_batch_size, num_classes, embedding_size)`.
-    embeddings : `torch.FloatTensor` instance
-        A tensor containing the embeddings of the query points. This tensor has
-        shape `(meta_batch_size, num_examples, embedding_size)`.
-    Returns
-    -------
-    accuracy : `torch.FloatTensor` instance
-        Mean accuracy on the query points.
-    """
-    sq_distances = torch.sum((prototypes.unsqueeze(1)
-                              - embeddings.unsqueeze(2)) ** 2, dim=-1)
-    _, predictions = torch.min(sq_distances, dim=-1)
-    return predictions
+    @staticmethod
+    def get_predictions(prototypes, embeddings):
+        """Compute the accuracy of the prototypical network on the test/query points.
+        Parameters
+        ----------
+        prototypes : `torch.FloatTensor` instance
+            A tensor containing the prototypes for each class. This tensor has shape
+            `(meta_batch_size, num_classes, embedding_size)`.
+        embeddings : `torch.FloatTensor` instance
+            A tensor containing the embeddings of the query points. This tensor has
+            shape `(meta_batch_size, num_examples, embedding_size)`.
+        Returns
+        -------
+        accuracy : `torch.FloatTensor` instance
+            Mean accuracy on the query points.
+        """
+        sq_distances = torch.sum((prototypes.unsqueeze(1)
+                                  - embeddings.unsqueeze(2)) ** 2, dim=-1)
+        _, predictions = torch.min(sq_distances, dim=-1)
+        return predictions
