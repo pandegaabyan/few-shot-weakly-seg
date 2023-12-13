@@ -1,10 +1,6 @@
-import os
 from collections import OrderedDict
 
-import numpy as np
-import sklearn
 import torch
-from skimage import io
 from torch.nn import functional
 from torch.utils.data import DataLoader
 
@@ -12,129 +8,74 @@ from learners.learner import MetaLearner
 
 
 class WeaselLearner(MetaLearner):
-    def meta_train_test(self, epoch: int):
 
-        # Setting network for training mode.
-        self.net.train()
+    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
+        # Acquiring training and test data.
 
-        # List for batch losses.
-        train_outer_loss_list = list()
+        x_train = []
+        y_train = []
 
-        num_tasks = len(self.meta_set['train'])
+        x_test = []
+        y_test = []
 
-        n_batches = 5
+        for index in dataset_indices:
+            x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
 
-        # Iterating over batches.
-        for i in range(n_batches):
+            x_train.append(x_tr)
+            y_train.append(y_tr)
 
-            # Randomly selecting tasks.
-            perm = np.random.permutation(num_tasks)
-            print('Ep: ' + str(epoch) + ', it: ' + str(i + 1) + ', task subset: ' + str(
-                perm[:self.config['train']['n_metatasks_iter']]))
+            x_test.append(x_ts)
+            y_test.append(y_ts)
 
-            indices = perm[:self.config['train']['n_metatasks_iter']]
+        # Clearing model gradients.
+        self.net.zero_grad()
 
-            # Acquiring training and test data.
-            x_train = []
-            y_train = []
+        # Resetting outer loss.
+        outer_loss = torch.tensor(0.0)
+        if self.config['learn']["use_gpu"]:
+            outer_loss = outer_loss.cuda()
 
-            x_test = []
-            y_test = []
+        # Iterating over datasets.
+        for j in range(len(x_train)):
+            x_tr = x_train[j]
+            y_tr = y_train[j]
 
-            for index in indices:
-                x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
+            x_ts = x_test[j]
+            y_ts = y_test[j]
 
-                x_train.append(x_tr)
-                y_train.append(y_tr)
+            # Forwarding through model.
+            p_tr = self.net(x_tr)
 
-                x_test.append(x_ts)
-                y_test.append(y_ts)
+            # Computing inner loss.
+            inner_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
 
-            ##########################################################################
-            # Outer loop. ############################################################
-            ##########################################################################
-
-            # Clearing model gradients.
+            # Zeroing model gradient.
             self.net.zero_grad()
 
-            # Resetting outer loss.
-            outer_loss = torch.tensor(0.0)
-            if self.config['train']["use_gpu"]:
-                outer_loss = outer_loss.cuda()
+            # Computing metaparameters.
+            params = self.update_parameters(inner_loss)
 
-            # Iterating over tasks.
-            for j in range(len(x_train)):
-                x_tr = x_train[j]
-                y_tr = y_train[j]
+            # Verifying performance on test set.
+            p_ts = self.net(x_ts, params=params)
 
-                x_ts = x_test[j]
-                y_ts = y_test[j]
+            # Accumulating outer loss.
+            outer_loss += functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
 
-                ######################################################################
-                # Inner loop. ########################################################
-                ######################################################################
+        # Clears the gradients of meta_optimizer.
+        self.meta_optimizer.zero_grad()
 
-                # Forwarding through model.
-                p_tr = self.net(x_tr)
+        # Computing loss.
+        outer_loss.div_(len(x_test))
 
-                # Computing inner loss.
-                inner_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
+        # Computing backpropagation.
+        outer_loss.backward()
+        self.meta_optimizer.step()
 
-                # Zeroing model gradient.
-                self.net.zero_grad()
-
-                # Computing metaparameters.
-                params = self.update_parameters(inner_loss)
-
-                # Verifying performance on task test set.
-                p_ts = self.net(x_ts, params=params)
-
-                # Accumulating outer loss.
-                outer_loss += functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
-
-                ######################################################################
-                # End of inner loop. #################################################
-                ######################################################################
-
-            # Clears the gradients of meta_optimizer.
-            self.meta_optimizer.zero_grad()
-
-            # Computing loss.
-            outer_loss.div_(len(x_test))
-
-            # Computing backpropagation.
-            outer_loss.backward()
-            self.meta_optimizer.step()
-
-            # Updating loss meter.
-            train_outer_loss_list.append(outer_loss.detach().item())
-
-            ##########################################################################
-            # End of outer loop. #####################################################
-            ##########################################################################
-
-        # Saving meta-model.
-        if epoch % self.config['train']['test_freq'] == 0:
-            torch.save(self.net.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth'))
-            torch.save(self.meta_optimizer.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth'))
-
-        # Printing epoch loss.
-        print('--------------------------------------------------------------------')
-        print('[epoch %d], [train loss %.4f]' % (
-            epoch, np.asarray(train_outer_loss_list).mean()))
-        print('--------------------------------------------------------------------')
+        # Returning loss.
+        return [outer_loss.detach().item()]
 
     def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
                         epoch: int, sparsity_mode: str):
-
-        # Creating output directories.
-        if epoch == self.config['train']['epoch_num']:
-            self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                          sparsity_mode + '_train_epoch_' + str(epoch)))
-            self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                          sparsity_mode + '_test_epoch_' + str(epoch)))
 
         # Setting network for training mode.
         self.net.train()
@@ -143,18 +84,19 @@ class WeaselLearner(MetaLearner):
         self.net.zero_grad()
 
         # Repeatedly cycling over batches.
-        for c in range(self.config['weasel']['tuning_epochs']):
+        tune_epochs = self.config['weasel']['tune_epochs']
+        for c in range(1, tune_epochs + 1):
 
-            print('Tuning epoch %d/%d' % (c + 1, self.config['weasel']['tuning_epochs']))
+            print('Tuning epoch %d/%d' % (c, tune_epochs))
 
-            # Iterating over tuning train batches.
+            # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
 
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
 
                 # Casting to cuda variables.
-                if self.config['train']["use_gpu"]:
+                if self.config['learn']["use_gpu"]:
                     x_tr = x_tr.cuda()
                     y_tr = y_tr.cuda()
 
@@ -171,11 +113,10 @@ class WeaselLearner(MetaLearner):
                 tune_train_loss.backward()
                 self.meta_optimizer.step()
 
-            if (c + 1) % self.config['weasel']['tuning_freq'] == 0:
+            if (c % self.config['weasel']['tune_test_freq'] == 0
+                    or c == tune_epochs):
 
-                ##########################################
-                # Starting test. #########################
-                ##########################################
+                # Starting test.
 
                 with torch.no_grad():
 
@@ -185,13 +126,13 @@ class WeaselLearner(MetaLearner):
                     # Initiating lists for labels and predictions.
                     labs_all, prds_all = [], []
 
-                    # Iterating over tuning test batches.
+                    # Iterating over tune test batches.
                     for i, data in enumerate(tune_test_loader):
                         # Obtaining images, labels and paths for batch.
-                        x_ts, y_ts, _, _ = data
+                        x_ts, y_ts, _, img_name = data
 
                         # Casting to cuda variables.
-                        if self.config['train']["use_gpu"]:
+                        if self.config['learn']["use_gpu"]:
                             x_ts = x_ts.cuda()
                             y_ts = y_ts.cuda()
 
@@ -205,110 +146,25 @@ class WeaselLearner(MetaLearner):
                         labs_all.append(y_ts.detach().squeeze(0).cpu().numpy())
                         prds_all.append(prds)
 
-                    # Converting to numpy for computing metrics.
-                    labs_np = np.asarray(labs_all).ravel()
-                    prds_np = np.asarray(prds_all).ravel()
+                    print_message = f'"{sparsity_mode}" {c}/{tune_epochs}'
+                    self.calc_print_metrics(labs_all, prds_all, print_message)
 
-                    # Computing metrics.
-                    iou = sklearn.metrics.jaccard_score(labs_np, prds_np, average="weighted")
+                    # Saving predictions.
+                    if epoch == self.config['learn']['num_epochs'] and c == tune_epochs:
+                        self.save_prediction(prds, img_name[0],
+                                             epoch, sparsity_mode)
 
-                    print('Jaccard test "%s" %d/%d: %.2f' % (
-                        sparsity_mode, c + 1, self.config['weasel']['tuning_epochs'], iou * 100,))
-
-                ##########################################
-                # Finishing test. ########################
-                ##########################################
-
-        if epoch == self.config['train']['epoch_num']:
-
-            # Iterating over tuning train batches for saving.
-            for i, data in enumerate(tune_train_loader):
-
-                # Obtaining images, dense labels, sparse labels and paths for batch.
-                _, y_dense, y_sparse, img_name = data
-
-                for j in range(len(img_name)):
-                    stored_dense = y_dense[j].cpu().squeeze().numpy()
-                    stored_dense = (stored_dense * (255 / stored_dense.max())).astype(np.uint8)
-                    stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
-                    stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
-                    io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                           sparsity_mode + '_train_epoch_' + str(epoch),
-                                           img_name[j] + '_dense.png'), stored_dense)
-                    io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                           sparsity_mode + '_train_epoch_' + str(epoch),
-                                           img_name[j] + '_sparse.png'), stored_sparse)
-
-        # List for batch losses.
-        tune_test_loss_list = list()
-
-        # Initiating lists for images, labels and predictions.
-        labs_all, prds_all = [], []
-
-        with torch.no_grad():
-
-            # Setting network for evaluation mode.
-            self.net.eval()
-
-            # Iterating over tuning test batches.
-            for i, data in enumerate(tune_test_loader):
-                # Obtaining images, labels and paths for batch.
-                x_ts, y_ts, _, img_name = data
-
-                # Casting to cuda variables.
-                if self.config['train']["use_gpu"]:
-                    x_ts = x_ts.cuda()
-                    y_ts = y_ts.cuda()
-
-                # Forwarding.
-                p_ts = self.net(x_ts)
-
-                # Computing loss.
-                tune_test_loss = functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
-
-                # Obtaining predictions.
-                prds = p_ts.detach().max(1)[1].squeeze(1).squeeze(0).cpu().numpy()
-
-                # Appending data to lists.
-                labs_all.append(y_ts.detach().squeeze(0).cpu().numpy())
-                prds_all.append(prds)
-
-                # Updating loss meter.
-                tune_test_loss_list.append(tune_test_loss.detach().item())
-
-                # Saving predictions.
-                if epoch == self.config['train']['epoch_num']:
-                    stored_pred = (prds * (255 / prds.max())).astype(np.uint8)
-                    io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                           sparsity_mode + '_test_epoch_' + str(epoch),
-                                           img_name[0] + '.png'),
-                              stored_pred)
-
-        # Converting to numpy for computing metrics.
-        labs_np = np.asarray(labs_all).ravel()
-        prds_np = np.asarray(prds_all).ravel()
-
-        # Computing metrics.
-        iou = sklearn.metrics.jaccard_score(labs_np, prds_np, average="weighted")
-
-        # Printing metric.
-        print('--------------------------------------------------------------------')
-        print('Jaccard test "%s" %d/%d: %.2f' % (
-            sparsity_mode, self.config['weasel']['tuning_epochs'], self.config['weasel']['tuning_epochs'], iou * 100))
-        print('--------------------------------------------------------------------')
+                # Finishing test.
 
         # Loading model.
-        self.net.load_state_dict(
-            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth')))
-        self.meta_optimizer.load_state_dict(
-            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth')))
+        self.load_net_and_optimizer()
 
     def update_parameters(self, loss: torch.Tensor):
         grads = torch.autograd.grad(loss, self.net.meta_parameters(),
-                                    create_graph=not self.config['weasel']['first_order'])
+                                    create_graph=not self.config['weasel']['use_first_order'])
 
         params = OrderedDict()
         for (name, param), grad in zip(self.net.meta_named_parameters(), grads):
-            params[name] = param - self.config['weasel']['step_size'] * grad
+            params[name] = param - self.config['weasel']['update_param_step_size'] * grad
 
         return params

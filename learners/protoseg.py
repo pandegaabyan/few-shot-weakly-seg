@@ -1,9 +1,4 @@
-import os
-
-import numpy as np
-import sklearn
 import torch
-from skimage import io
 from torch.nn import functional
 from torch.utils.data import DataLoader
 
@@ -11,114 +6,62 @@ from learners.learner import MetaLearner
 
 
 class ProtoSegLearner(MetaLearner):
-    def meta_train_test(self, epoch: int):
 
-        # Setting network for training mode.
-        self.net.train()
+    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
+        loss_list = list()
 
-        # List for batch losses.
-        train_outer_loss_list = list()
+        for index in dataset_indices:
+            # Acquiring training and test data.
+            x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
 
-        num_tasks = len(self.meta_set['train'])
+            # Concatenating tensors.
+            x_train = torch.cat([x_tr], dim=0)
+            y_train = torch.cat([y_tr], dim=0)
 
-        n_batches = 5
+            x_test = torch.cat([x_ts], dim=0)
+            y_test = torch.cat([y_ts], dim=0)
 
-        # Iterating over batches.
-        for i in range(n_batches):
+            # Clearing model gradients.
+            self.net.zero_grad()
 
-            # Randomly selecting tasks.
-            perm = np.random.permutation(num_tasks)
-            print('Ep: ' + str(epoch) + ', it: ' + str(i + 1) + ', task subset: ' + str(
-                perm[:self.config['train']['n_metatasks_iter']]))
+            # Start of prototyping
 
-            indices = perm[:self.config['train']['n_metatasks_iter']]
+            emb_train = self.net(x_train)
+            emb_test = self.net(x_test)
 
-            for index in indices:
-                # Acquiring training and test data.
-                x_train = []
-                y_train = []
+            emb_train_linear = emb_train.permute(0, 2, 3, 1).view(
+                emb_train.size(0), emb_train.size(2) * emb_train.size(3), emb_train.size(1))
+            emb_test_linear = emb_test.permute(0, 2, 3, 1).view(
+                emb_test.size(0), emb_test.size(2) * emb_test.size(3), emb_test.size(1))
 
-                x_test = []
-                y_test = []
+            y_train_linear = y_train.view(y_train.size(0), -1)
+            y_test_linear = y_test.view(y_test.size(0), -1)
 
-                x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
+            prototypes = get_prototypes(emb_train_linear,
+                                        y_train_linear,
+                                        self.config['data']['num_classes'])
 
-                x_train.append(x_tr)
-                y_train.append(y_tr)
+            outer_loss = prototypical_loss(prototypes,
+                                           emb_test_linear,
+                                           y_test_linear,
+                                           ignore_index=-1)
 
-                x_test.append(x_ts)
-                y_test.append(y_ts)
+            # End of prototyping
 
-                # Concatenating tensors.
-                x_train = torch.cat(x_train, dim=0)
-                y_train = torch.cat(y_train, dim=0)
+            # Clears the gradients of meta_optimizer.
+            self.meta_optimizer.zero_grad()
 
-                x_test = torch.cat(x_test, dim=0)
-                y_test = torch.cat(y_test, dim=0)
+            # Computing backpropagation.
+            outer_loss.backward()
+            self.meta_optimizer.step()
 
-                # Clearing model gradients.
-                self.net.zero_grad()
+            loss_list.append(outer_loss.detach().item())
 
-                ##########################################################################
-                # Start of prototyping. ##################################################
-                ##########################################################################
-
-                emb_train = self.net(x_train)
-                emb_test = self.net(x_test)
-
-                emb_train_linear = emb_train.permute(0, 2, 3, 1).view(
-                    emb_train.size(0), emb_train.size(2) * emb_train.size(3), emb_train.size(1))
-                emb_test_linear = emb_test.permute(0, 2, 3, 1).view(
-                    emb_test.size(0), emb_test.size(2) * emb_test.size(3), emb_test.size(1))
-
-                y_train_linear = y_train.view(y_train.size(0), -1)
-                y_test_linear = y_test.view(y_test.size(0), -1)
-
-                prototypes = get_prototypes(emb_train_linear,
-                                            y_train_linear,
-                                            self.config['data']['num_classes'])
-
-                outer_loss = prototypical_loss(prototypes,
-                                               emb_test_linear,
-                                               y_test_linear,
-                                               ignore_index=-1)
-
-                ##########################################################################
-                # End of prototyping. ####################################################
-                ##########################################################################
-
-                # Clears the gradients of meta_optimizer.
-                self.meta_optimizer.zero_grad()
-
-                # Computing backpropagation.
-                outer_loss.backward()
-                self.meta_optimizer.step()
-
-                # Updating loss meter.
-                train_outer_loss_list.append(outer_loss.detach().item())
-
-        # Saving meta-model.
-        if epoch % self.config['train']['test_freq'] == 0:
-            torch.save(self.net.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth'))
-            torch.save(self.meta_optimizer.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth'))
-
-        # Printing epoch loss.
-        print('--------------------------------------------------------------------')
-        print('[epoch %d], [train loss %.4f]' % (
-            epoch, np.asarray(train_outer_loss_list).mean()))
-        print('--------------------------------------------------------------------')
+        # Returning loss.
+        return loss_list
 
     def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
                         epoch: int, sparsity_mode: str):
-
-        # Creating output directories.
-        if epoch == self.config['train']['epoch_num']:
-            self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                          sparsity_mode + '_train_epoch_' + str(epoch)))
-            self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                          sparsity_mode + '_test_epoch_' + str(epoch)))
 
         with torch.no_grad():
 
@@ -132,14 +75,14 @@ class ProtoSegLearner(MetaLearner):
             emb_train_list = []
             y_train_list = []
 
-            # Iterating over tuning train batches.
+            # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
 
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
 
                 # Casting tensors to cuda.
-                if self.config['train']["use_gpu"]:
+                if self.config['learn']["use_gpu"]:
                     x_tr = x_tr.cuda()
                     y_tr = y_tr.cuda()
 
@@ -161,13 +104,13 @@ class ProtoSegLearner(MetaLearner):
             # Lists for whole epoch loss.
             labs_all, prds_all = [], []
 
-            # Iterating over tuning test batches.
+            # Iterating over tune test batches.
             for i, data in enumerate(tune_test_loader):
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_ts, y_ts, _, img_name = data
 
                 # Casting tensors to cuda.
-                if self.config['train']["use_gpu"]:
+                if self.config['learn']["use_gpu"]:
                     x_ts = x_ts.cuda()
                     y_ts = y_ts.cuda()
 
@@ -187,48 +130,11 @@ class ProtoSegLearner(MetaLearner):
                 prds_all.append(p_full.cpu().numpy().squeeze())
 
                 # Saving predictions.
-                if epoch == self.config['train']['epoch_num']:
-                    stored_pred = p_full.cpu().numpy().squeeze()
-                    stored_pred = (stored_pred * (255 / stored_pred.max())).astype(np.uint8)
-                    io.imsave(
-                        os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                     sparsity_mode + '_test_epoch_' + str(epoch),
-                                     img_name[0] + '.png'),
-                        stored_pred)
+                if epoch == self.config['learn']['num_epochs']:
+                    pred = p_full.cpu().numpy().squeeze()
+                    self.save_prediction(pred, img_name[0], epoch, sparsity_mode)
 
-        # Converting to numpy for computing metrics.
-        labs_np = np.asarray(labs_all).ravel()
-        prds_np = np.asarray(prds_all).ravel()
-
-        # Computing metrics.
-        iou = sklearn.metrics.jaccard_score(labs_np, prds_np, average="weighted")
-
-        # Printing metric.
-        print('--------------------------------------------------------------------')
-        print('Jaccard test "%s": %.2f' % (sparsity_mode, iou * 100))
-        print('--------------------------------------------------------------------')
-
-        if epoch == self.config['train']['epoch_num']:
-
-            # Iterating over tuning train batches for saving.
-            for i, data in enumerate(tune_train_loader):
-
-                # Obtaining images, dense labels, sparse labels and paths for batch.
-                _, y_dense, y_sparse, img_name = data
-
-                for j in range(len(img_name)):
-                    stored_dense = y_dense[j].cpu().squeeze().numpy()
-                    stored_dense = (stored_dense * (255 / stored_dense.max())).astype(np.uint8)
-                    stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
-                    stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
-                    io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                           sparsity_mode + '_train_epoch_' + str(epoch),
-                                           img_name[j] + '_dense.png'),
-                              stored_dense)
-                    io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                           sparsity_mode + '_train_epoch_' + str(epoch),
-                                           img_name[j] + '_sparse.png'),
-                              stored_sparse)
+        self.calc_print_metrics(labs_all, prds_all, f'"{sparsity_mode}"')
 
 
 # Function to get the number of annotated pixels for each class

@@ -1,4 +1,4 @@
-from config.config_type import AllConfig, DataConfig, FWSConfig, TrainConfig, SaveConfig, WeaselConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, SaveConfig, WeaselConfig
 
 data_config: DataConfig = {
     'num_classes': 2,
@@ -8,7 +8,7 @@ data_config: DataConfig = {
     'resize_to': (256, 256)
 }
 
-fws_config: FWSConfig = {
+data_tune_config: DataTuneConfig = {
     'list_shots': [1, 5, 10, 20],
     'list_sparsity_point': [1, 5, 10, 20],
     'list_sparsity_grid': [8, 12, 16, 20],
@@ -17,17 +17,18 @@ fws_config: FWSConfig = {
     'list_sparsity_region': [0.05, 0.10, 0.25, 0.50, 1.00]
 }
 
-train_config: TrainConfig = {
+train_config: LearnConfig = {
     'use_gpu': True,
-    'epoch_num': 200,
-    'lr': 1e-3,
-    'lr_scheduler_step_size': 150,
-    'lr_scheduler_gamma': 0.2,
-    'weight_decay': 5e-5,
-    'momentum': 0.9,
-    'snapshot': '',
-    'test_freq': 200,
-    'n_metatasks_iter': 2
+    'num_epochs': 200,
+    'optimizer_lr': 1e-3,
+    'optimizer_weight_decay': 5e-5,
+    'optimizer_momentum': 0.9,
+    'scheduler_step_size': 150,
+    'scheduler_gamma': 0.2,
+    'last_stored_epoch': -1,
+    'tune_freq': 200,
+    'meta_used_datasets': 2,
+    'meta_iterations': 5
 }
 
 save_config: SaveConfig = {
@@ -37,16 +38,16 @@ save_config: SaveConfig = {
 }
 
 weasel_config: WeaselConfig = {
-    'first_order': False,
-    'step_size': 0.3,
-    'tuning_epochs': 40,
-    'tuning_freq': 4
+    'use_first_order': False,
+    'update_param_step_size': 0.3,
+    'tune_epochs': 40,
+    'tune_test_freq': 4
 }
 
 all_config: AllConfig = {
     'data': data_config,
-    'fws': fws_config,
-    'train': train_config,
+    'data_tune': data_tune_config,
+    'learn': train_config,
     'save': save_config,
     'weasel': weasel_config
 }

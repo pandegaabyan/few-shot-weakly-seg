@@ -1,43 +1,86 @@
 import os
 from abc import ABC, abstractmethod
+from typing import Callable
 
+import numpy as np
 import torch
-from torch import optim
+from numpy.typing import NDArray
+from skimage import io
+from torch import optim, Tensor
 from torch.utils.data import DataLoader
 
-from data.meta_dataset import MetaDatasets
-from data.tune_loader import TuneLoaderDict
 from config.config_type import AllConfig
+from data.get_meta_datasets import MetaDatasets
+from data.get_tune_loaders import TuneLoaderDict
 from torchmeta.modules import MetaModule
 
 
 class MetaLearner(ABC):
 
-    def __init__(self, net: MetaModule, config: AllConfig, meta_set: MetaDatasets, tune_loader: TuneLoaderDict):
+    def __init__(self,
+                 net: MetaModule,
+                 config: AllConfig,
+                 meta_set: MetaDatasets,
+                 tune_loader: TuneLoaderDict,
+                 func_calc_print_metrics: Callable[[list[NDArray], list[NDArray], str], None]):
         self.config = config
         self.meta_set = meta_set
         self.tune_loader = tune_loader
+        self.func_calc_print_metrics = func_calc_print_metrics
 
-        if self.config['train']["use_gpu"]:
+        if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
         else:
             self.net = net
 
         self.meta_optimizer = optim.Adam([
             {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
-             'lr': 2 * self.config['train']['lr']},
+             'lr': 2 * self.config['learn']['optimizer_lr']},
             {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
-             'lr': self.config['train']['lr'], 'weight_decay': self.config['train']['weight_decay']}
-        ], betas=(self.config['train']['momentum'], 0.99))
+             'lr': self.config['learn']['optimizer_lr'],
+             'weight_decay': self.config['learn']['optimizer_weight_decay']}
+        ], betas=(self.config['learn']['optimizer_momentum'], 0.99))
 
         self.scheduler = optim.lr_scheduler.StepLR(self.meta_optimizer,
-                                                   self.config['train']['lr_scheduler_step_size'],
-                                                   gamma=self.config['train']['lr_scheduler_gamma'],
+                                                   self.config['learn']['scheduler_step_size'],
+                                                   gamma=self.config['learn']['scheduler_gamma'],
                                                    last_epoch=-1)
 
-    # Training function.
-    @abstractmethod
     def meta_train_test(self, epoch: int):
+
+        # Setting network for training mode.
+        self.net.train()
+
+        # List for batch losses.
+        loss_list = list()
+
+        # Iterating over batches.
+        for i in range(1, self.config['learn']['meta_iterations'] + 1):
+            # Randomly selecting datasets.
+            perm = np.random.permutation(len(self.meta_set['train']))
+            print('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(
+                perm[:self.config['learn']['meta_used_datasets']]))
+
+            indices = perm[:self.config['learn']['meta_used_datasets']]
+
+            loss = self.meta_train_step(list(indices))
+            loss_list.extend(loss)
+
+        # Saving meta-model.
+        if epoch % self.config['learn']['tune_freq'] == 0:
+            torch.save(self.net.state_dict(),
+                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth'))
+            torch.save(self.meta_optimizer.state_dict(),
+                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth'))
+
+        # Printing epoch loss.
+        print('--------------------------------------------------------------------')
+        print('[epoch %d], [train loss %.4f]' % (
+            epoch, np.asarray(loss_list).mean()))
+        print('--------------------------------------------------------------------')
+
+    @abstractmethod
+    def meta_train_step(self, dataset_indices: list[int]) -> list[float]:
         pass
 
     @abstractmethod
@@ -51,30 +94,21 @@ class MetaLearner(ABC):
         print('# of parameters: ' + str(n_params))
 
         # Loading optimizer state in case of resuming training.
-        if self.config['train']['snapshot'] == '':
+        if self.config['learn']['last_stored_epoch'] == -1:
             curr_epoch = 1
 
         else:
-            print('Training resuming from epoch ' + str(self.config['train']['snapshot']) + '...')
-            self.net.load_state_dict(
-                torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth')))
-            self.meta_optimizer.load_state_dict(torch.load(
-                os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth')))
-            curr_epoch = int(self.config['train']['snapshot']) + 1
-
-        # Making sure checkpoint and output directories are created.
-        self.check_mkdir(self.config['save']['ckpt_path'])
-        self.check_mkdir(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name']))
-        self.check_mkdir(self.config['save']['output_path'])
-        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name']))
+            print('Training resuming from epoch ' + str(self.config['learn']['last_stored_epoch']) + '...')
+            self.load_net_and_optimizer()
+            curr_epoch = self.config['learn']['last_stored_epoch'] + 1
 
         # Iterating over epochs.
-        for epoch in range(curr_epoch, self.config['train']['epoch_num'] + 1):
+        for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
 
             # Meta training on source datasets.
             self.meta_train_test(epoch)
 
-            if epoch % self.config['train']['test_freq'] == 0:
+            if epoch % self.config['learn']['tune_freq'] == 0 or epoch == self.config['learn']['num_epochs']:
                 self.run_sparse_tuning(epoch)
 
             self.scheduler.step()
@@ -157,9 +191,8 @@ class MetaLearner(ABC):
         if not os.path.exists(dir_name):
             os.mkdir(dir_name)
 
-    def prepare_meta_batch(self, index: int):
+    def prepare_meta_batch(self, index: int) -> tuple[Tensor, Tensor, Tensor, Tensor]:
 
-        # Acquiring training and test data.
         x_train = []
         y_train = []
 
@@ -179,7 +212,7 @@ class MetaLearner(ABC):
             x_ts = d_ts[0]
             y_ts = d_ts[1]
 
-            if self.config['train']['use_gpu']:
+            if self.config['learn']['use_gpu']:
                 x_tr = x_tr.cuda()
                 y_tr = y_tr.cuda()
                 x_ts = x_ts.cuda()
@@ -198,3 +231,65 @@ class MetaLearner(ABC):
         y_test = torch.stack(y_test, dim=0)
 
         return x_train, y_train, x_test, y_test
+
+    def save_mask(self, tune_loader: DataLoader, epoch: int, sparsity_mode: str):
+        self.create_output_dir(epoch, sparsity_mode)
+
+        # Iterating over tune batches for saving.
+        for i, data in enumerate(tune_loader):
+
+            # Obtaining images, dense labels, sparse labels and paths for batch.
+            _, y_dense, y_sparse, img_name = data
+
+            for j in range(len(img_name)):
+                stored_dense = y_dense[j].cpu().squeeze().numpy()
+                stored_dense = (stored_dense * (255 / stored_dense.max())).astype(np.uint8)
+                stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
+                stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
+                io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
+                                       sparsity_mode + '_train_epoch_' + str(epoch),
+                                       img_name[j] + '_dense.png'),
+                          stored_dense)
+                io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
+                                       sparsity_mode + '_train_epoch_' + str(epoch),
+                                       img_name[j] + '_sparse.png'),
+                          stored_sparse)
+
+    def save_prediction(self, prediction: NDArray, filename: str, epoch: int, sparsity_mode: str):
+        self.create_output_dir(epoch, sparsity_mode)
+
+        stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
+        io.imsave(
+            os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
+                         sparsity_mode + '_test_epoch_' + str(epoch),
+                         filename + '.png'),
+            stored_prediction)
+
+    def create_output_dir(self, epoch: int, sparsity_mode: str):
+        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
+                                      sparsity_mode + '_train_epoch_' + str(epoch)))
+        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
+                                      sparsity_mode + '_test_epoch_' + str(epoch)))
+
+    def save_net_and_optimizer(self):
+        # Making sure checkpoint and output directories are created.
+        self.check_mkdir(self.config['save']['ckpt_path'])
+        self.check_mkdir(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name']))
+        self.check_mkdir(self.config['save']['output_path'])
+        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name']))
+
+        torch.save(self.net.state_dict(),
+                   os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'],
+                                'net.pth'))
+        torch.save(self.meta_optimizer.state_dict(),
+                   os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'],
+                                'meta_optimizer.pth'))
+
+    def load_net_and_optimizer(self):
+        self.net.load_state_dict(
+            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth')))
+        self.meta_optimizer.load_state_dict(
+            torch.load(os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth')))
+
+    def calc_print_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str):
+        self.func_calc_print_metrics(labels, preds, message)

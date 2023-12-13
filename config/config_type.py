@@ -5,12 +5,12 @@ class DataConfig(TypedDict):
     num_classes: int
     num_channels: int
     num_workers: int        # Number of workers on data loader.
-    batch_size: int         # Mini-batch size.
+    batch_size: int
     resize_to: tuple[int, int]
 
 
-class FWSConfig(TypedDict):
-    list_shots: list[int]               # Number of shots in the task (i.e, total annotated sparse samples)
+class DataTuneConfig(TypedDict):
+    list_shots: list[int]               # Number of shots (i.e, total annotated samples)
     list_sparsity_point: list[float]      # Number of labeled pixels in point annotation
     list_sparsity_grid: list[float]       # Spacing between selected pixels in grid annotation
     list_sparsity_contour: list[float]    # Density of the contours (1, is the complete contours)
@@ -18,17 +18,18 @@ class FWSConfig(TypedDict):
     list_sparsity_region: list[float]     # Percentage of regions labeled (1, all \pure\ regions are labeled)
 
 
-class TrainConfig(TypedDict):
+class LearnConfig(TypedDict):
     use_gpu: bool
-    epoch_num: int                  # Number of epochs.
-    lr: float                       # Learning rate.
-    lr_scheduler_step_size: int
-    lr_scheduler_gamma: float
-    weight_decay: float             # L2 penalty.
-    momentum: float                 # Momentum.
-    snapshot: str                   # Starting epoch to resume training. Previously saved weights are loaded.
-    test_freq: int                  # Run tuning each test_freq epochs.
-    n_metatasks_iter: int           # Number of randomly sampled tasks in meta-learning.
+    num_epochs: int                  # Number of epochs.
+    optimizer_lr: float                       # Learning rate.
+    optimizer_weight_decay: float             # L2 penalty.
+    optimizer_momentum: float                 # Momentum.
+    scheduler_step_size: int
+    scheduler_gamma: float
+    last_stored_epoch: int                   # Starting epoch to resume training. Previously saved weights are loaded.
+    tune_freq: int                  # Run tuning each tune_freq epochs.
+    meta_used_datasets: int           # Number of randomly sampled tasks in meta-learning.
+    meta_iterations: int
 
 
 class SaveConfig(TypedDict):
@@ -38,15 +39,15 @@ class SaveConfig(TypedDict):
 
 
 class WeaselConfig(TypedDict):
-    first_order: bool               # First order approximation of MAML.
-    step_size: float                # MAML inner loop step size.
-    tuning_epochs: int              # Number of epochs on the tuning phase.
-    tuning_freq: int                # Test each tuning_freq epochs on the tuning phase.
+    use_first_order: bool               # First order approximation of MAML.
+    update_param_step_size: float                # MAML inner loop step size.
+    tune_epochs: int              # Number of epochs on the tuning phase.
+    tune_test_freq: int                # Test each tune_test_freq epochs on the tuning phase.
 
 
 class AllConfig(TypedDict):
     data: DataConfig
-    fws: FWSConfig
-    train: TrainConfig
+    data_tune: DataTuneConfig
+    learn: LearnConfig
     save: SaveConfig
     weasel: WeaselConfig

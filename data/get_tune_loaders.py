@@ -1,6 +1,6 @@
 from typing import Type, TypedDict
 
-from data.dataset import FewSparseDataset, FewSparseDatasetKeywordArgs, SparsityModes
+from data.few_sparse_dataset import FewSparseDataset, FewSparseDatasetKeywordArgs, SparsityModes
 from torch.utils.data import DataLoader
 
 

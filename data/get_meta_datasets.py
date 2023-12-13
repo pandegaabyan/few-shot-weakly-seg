@@ -1,6 +1,6 @@
 from typing import Type, TypedDict
 
-from data.dataset import FewSparseDataset, FewSparseDatasetKeywordArgs
+from data.few_sparse_dataset import FewSparseDataset, FewSparseDatasetKeywordArgs
 
 
 class MetaDatasetParam(TypedDict):
