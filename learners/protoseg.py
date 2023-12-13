@@ -101,7 +101,6 @@ class ProtoSegLearner(MetaLearner):
 
             prototypes = get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
 
-            # Lists for whole epoch loss.
             labs_all, prds_all = [], []
 
             # Iterating over tune test batches.
@@ -132,7 +131,7 @@ class ProtoSegLearner(MetaLearner):
                 # Saving predictions.
                 if epoch == self.config['learn']['num_epochs']:
                     pred = p_full.cpu().numpy().squeeze()
-                    self.save_prediction(pred, img_name[0], epoch, sparsity_mode)
+                    self.save_prediction(pred, img_name[0], sparsity_mode)
 
         self.calc_print_metrics(labs_all, prds_all, f'"{sparsity_mode}"')
 

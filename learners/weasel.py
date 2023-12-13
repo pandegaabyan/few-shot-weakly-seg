@@ -152,7 +152,7 @@ class WeaselLearner(MetaLearner):
                     # Saving predictions.
                     if epoch == self.config['learn']['num_epochs'] and c == tune_epochs:
                         self.save_prediction(prds, img_name[0],
-                                             epoch, sparsity_mode)
+                                             sparsity_mode)
 
                 # Finishing test.
 

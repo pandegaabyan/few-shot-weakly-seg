@@ -10,6 +10,7 @@ from torch import optim, Tensor
 from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
+from data.few_sparse_dataset import SparsityModesNoRandom
 from data.get_meta_datasets import MetaDatasets
 from data.get_tune_loaders import TuneLoaderDict
 from torchmeta.modules import MetaModule
@@ -67,11 +68,8 @@ class MetaLearner(ABC):
             loss_list.extend(loss)
 
         # Saving meta-model.
-        if epoch % self.config['learn']['tune_freq'] == 0:
-            torch.save(self.net.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'meta.pth'))
-            torch.save(self.meta_optimizer.state_dict(),
-                       os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'], 'opt_meta.pth'))
+        self.save_net_and_optimizer()
+        # TODO: store timestamp, epoch, loss
 
         # Printing epoch loss.
         print('--------------------------------------------------------------------')
@@ -115,76 +113,27 @@ class MetaLearner(ABC):
 
     def run_sparse_tuning(self, epoch: int):
 
-        # Tuning/testing on points.
-        for dict_point in self.tune_loader['point']:
-            n_shots = dict_point['n_shots']
-            sparsity = dict_point['sparsity']
+        sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
 
-            print('    Evaluating \'points\' (%d-shot, %d-points)...' % (n_shots, sparsity))
+        for sparsity_mode in sparsity_modes:
+            for tl in self.tune_loader[sparsity_mode]:
+                if sparsity_mode == 'dense':
+                    sparsity_unit = ''
+                elif sparsity_mode == 'point':
+                    sparsity_unit = 'points'
+                elif sparsity_mode == 'grid':
+                    sparsity_unit = 'spacing'
+                else:
+                    sparsity_unit = 'density'
 
-            self.tune_train_test(dict_point['train'],
-                                 dict_point['test'],
-                                 epoch,
-                                 'points_(%d-shot_%d-points)' % (n_shots, sparsity))
+                if sparsity_mode == 'dense':
+                    print('Evaluating "%s" (%d-shot) ...' % (sparsity_mode, tl['n_shots']))
+                else:
+                    print('Evaluating "%s" (%d-shot, %d-%s) ...' %
+                          (sparsity_mode, tl['n_shots'], tl['sparsity'], sparsity_unit))
 
-        # Tuning/testing on grid.
-        for dict_grid in self.tune_loader['grid']:
-            n_shots = dict_grid['n_shots']
-            sparsity = dict_grid['sparsity']
-
-            print('    Evaluating \'grid\' (%d-shot, %d-spacing)...' % (n_shots, sparsity))
-
-            self.tune_train_test(dict_grid['train'],
-                                 dict_grid['test'],
-                                 epoch,
-                                 'grid_(%d-shot_%d-spacing)' % (n_shots, sparsity))
-
-        # Tuning/testing on contours.
-        for dict_contour in self.tune_loader['contour']:
-            n_shots = dict_contour['n_shots']
-            sparsity = dict_contour['sparsity']
-
-            print('    Evaluating \'contours\' (%d-shot, %.2f-density)...' % (n_shots, sparsity))
-
-            self.tune_train_test(dict_contour['train'],
-                                 dict_contour['test'],
-                                 epoch,
-                                 'contours_(%d-shot_%.2f-density)' % (n_shots, sparsity))
-
-        # Tuning/testing on skels.
-        for dict_skeleton in self.tune_loader['skeleton']:
-            n_shots = dict_skeleton['n_shots']
-            sparsity = dict_skeleton['sparsity']
-
-            print('    Evaluating \'skels\' (%d-shot, %.2f-skels)...' % (n_shots, sparsity))
-
-            self.tune_train_test(dict_skeleton['train'],
-                                 dict_skeleton['test'],
-                                 epoch,
-                                 'skels_(%d-shot_%.2f-skels)' % (n_shots, sparsity))
-
-        # Tuning/testing on regions.
-        for dict_region in self.tune_loader['region']:
-            n_shots = dict_region['n_shots']
-            sparsity = dict_region['sparsity']
-
-            print('    Evaluating \'regions\' (%d-shot, %.2f-regions)...' % (n_shots, sparsity))
-
-            self.tune_train_test(dict_region['train'],
-                                 dict_region['test'],
-                                 epoch,
-                                 'regions_(%d-shot_%.2f-regions)' % (n_shots, sparsity))
-
-        # Tuning/testing on dense.
-        for dict_dense in self.tune_loader['dense']:
-            n_shots = dict_dense['n_shots']
-
-            print('    Evaluating \'dense\' (%d-shot)...' % n_shots)
-
-            self.tune_train_test(dict_dense['train'],
-                                 dict_dense['test'],
-                                 epoch,
-                                 'dense_(%d-shot)' % n_shots)
+                self.tune_train_test(tl['train'], tl['test'],
+                                     epoch, sparsity_mode)
 
     @staticmethod
     def check_mkdir(dir_name: str):
@@ -195,7 +144,6 @@ class MetaLearner(ABC):
 
         x_train = []
         y_train = []
-
         x_test = []
         y_test = []
 
@@ -220,56 +168,49 @@ class MetaLearner(ABC):
 
             x_train.append(x_tr)
             y_train.append(y_tr)
-
             x_test.append(x_ts)
             y_test.append(y_ts)
 
         x_train = torch.stack(x_train, dim=0)
         y_train = torch.stack(y_train, dim=0)
-
         x_test = torch.stack(x_test, dim=0)
         y_test = torch.stack(y_test, dim=0)
 
         return x_train, y_train, x_test, y_test
 
-    def save_mask(self, tune_loader: DataLoader, epoch: int, sparsity_mode: str):
-        self.create_output_dir(epoch, sparsity_mode)
+    def save_all_tune_mask(self, tune_loader: DataLoader, sparsity_mode: str):
+        dir_name = 'all_tune_masks'
+
+        self.create_output_dir(dir_name)
 
         # Iterating over tune batches for saving.
         for i, data in enumerate(tune_loader):
 
             # Obtaining images, dense labels, sparse labels and paths for batch.
-            _, y_dense, y_sparse, img_name = data
+            _, _, y_sparse, img_name = data
 
             for j in range(len(img_name)):
-                stored_dense = y_dense[j].cpu().squeeze().numpy()
-                stored_dense = (stored_dense * (255 / stored_dense.max())).astype(np.uint8)
                 stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
                 stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
                 io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                       sparsity_mode + '_train_epoch_' + str(epoch),
-                                       img_name[j] + '_dense.png'),
-                          stored_dense)
-                io.imsave(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                       sparsity_mode + '_train_epoch_' + str(epoch),
-                                       img_name[j] + '_sparse.png'),
+                                       dir_name,
+                                       f'{img_name[j]} - {sparsity_mode}.png'),
                           stored_sparse)
 
-    def save_prediction(self, prediction: NDArray, filename: str, epoch: int, sparsity_mode: str):
-        self.create_output_dir(epoch, sparsity_mode)
+    def save_prediction(self, prediction: NDArray, filename: str, sparsity_mode: str):
+        dir_name = 'predictions'
+
+        self.create_output_dir(dir_name)
 
         stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
         io.imsave(
             os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                         sparsity_mode + '_test_epoch_' + str(epoch),
-                         filename + '.png'),
+                         dir_name,
+                         f'{filename} - {sparsity_mode}.png'),
             stored_prediction)
 
-    def create_output_dir(self, epoch: int, sparsity_mode: str):
-        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                      sparsity_mode + '_train_epoch_' + str(epoch)))
-        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'],
-                                      sparsity_mode + '_test_epoch_' + str(epoch)))
+    def create_output_dir(self, dir_name: str):
+        self.check_mkdir(os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'], dir_name))
 
     def save_net_and_optimizer(self):
         # Making sure checkpoint and output directories are created.
