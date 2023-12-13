@@ -17,6 +17,7 @@ from torch.utils.data import Dataset
 
 
 SparsityModes = Literal["point", "grid", "contour", "skeleton", "region", "dense", "random"]
+SparsityModesNoRandom = Literal["point", "grid", "contour", "skeleton", "region", "dense"]
 SparsityValue = float | Literal["random"]
 
 
