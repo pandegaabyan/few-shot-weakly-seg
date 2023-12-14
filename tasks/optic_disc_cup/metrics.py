@@ -6,9 +6,8 @@ from numpy.typing import NDArray
 def calc_print_disc_cup_iou(labels: list[NDArray], preds: list[NDArray], message: str):
     iou_od, iou_oc = calc_disc_cup_iou(labels, preds)
 
-    final_message = 'IoU score' if message == '' else 'IoU score ' + message
     print('%s: Disc = %.2f | Cup = %.2f' % (
-        final_message, iou_od * 100, iou_oc * 100))
+        message, iou_od * 100, iou_oc * 100))
 
 
 def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[float, float]:
