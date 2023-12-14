@@ -1,4 +1,5 @@
 import torch
+from numpy.typing import NDArray
 from torch.nn import functional
 from torch.utils.data import DataLoader
 
@@ -60,8 +61,11 @@ class ProtoSegLearner(MetaLearner):
         # Returning loss.
         return loss_list
 
-    def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                        epoch: int, sparsity_mode: str):
+    def tune_train_test_process(self, tune_train_loader: DataLoader,
+                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
+
+        # Initiating lists for labels, predictions, and image names.
+        labels, preds, names = [], [], []
 
         with torch.no_grad():
 
@@ -101,8 +105,6 @@ class ProtoSegLearner(MetaLearner):
 
             prototypes = self.get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
 
-            labs_all, prds_all = [], []
-
             # Iterating over tune test batches.
             for i, data in enumerate(tune_test_loader):
                 # Obtaining images, dense labels, sparse labels and paths for batch.
@@ -125,15 +127,11 @@ class ProtoSegLearner(MetaLearner):
                 # Taking mode of predictions.
                 p_full, _ = torch.mode(p_test, dim=0)
 
-                labs_all.append(y_ts.cpu().numpy().squeeze())
-                prds_all.append(p_full.cpu().numpy().squeeze())
+                labels.append(y_ts.cpu().numpy().squeeze())
+                preds.append(p_full.cpu().numpy().squeeze())
+                names.append(img_name)
 
-                # Saving predictions.
-                if epoch == self.config['learn']['num_epochs']:
-                    pred = p_full.cpu().numpy().squeeze()
-                    self.save_prediction(pred, img_name[0], sparsity_mode)
-
-        self.calc_print_metrics(labs_all, prds_all, f'"{sparsity_mode}"')
+        return labels, preds, names
 
     @staticmethod
     def get_num_samples(targets, num_classes, dtype=None):

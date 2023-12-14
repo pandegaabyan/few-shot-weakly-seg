@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 import torch
+from numpy.typing import NDArray
 from torch.nn import functional
 from torch.utils.data import DataLoader
 
@@ -74,8 +75,11 @@ class WeaselLearner(MetaLearner):
         # Returning loss.
         return [outer_loss.detach().item()]
 
-    def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                        epoch: int, sparsity_mode: str):
+    def tune_train_test_process(self, tune_train_loader: DataLoader,
+                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
+
+        # Initiating lists for labels, predictions, and image names.
+        labels, preds, names = [], [], []
 
         # Setting network for training mode.
         self.net.train()
@@ -87,7 +91,7 @@ class WeaselLearner(MetaLearner):
         tune_epochs = self.config['weasel']['tune_epochs']
         for c in range(1, tune_epochs + 1):
 
-            print('Tuning epoch %d/%d' % (c, tune_epochs))
+            print('\tTuning epoch %d/%d' % (c, tune_epochs))
 
             # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
@@ -118,13 +122,12 @@ class WeaselLearner(MetaLearner):
 
                 # Starting test.
 
+                labels, preds, names = [], [], []
+
                 with torch.no_grad():
 
                     # Setting network for evaluation mode.
                     self.net.eval()
-
-                    # Initiating lists for labels and predictions.
-                    labs_all, prds_all = [], []
 
                     # Iterating over tune test batches.
                     for i, data in enumerate(tune_test_loader):
@@ -143,21 +146,19 @@ class WeaselLearner(MetaLearner):
                         prds = p_ts.detach().max(1)[1].squeeze(1).squeeze(0).cpu().numpy()
 
                         # Appending data to lists.
-                        labs_all.append(y_ts.detach().squeeze(0).cpu().numpy())
-                        prds_all.append(prds)
+                        labels.append(y_ts.detach().squeeze(0).cpu().numpy())
+                        preds.append(prds)
+                        names.append(img_name)
 
-                    print_message = f'"{sparsity_mode}" {c}/{tune_epochs}'
-                    self.calc_print_metrics(labs_all, prds_all, print_message)
-
-                    # Saving predictions.
-                    if epoch == self.config['learn']['num_epochs'] and c == tune_epochs:
-                        self.save_prediction(prds, img_name[0],
-                                             sparsity_mode)
+                    print_message = f'\tIoU score {c}/{tune_epochs}'
+                    self.calc_print_metrics(labels, preds, print_message)
 
                 # Finishing test.
 
         # Loading model.
         self.load_net_and_optimizer()
+
+        return labels, preds, names
 
     def update_parameters(self, loss: torch.Tensor):
         grads = torch.autograd.grad(loss, self.net.meta_parameters(),

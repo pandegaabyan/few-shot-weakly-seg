@@ -55,8 +55,9 @@ class MetaLearner(ABC):
         pass
 
     @abstractmethod
-    def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                        epoch: int, sparsity_mode: str):
+    def tune_train_test_process(self, tune_train_loader: DataLoader,
+                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
+        # TODO: separate logging and saving from main logic
         pass
 
     def learn(self):
@@ -112,6 +113,18 @@ class MetaLearner(ABC):
         # Printing epoch loss.
         print('[epoch %d], [train loss %.4f]' % (epoch, np.asarray(loss_list).mean()))
         print()
+
+    def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
+                        epoch: int, sparsity_mode: str):
+
+        labels, preds, names = self.tune_train_test_process(tune_train_loader,
+                                                            tune_test_loader)
+
+        if epoch == self.config['learn']['num_epochs']:
+            for pred, name in zip(preds, names):
+                self.save_prediction(pred, name, sparsity_mode)
+
+        self.calc_print_metrics(labels, preds, f'IoU score "{sparsity_mode}"')
 
     def run_sparse_tuning(self, epoch: int):
         sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
