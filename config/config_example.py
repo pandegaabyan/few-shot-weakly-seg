@@ -18,6 +18,7 @@ data_tune_config: DataTuneConfig = {
 }
 
 train_config: LearnConfig = {
+    'should_resume': False,
     'use_gpu': True,
     'num_epochs': 200,
     'optimizer_lr': 1e-3,
@@ -25,7 +26,6 @@ train_config: LearnConfig = {
     'optimizer_momentum': 0.9,
     'scheduler_step_size': 150,
     'scheduler_gamma': 0.2,
-    'last_stored_epoch': -1,
     'tune_freq': 200,
     'meta_used_datasets': 2,
     'meta_iterations': 5

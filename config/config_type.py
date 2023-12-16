@@ -19,6 +19,7 @@ class DataTuneConfig(TypedDict):
 
 
 class LearnConfig(TypedDict):
+    should_resume: bool
     use_gpu: bool
     num_epochs: int                  # Number of epochs.
     optimizer_lr: float                       # Learning rate.
@@ -26,7 +27,6 @@ class LearnConfig(TypedDict):
     optimizer_momentum: float                 # Momentum.
     scheduler_step_size: int
     scheduler_gamma: float
-    last_stored_epoch: int                   # Starting epoch to resume training. Previously saved weights are loaded.
     tune_freq: int                  # Run tuning each tune_freq epochs.
     meta_used_datasets: int           # Number of randomly sampled tasks in meta-learning.
     meta_iterations: int

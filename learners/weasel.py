@@ -1,3 +1,4 @@
+import time
 from collections import OrderedDict
 
 import torch
@@ -75,8 +76,8 @@ class WeaselLearner(MetaLearner):
         # Returning loss.
         return [outer_loss.detach().item()]
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader,
-                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
+    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
+                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
 
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
@@ -91,7 +92,7 @@ class WeaselLearner(MetaLearner):
         tune_epochs = self.config['weasel']['tune_epochs']
         for c in range(1, tune_epochs + 1):
 
-            print('\tTuning epoch %d/%d' % (c, tune_epochs))
+            self.print_and_log('\tTuning epoch %d/%d' % (c, tune_epochs))
 
             # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
@@ -126,6 +127,8 @@ class WeaselLearner(MetaLearner):
 
                 with torch.no_grad():
 
+                    start_time = time.time()
+
                     # Setting network for evaluation mode.
                     self.net.eval()
 
@@ -150,8 +153,13 @@ class WeaselLearner(MetaLearner):
                         preds.append(prds)
                         names.append(img_name)
 
-                    print_message = f'\tIoU score {c}/{tune_epochs}'
-                    self.calc_print_metrics(labels, preds, print_message)
+                    print_message = f'{c}/{tune_epochs}'
+                    score = self.calc_and_log_metrics(labels, preds, print_message, start='\t')
+
+                    end_time = time.time()
+
+                    self.write_score_to_csv(epoch, sparsity_mode, c,
+                                            end_time - start_time, score)
 
                 # Finishing test.
 
@@ -169,3 +177,13 @@ class WeaselLearner(MetaLearner):
             params[name] = param - self.config['weasel']['update_param_step_size'] * grad
 
         return params
+
+    def write_score_to_csv(self, epoch: int, sparsity_mode: str, tune_epoch: int, test_duration: float, score: dict):
+        row = {'epoch': epoch, 'sparsity_mode': sparsity_mode,
+               'tune_epoch': tune_epoch, 'test_duration': test_duration * 10 ** 3}
+        row.update(score)
+        self.write_to_csv(
+            'tuning_score.csv',
+            ['epoch', 'sparsity_mode', 'tune_epoch', 'test_duration'] + sorted(score.keys()),
+            row
+        )

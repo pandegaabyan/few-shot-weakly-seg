@@ -1,4 +1,9 @@
+import csv
+import json
+import logging
 import os
+import shutil
+import time
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -16,6 +21,20 @@ from data.get_tune_loaders import TuneLoaderDict
 from torchmeta.modules import MetaModule
 
 
+FILENAMES = {
+    'optimizer_state': 'meta_optimizer.pth',
+    'net_state': 'net.pth',
+    'checkpoint': 'checkpoint.json',
+    'config': 'config.json',
+    'net_text': 'net.txt',
+    'learn_log': 'learn.log',
+    'train_loss': 'train_loss.csv',
+    'tuned_score': 'tuned_score.csv',
+    'prediction_folder': 'predictions',
+    'tune_masks_folder': 'all_tune_masks'
+}
+
+
 class MetaLearner(ABC):
 
     def __init__(self,
@@ -23,14 +42,16 @@ class MetaLearner(ABC):
                  config: AllConfig,
                  meta_set: MetaDatasets,
                  tune_loader: TuneLoaderDict,
-                 func_calc_print_metrics: Callable[[list[NDArray], list[NDArray], str], None]):
+                 func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
         self.config = config
         self.meta_set = meta_set
         self.tune_loader = tune_loader
-        self.func_calc_print_metrics = func_calc_print_metrics
+        self.func_calc_metrics = func_calc_metrics
 
         self.output_path = os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'])
         self.ckpt_path = os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'])
+
+        self.checkpoint = {}
 
         if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
@@ -47,48 +68,68 @@ class MetaLearner(ABC):
 
         self.scheduler = optim.lr_scheduler.StepLR(self.meta_optimizer,
                                                    self.config['learn']['scheduler_step_size'],
-                                                   gamma=self.config['learn']['scheduler_gamma'],
-                                                   last_epoch=-1)
+                                                   gamma=self.config['learn']['scheduler_gamma'])
 
     @abstractmethod
     def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         pass
 
     @abstractmethod
-    def tune_train_test_process(self, tune_train_loader: DataLoader,
-                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
-        # TODO: separate logging and saving from main logic
+    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
+                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
         pass
 
     def learn(self):
-        n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-        print('# of parameters: ' + str(n_params))
-        print()
-
-        # TODO: store all config in json and model in string
 
         # Loading optimizer state in case of resuming training.
-        if self.config['learn']['last_stored_epoch'] == -1:
-            curr_epoch = 1
+        if self.config['learn']['should_resume']:
+            ok = self.check_output_and_ckpt_dir()
+            if not ok:
+                print('No data from previous learning')
+                return
+
+            self.read_checkpoint()
+            self.load_net_and_optimizer()
+
+            self.initialize_log()
+            self.save_config_and_net()
+
+            self.print_and_log('Resume learning ...', end='\n')
+            curr_epoch = self.checkpoint['epoch']+1
 
         else:
-            print('Training resuming from epoch ' + str(self.config['learn']['last_stored_epoch']) + '...')
-            print()
-            self.load_net_and_optimizer()
-            curr_epoch = self.config['learn']['last_stored_epoch'] + 1
+            ok = self.clear_output_and_ckpt_dir()
+            if not ok:
+                print('Learning canceled')
+                return
+
+            self.create_output_and_ckpt_dir()
+
+            self.initialize_log()
+            self.save_config_and_net()
+
+            self.print_and_log('Start learning ...', end="\n")
+            curr_epoch = 1
 
         # Iterating over epochs.
         for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
 
             # Meta training on source datasets.
             self.meta_train_test(epoch)
+            self.save_net_and_optimizer()
+            self.update_checkpoint({'epoch': epoch})
 
             if epoch % self.config['learn']['tune_freq'] == 0 or epoch == self.config['learn']['num_epochs']:
                 self.run_sparse_tuning(epoch)
+                self.save_net_and_optimizer(epoch)
 
             self.scheduler.step()
 
+        self.remove_log_handlers()
+        self.print_and_log('Finish learning ...')
+
     def meta_train_test(self, epoch: int):
+        start_time = time.time()
 
         # Setting network for training mode.
         self.net.train()
@@ -101,30 +142,46 @@ class MetaLearner(ABC):
             # Randomly selecting datasets.
             perm = np.random.permutation(len(self.meta_set['train']))
             indices = perm[:self.config['learn']['meta_used_datasets']]
-            print('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(indices))
+            self.print_and_log('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(indices))
 
             loss = self.meta_train_test_step(list(indices))
             loss_list.extend(loss)
 
-        # Saving meta-model.
-        self.save_net_and_optimizer()
-        # TODO: store timestamp, epoch, loss
+        avg_loss = np.asarray(loss_list).mean()
 
         # Printing epoch loss.
-        print('[epoch %d], [train loss %.4f]' % (epoch, np.asarray(loss_list).mean()))
-        print()
+        self.print_and_log('Ep: %d, train loss: %.4f' % (epoch, avg_loss), end='\n')
+
+        end_time = time.time()
+
+        self.write_to_csv(
+            FILENAMES['train_loss'],
+            ['epoch', 'duration', 'loss'],
+            {'epoch': epoch, 'duration': (end_time - start_time) * 10 ** 3, 'loss': avg_loss}
+        )
 
     def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
                         epoch: int, sparsity_mode: str):
+        start_time = time.time()
 
-        labels, preds, names = self.tune_train_test_process(tune_train_loader,
-                                                            tune_test_loader)
+        labels, preds, names = self.tune_train_test_process(tune_train_loader, tune_test_loader,
+                                                            epoch, sparsity_mode)
+
+        score = self.calc_and_log_metrics(labels, preds, f'"{sparsity_mode}"')
+
+        end_time = time.time()
+
+        row = {'epoch': epoch, 'sparsity_mode': sparsity_mode, 'duration': (end_time - start_time) * 10 ** 3}
+        row.update(score)
+        self.write_to_csv(
+            FILENAMES['tuned_score'],
+            ['epoch', 'sparsity_mode', 'duration'] + sorted(score.keys()),
+            row
+        )
 
         if epoch == self.config['learn']['num_epochs']:
             for pred, name in zip(preds, names):
                 self.save_prediction(pred, name, sparsity_mode)
-
-        self.calc_print_metrics(labels, preds, f'IoU score "{sparsity_mode}"')
 
     def run_sparse_tuning(self, epoch: int):
         sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
@@ -141,10 +198,10 @@ class MetaLearner(ABC):
                     sparsity_unit = 'density'
 
                 if sparsity_mode == 'dense':
-                    print('Evaluating "%s" (%d-shot) ...' % (sparsity_mode, tl['n_shots']))
+                    self.print_and_log('Evaluating "%s" (%d-shot) ...' % (sparsity_mode, tl['n_shots']))
                 else:
-                    print('Evaluating "%s" (%d-shot, %d-%s) ...' %
-                          (sparsity_mode, tl['n_shots'], tl['sparsity'], sparsity_unit))
+                    self.print_and_log('Evaluating "%s" (%d-shot, %d-%s) ...' %
+                                       (sparsity_mode, tl['n_shots'], tl['sparsity'], sparsity_unit))
 
                 self.tune_train_test(tl['train'], tl['test'],
                                      epoch, sparsity_mode)
@@ -194,15 +251,98 @@ class MetaLearner(ABC):
         if not os.path.exists(dir_name):
             os.mkdir(dir_name)
 
-    def create_output_dir(self, dir_name: str):
+    @staticmethod
+    def check_rmtree(dir_name: str) -> bool:
+        if os.path.exists(dir_name):
+            user_confirm = input(f"directory {dir_name} is not empty, clear it and continue? (Y/N)")
+            if user_confirm != 'Y':
+                return False
+            shutil.rmtree(dir_name)
+
+        return True
+
+    def check_output_and_ckpt_dir(self) -> bool:
+        return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
+
+    def create_output_and_ckpt_dir(self):
         self.check_mkdir(self.config['save']['output_path'])
         self.check_mkdir(self.output_path)
-        self.check_mkdir(os.path.join(self.output_path, dir_name))
+        self.check_mkdir(self.config['save']['ckpt_path'])
+        self.check_mkdir(self.ckpt_path)
+
+    def clear_output_and_ckpt_dir(self) -> bool:
+        output_ok = self.check_rmtree(self.output_path)
+        ckpt_ok = self.check_rmtree(self.ckpt_path)
+        return output_ok and ckpt_ok
+
+    def initialize_log(self):
+        logging.basicConfig(filename=os.path.join(self.output_path, FILENAMES['learn_log']),
+                            encoding='utf-8',
+                            level=logging.INFO,
+                            format='%(asctime)s | %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S',
+                            force=True)
+
+    @staticmethod
+    def print_and_log(message: str, start: str = '', end: str = ''):
+        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
+        print(start + message + end)
+
+    @staticmethod
+    def remove_log_handlers():
+        logger = logging.getLogger()
+        while logger.hasHandlers():
+            logger.removeHandler(logger.handlers[0])
+
+    def write_to_csv(self, filename: str, fieldnames: list[str], row: dict):
+        filename = os.path.join(self.output_path, filename)
+        if os.path.isfile(filename):
+            with open(filename, 'a', encoding='UTF8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writerow(row)
+        else:
+            with open(filename, 'w', encoding='UTF8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerow(row)
+
+    def read_checkpoint(self):
+        with open(os.path.join(self.ckpt_path, FILENAMES['checkpoint']), 'r') as ckpt_file:
+            self.checkpoint: dict = json.load(ckpt_file)
+
+    def update_checkpoint(self, data: dict):
+        with open(os.path.join(self.ckpt_path, FILENAMES['checkpoint']), 'w') as ckpt_file:
+            self.checkpoint.update(data)
+            json.dump(self.checkpoint, ckpt_file, indent=4)
+
+    def save_config_and_net(self):
+        if self.config['learn']['should_resume']:
+            i = 1
+            while True:
+                suffix = str(i) if i != 1 else ''
+                filename = f'{suffix}.'.join(FILENAMES['config'].rsplit('.', 1))
+                filename = os.path.join(self.output_path, filename)
+                if os.path.isfile(filename):
+                    i += 1
+                    continue
+                with open(filename, "w") as config_file:
+                    json.dump(self.config, config_file, indent=4)
+                break
+        else:
+            with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
+                json.dump(self.config, config_file, indent=4)
+            with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
+                n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+                net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
+
+    def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str,
+                             start: str = '', end: str = '') -> dict:
+        score, score_text, name = self.func_calc_metrics(labels, preds)
+        self.print_and_log(f'{name} - {message}: {score_text}', start, end)
+        return score
 
     def save_all_tune_mask(self, tune_loader: DataLoader, sparsity_mode: str):
-        dir_name = 'all_tune_masks'
-
-        self.create_output_dir(dir_name)
+        self.check_mkdir(os.path.join(self.output_path, FILENAMES['tune_masks_folder']))
 
         # Iterating over tune batches for saving.
         for i, data in enumerate(tune_loader):
@@ -213,33 +353,29 @@ class MetaLearner(ABC):
             for j in range(len(img_name)):
                 stored_sparse = y_sparse[j].cpu().squeeze().numpy() + 1
                 stored_sparse = (stored_sparse * (255 / stored_sparse.max())).astype(np.uint8)
-                io.imsave(os.path.join(self.output_path, dir_name, f'{img_name[j]} - {sparsity_mode}.png'),
+                io.imsave(os.path.join(self.output_path,
+                                       FILENAMES['tune_masks_folder'],
+                                       f'{img_name[j]} - {sparsity_mode}.png'),
                           stored_sparse)
 
     def save_prediction(self, prediction: NDArray, filename: str, sparsity_mode: str):
-        dir_name = 'predictions'
-
-        self.create_output_dir(dir_name)
+        self.check_mkdir(os.path.join(self.output_path, FILENAMES['prediction_folder']))
 
         stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
         io.imsave(
-            os.path.join(self.output_path, dir_name, f'{filename} - {sparsity_mode}.png'),
+            os.path.join(self.output_path, FILENAMES['prediction_folder'], f'{filename} - {sparsity_mode}.png'),
             stored_prediction)
 
-    def save_net_and_optimizer(self):
-        # Making sure checkpoint and output directories are created.
-        self.check_mkdir(self.config['save']['ckpt_path'])
-        self.check_mkdir(os.path.join(self.ckpt_path))
+    def save_net_and_optimizer(self, epoch: int = 0):
+        prefix = f'ep{epoch}_' if epoch != 0 else ''
+        torch.save(self.net.state_dict(),
+                   os.path.join(self.ckpt_path, prefix + FILENAMES['net_state']))
+        torch.save(self.meta_optimizer.state_dict(),
+                   os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state']))
 
-        torch.save(self.net.state_dict(), os.path.join(self.ckpt_path, 'net.pth'))
-        torch.save(self.meta_optimizer.state_dict(), os.path.join(self.ckpt_path, 'meta_optimizer.pth'))
-
-    def load_net_and_optimizer(self):
+    def load_net_and_optimizer(self, epoch: int = 0):
+        prefix = f'ep{epoch}_' if epoch != 0 else ''
         self.net.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, 'net.pth')))
+            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['net_state'])))
         self.meta_optimizer.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, 'meta_optimizer.pth')))
-
-    def calc_print_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str):
-        # TODO: need update, store metrics and message
-        self.func_calc_print_metrics(labels, preds, message)
+            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state'])))

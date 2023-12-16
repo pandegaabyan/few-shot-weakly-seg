@@ -61,8 +61,8 @@ class ProtoSegLearner(MetaLearner):
         # Returning loss.
         return loss_list
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader,
-                                tune_test_loader: DataLoader) -> tuple[list[NDArray], list[NDArray], list[str]]:
+    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
+                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
 
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
