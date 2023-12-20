@@ -1,3 +1,7 @@
+*.pyc
+
 .idea
+
+
 ckpt
 outputs
