@@ -12,23 +12,6 @@ from learners.learner import MetaLearner
 class WeaselLearner(MetaLearner):
 
     def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
-        # Acquiring training and test data.
-
-        x_train = []
-        y_train = []
-
-        x_test = []
-        y_test = []
-
-        for index in dataset_indices:
-            x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
-
-            x_train.append(x_tr)
-            y_train.append(y_tr)
-
-            x_test.append(x_ts)
-            y_test.append(y_ts)
-
         # Clearing model gradients.
         self.net.zero_grad()
 
@@ -37,13 +20,14 @@ class WeaselLearner(MetaLearner):
         if self.config['learn']["use_gpu"]:
             outer_loss = outer_loss.cuda()
 
-        # Iterating over datasets.
-        for j in range(len(x_train)):
-            x_tr = x_train[j]
-            y_tr = y_train[j]
-
-            x_ts = x_test[j]
-            y_ts = y_test[j]
+        for index in dataset_indices:
+            x_tr, _, y_tr, _ = next(self.meta_iterators[index]['train'])
+            x_ts, y_ts, _, _ = next(self.meta_iterators[index]['test'])
+            if self.config['learn']['use_gpu']:
+                x_tr = x_tr.cuda()
+                y_tr = y_tr.cuda()
+                x_ts = x_ts.cuda()
+                y_ts = y_ts.cuda()
 
             # Forwarding through model.
             p_tr = self.net(x_tr)
@@ -67,7 +51,7 @@ class WeaselLearner(MetaLearner):
         self.meta_optimizer.zero_grad()
 
         # Computing loss.
-        outer_loss.div_(len(x_test))
+        outer_loss.div_(len(dataset_indices))
 
         # Computing backpropagation.
         outer_loss.backward()

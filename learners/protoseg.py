@@ -12,39 +12,37 @@ class ProtoSegLearner(MetaLearner):
         loss_list = list()
 
         for index in dataset_indices:
-            # Acquiring training and test data.
-            x_tr, y_tr, x_ts, y_ts = self.prepare_meta_batch(index)
-
-            # Concatenating tensors.
-            x_train = torch.cat([x_tr], dim=0)
-            y_train = torch.cat([y_tr], dim=0)
-
-            x_test = torch.cat([x_ts], dim=0)
-            y_test = torch.cat([y_ts], dim=0)
+            x_tr, _, y_tr, _ = next(self.meta_iterators[index]['train'])
+            x_ts, y_ts, _, _ = next(self.meta_iterators[index]['test'])
+            if self.config['learn']['use_gpu']:
+                x_tr = x_tr.cuda()
+                y_tr = y_tr.cuda()
+                x_ts = x_ts.cuda()
+                y_ts = y_ts.cuda()
 
             # Clearing model gradients.
             self.net.zero_grad()
 
             # Start of prototyping
 
-            emb_train = self.net(x_train)
-            emb_test = self.net(x_test)
+            emb_tr = self.net(x_tr)
+            emb_ts = self.net(x_ts)
 
-            emb_train_linear = emb_train.permute(0, 2, 3, 1).view(
-                emb_train.size(0), emb_train.size(2) * emb_train.size(3), emb_train.size(1))
-            emb_test_linear = emb_test.permute(0, 2, 3, 1).view(
-                emb_test.size(0), emb_test.size(2) * emb_test.size(3), emb_test.size(1))
+            emb_tr_linear = emb_tr.permute(0, 2, 3, 1).view(
+                emb_tr.size(0), emb_tr.size(2) * emb_tr.size(3), emb_tr.size(1))
+            emb_ts_linear = emb_ts.permute(0, 2, 3, 1).view(
+                emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1))
 
-            y_train_linear = y_train.view(y_train.size(0), -1)
-            y_test_linear = y_test.view(y_test.size(0), -1)
+            y_tr_linear = y_tr.view(y_tr.size(0), -1)
+            y_ts_linear = y_ts.view(y_ts.size(0), -1)
 
-            prototypes = self.get_prototypes(emb_train_linear,
-                                             y_train_linear,
+            prototypes = self.get_prototypes(emb_tr_linear,
+                                             y_tr_linear,
                                              self.config['data']['num_classes'])
 
             outer_loss = self.prototypical_loss(prototypes,
-                                                emb_test_linear,
-                                                y_test_linear,
+                                                emb_ts_linear,
+                                                y_ts_linear,
                                                 ignore_index=-1)
 
             # End of prototyping

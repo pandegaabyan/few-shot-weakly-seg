@@ -26,4 +26,4 @@ def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict
 
 
 def iou_to_dice(iou: float) -> float:
-    return (2*iou)/(1+iou)
+    return (2 * iou) / (1 + iou)

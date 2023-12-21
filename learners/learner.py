@@ -5,34 +5,19 @@ import os
 import shutil
 import time
 from abc import ABC, abstractmethod
-from typing import Callable
+from typing import Callable, Iterator
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import io
-from torch import optim, Tensor
+from torch import optim
 from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
-from data.few_sparse_dataset import SparsityModesNoRandom
-from data.get_meta_datasets import MetaDatasets
-from data.get_tune_loaders import TuneLoaderDict
+from config.constants import FILENAMES
+from data.dataset_loaders import DatasetLoaderItem
 from torchmeta.modules import MetaModule
-
-
-FILENAMES = {
-    'optimizer_state': 'meta_optimizer.pth',
-    'net_state': 'net.pth',
-    'checkpoint': 'checkpoint.json',
-    'config': 'config.json',
-    'net_text': 'net.txt',
-    'learn_log': 'learn.log',
-    'train_loss': 'train_loss.csv',
-    'tuned_score': 'tuned_score.csv',
-    'prediction_folder': 'predictions',
-    'tune_masks_folder': 'all_tune_masks'
-}
 
 
 class MetaLearner(ABC):
@@ -40,11 +25,11 @@ class MetaLearner(ABC):
     def __init__(self,
                  net: MetaModule,
                  config: AllConfig,
-                 meta_set: MetaDatasets,
-                 tune_loader: TuneLoaderDict,
+                 meta_loader: list[DatasetLoaderItem],
+                 tune_loader: list[DatasetLoaderItem],
                  func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
         self.config = config
-        self.meta_set = meta_set
+        self.meta_loader = meta_loader
         self.tune_loader = tune_loader
         self.func_calc_metrics = func_calc_metrics
 
@@ -52,6 +37,8 @@ class MetaLearner(ABC):
         self.ckpt_path = os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'])
 
         self.checkpoint = {}
+
+        self.meta_iterators = [{'train': iter(ml['train']), 'test': iter(ml['test'])} for ml in self.meta_loader]
 
         if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
@@ -95,7 +82,7 @@ class MetaLearner(ABC):
             self.save_config_and_net()
 
             self.print_and_log('Resume learning ...', end='\n')
-            curr_epoch = self.checkpoint['epoch']+1
+            curr_epoch = self.checkpoint['epoch'] + 1
 
         else:
             ok = self.clear_output_and_ckpt_dir()
@@ -125,8 +112,8 @@ class MetaLearner(ABC):
 
             self.scheduler.step()
 
-        self.remove_log_handlers()
         self.print_and_log('Finish learning ...')
+        self.remove_log_handlers()
 
     def meta_train_test(self, epoch: int):
         start_time = time.time()
@@ -140,7 +127,7 @@ class MetaLearner(ABC):
         # Iterating over batches.
         for i in range(1, self.config['learn']['meta_iterations'] + 1):
             # Randomly selecting datasets.
-            perm = np.random.permutation(len(self.meta_set['train']))
+            perm = np.random.permutation(len(self.meta_loader))
             indices = perm[:self.config['learn']['meta_used_datasets']]
             self.print_and_log('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(indices))
 
@@ -184,67 +171,26 @@ class MetaLearner(ABC):
                 self.save_prediction(pred, name, sparsity_mode)
 
     def run_sparse_tuning(self, epoch: int):
-        sparsity_modes: list[SparsityModesNoRandom] = ['point', 'grid', 'contour', 'skeleton', 'region', 'dense']
+        for tl in self.tune_loader:
+            if tl['sparsity_mode'] == 'point':
+                sparsity_unit = 'points'
+            elif tl['sparsity_mode'] == 'grid':
+                sparsity_unit = 'spacing'
+            elif tl['sparsity_mode'] in ['contour', 'skeleton', 'region']:
+                sparsity_unit = 'density'
+            else:
+                sparsity_unit = 'sparsity'
 
-        for sparsity_mode in sparsity_modes:
-            for tl in self.tune_loader[sparsity_mode]:
-                if sparsity_mode == 'dense':
-                    sparsity_unit = ''
-                elif sparsity_mode == 'point':
-                    sparsity_unit = 'points'
-                elif sparsity_mode == 'grid':
-                    sparsity_unit = 'spacing'
-                else:
-                    sparsity_unit = 'density'
+            if tl['sparsity_mode'] == 'dense':
+                self.print_and_log('Evaluating "%s" (%d-shot) ...' % (tl['sparsity_mode'], tl['n_shots']))
+            else:
+                self.print_and_log('Evaluating "%s" (%d-shot, %d-%s) ...' %
+                                   (tl['sparsity_mode'], tl['n_shots'], tl['sparsity_value'], sparsity_unit))
 
-                if sparsity_mode == 'dense':
-                    self.print_and_log('Evaluating "%s" (%d-shot) ...' % (sparsity_mode, tl['n_shots']))
-                else:
-                    self.print_and_log('Evaluating "%s" (%d-shot, %d-%s) ...' %
-                                       (sparsity_mode, tl['n_shots'], tl['sparsity'], sparsity_unit))
+            self.tune_train_test(tl['train'], tl['test'],
+                                 epoch, tl['sparsity_mode'])
 
-                self.tune_train_test(tl['train'], tl['test'],
-                                     epoch, sparsity_mode)
-
-                print()
-
-    def prepare_meta_batch(self, index: int) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-
-        x_train = []
-        y_train = []
-        x_test = []
-        y_test = []
-
-        perm_train = torch.randperm(len(self.meta_set['train'][index])).tolist()
-        perm_test = torch.randperm(len(self.meta_set['test'][index])).tolist()
-
-        for b in range(self.config['data']['batch_size']):
-
-            d_tr = self.meta_set['train'][index][perm_train[b]]
-            d_ts = self.meta_set['test'][index][perm_test[b]]
-
-            x_tr = d_tr[0]
-            y_tr = d_tr[2]
-            x_ts = d_ts[0]
-            y_ts = d_ts[1]
-
-            if self.config['learn']['use_gpu']:
-                x_tr = x_tr.cuda()
-                y_tr = y_tr.cuda()
-                x_ts = x_ts.cuda()
-                y_ts = y_ts.cuda()
-
-            x_train.append(x_tr)
-            y_train.append(y_tr)
-            x_test.append(x_ts)
-            y_test.append(y_ts)
-
-        x_train = torch.stack(x_train, dim=0)
-        y_train = torch.stack(y_train, dim=0)
-        x_test = torch.stack(x_test, dim=0)
-        y_test = torch.stack(y_test, dim=0)
-
-        return x_train, y_train, x_test, y_test
+            print()
 
     @staticmethod
     def check_mkdir(dir_name: str):

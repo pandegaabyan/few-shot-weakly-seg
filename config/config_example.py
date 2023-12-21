@@ -9,12 +9,14 @@ data_config: DataConfig = {
 }
 
 data_tune_config: DataTuneConfig = {
-    'list_shots': [1, 5, 10, 20],
-    'list_sparsity_point': [1, 5, 10, 20],
-    'list_sparsity_grid': [8, 12, 16, 20],
-    'list_sparsity_contour': [0.05, 0.10, 0.25, 0.50, 1.00],
-    'list_sparsity_skeleton': [0.05, 0.10, 0.25, 0.50, 1.00],
-    'list_sparsity_region': [0.05, 0.10, 0.25, 0.50, 1.00]
+    'shot_list': [1, 5, 10, 20],
+    'sparsity_dict': {
+        'point': [1, 5, 10, 20],
+        'grid': [8, 12, 16, 20],
+        'contour': [0.05, 0.10, 0.25, 0.50, 1.00],
+        'skeleton': [0.05, 0.10, 0.25, 0.50, 1.00],
+        'region': [0.05, 0.10, 0.25, 0.50, 1.00]
+    }
 }
 
 train_config: LearnConfig = {
