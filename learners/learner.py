@@ -132,12 +132,14 @@ class MetaLearner(ABC):
         meta_loaders_len = len(self.meta_loaders)
 
         for i, ml in enumerate(self.meta_loaders):
-            train_data_len = len(ml['train'])
+            train_len = max(len(ml['train']), ml['max_iterations'] or 0)
             test_data_cycle = cycle_iterable(ml['test'])
             for j, train_data in enumerate(ml['train']):
+                if j == train_len:
+                    break
                 loss = self.meta_train_test_step(train_data, next(test_data_cycle))
                 self.print_and_log('Ep: %d/%d, data: %d/%d, it: %d/%d, loss: %.4f' %
-                                   (epoch, num_epochs, i, meta_loaders_len, j, train_data_len, loss))
+                                   (epoch, num_epochs, i, meta_loaders_len, j, train_len, loss))
                 loss_list.append(loss)
 
         avg_loss = np.mean(loss_list)
