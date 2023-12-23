@@ -22,9 +22,9 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
     def set_additional_sparse_mode(self) -> list[SparsityModes]:
         return []
 
-    def get_additional_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray = None,
+    def get_additional_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray | None = None,
                                    sparsity_value: SparsityValue = 'random', seed=0) -> NDArray:
-        pass
+        return msk
 
 
 class RimOneDataset(OpticDiscCupDataset):

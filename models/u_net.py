@@ -35,10 +35,10 @@ class MetaConvTranspose2d(nn.ConvTranspose2d, modules.MetaModule):
                 'Only `zeros` padding mode is supported for ConvTranspose2d')
 
         output_padding = self._output_padding(
-            input, output_size, self.stride, self.padding, self.kernel_size, 2, self.dilation)
+            input, output_size, self.stride, self.padding, self.kernel_size, 2, self.dilation) # type: ignore
 
         return F.conv_transpose2d(
-            input, weights, bias, self.stride, self.padding,
+            input, weights, bias, self.stride, self.padding, # type: ignore
             output_padding, self.groups, self.dilation)
 
 

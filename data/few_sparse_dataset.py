@@ -23,11 +23,11 @@ class FewSparseDataset(Dataset, ABC):
                  num_classes: int,
                  resize_to: tuple[int, int],
                  num_shots: int = -1,
-                 split_seed: int = None,
+                 split_seed: int | None = None,
                  split_test_size: float = 0.2,
                  sparsity_mode: SparsityModes = 'dense',
                  sparsity_value: SparsityValue = 'random',
-                 sparsity_params: dict = None):
+                 sparsity_params: dict | None = None):
 
         # Initializing variables.
         self.mode = mode
@@ -38,7 +38,7 @@ class FewSparseDataset(Dataset, ABC):
         self.split_test_size = split_test_size
         self.sparsity_mode = sparsity_mode
         self.sparsity_value = sparsity_value
-        self.sparsity_params = sparsity_params if sparsity_params is not None else {}
+        self.sparsity_params = sparsity_params or {}
 
         self.sparsity_mode_default: list[SparsityModes] = ["point", "grid", "contour", "skeleton", "region"]
         self.sparsity_mode_additional: list[SparsityModes] = self.set_additional_sparse_mode()
@@ -65,20 +65,20 @@ class FewSparseDataset(Dataset, ABC):
         pass
 
     @abstractmethod
-    def get_additional_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray = None,
+    def get_additional_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray | None = None,
                                    sparsity_value: SparsityValue = 'random', seed=0) -> NDArray:
         pass
 
     @staticmethod
     def sparse_point(msk: NDArray, num_classes: int, sparsity: SparsityValue = "random",
-                     dot_size: int = None, seed=0) -> NDArray:
+                     dot_size: int | None = None, seed=0) -> NDArray:
         if sparsity != 'random':
             np.random.seed(seed)
 
         default_dot_size = max(min(msk.shape) // 50, 1)
-        dot_size = dot_size if dot_size is not None else default_dot_size
+        dot_size = dot_size or default_dot_size
 
-        small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size), True)
+        small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size).tolist(), True)
 
         # Linearizing mask.
         msk_ravel = small_msk.ravel()
@@ -105,7 +105,7 @@ class FewSparseDataset(Dataset, ABC):
         msk_point = FewSparseDataset.resize_image(small_msk_point, msk.shape, True)
 
         new_msk = np.zeros_like(msk) - 1
-        disk_size = dot_size // 3 if dot_size is not None else 1
+        disk_size = dot_size // 3 or 1
 
         for c in range(num_classes):
             mask_point_c = morphology.binary_erosion(msk_point == c, footprint=morphology.disk(disk_size))
@@ -117,11 +117,11 @@ class FewSparseDataset(Dataset, ABC):
         return new_msk
 
     @staticmethod
-    def sparse_grid(msk: NDArray, sparsity: SparsityValue = "random", dot_size: int = None, seed=0) -> NDArray:
+    def sparse_grid(msk: NDArray, sparsity: SparsityValue = "random", dot_size: int | None = None, seed=0) -> NDArray:
         default_dot_size = max(min(msk.shape) // 80, sparsity // 5 if type(sparsity) is int else 0, 1)
-        dot_size = dot_size if dot_size is not None else default_dot_size
+        dot_size = dot_size or default_dot_size
 
-        small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size), True)
+        small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size).tolist(), True)
 
         # Copying mask and starting it with -1 for inserting sparsity.
         small_new_msk = np.zeros_like(small_msk)
@@ -151,7 +151,7 @@ class FewSparseDataset(Dataset, ABC):
 
     @staticmethod
     def sparse_contour(msk: NDArray, num_classes: int, sparsity: SparsityValue = 'random',
-                       radius_dist: int = None, radius_thick: int = None, seed=0) -> NDArray:
+                       radius_dist: int | None = None, radius_thick: int | None = None, seed=0) -> NDArray:
         sparsity_num = sparsity if sparsity != "random" else np.random.random()
 
         if sparsity != 'random':
@@ -160,10 +160,10 @@ class FewSparseDataset(Dataset, ABC):
         new_msk = np.zeros_like(msk)
 
         # Random disk radius for erosions and dilations from the original mask.
-        radius_dist = radius_dist if radius_dist is not None else np.random.randint(low=4, high=10)
+        radius_dist = radius_dist or np.random.randint(low=4, high=10)
 
         # Random disk radius for annotation thickness.
-        radius_thick = radius_thick if radius_thick is not None else 1
+        radius_thick = radius_thick or 1
 
         # Creating morphology elements.
         selem_dist = morphology.disk(radius_dist)
@@ -197,7 +197,7 @@ class FewSparseDataset(Dataset, ABC):
 
     @staticmethod
     def sparse_skeleton(msk: NDArray, num_classes: int, sparsity: SparsityValue = 'random',
-                        radius_thick: int = None, seed=0) -> NDArray:
+                        radius_thick: int | None = None, seed=0) -> NDArray:
         sparsity_num = sparsity if sparsity != "random" else np.random.random()
 
         bseed = None  # Blobs generator seed
@@ -209,7 +209,7 @@ class FewSparseDataset(Dataset, ABC):
         new_msk[:] = -1
 
         # Randomly selecting disk radius the annotation thickness.
-        radius_thick = radius_thick if radius_thick is not None else 1
+        radius_thick = radius_thick or 1
         selem_thick = morphology.disk(radius_thick)
 
         for c in range(num_classes):
@@ -230,7 +230,7 @@ class FewSparseDataset(Dataset, ABC):
         return n_sp
 
     @staticmethod
-    def sparse_region(msk: NDArray, img: NDArray, num_classes: int, compactness: float = 0.5,
+    def sparse_region(msk: NDArray, img: NDArray, num_classes: int, compactness: float | None = 0.5,
                       sparsity: SparsityValue = 'random', seed=0) -> NDArray:
         sparsity_num = sparsity if sparsity != "random" else np.random.random()
 
@@ -243,7 +243,7 @@ class FewSparseDataset(Dataset, ABC):
 
         # Computing SLIC super pixels.
         slic = segmentation.slic(
-            img, n_segments=250, compactness=compactness if compactness is not None else 0.5, start_label=1)
+            img, n_segments=250, compactness=compactness or 0.5, start_label=1)
         labels = np.unique(slic)
 
         # Finding 'pure' regions, that is, the ones that only contain one label within.
@@ -316,11 +316,12 @@ class FewSparseDataset(Dataset, ABC):
                                   random_state=self.split_seed, shuffle=False)
 
         # Select split, based on the mode
-        data_list = None
         if 'train' in self.mode:
             data_list = tr
         elif 'test' in self.mode:
             data_list = ts
+        else:
+            return []
 
         random.seed(self.split_seed)
         random.shuffle(data_list)
@@ -332,7 +333,7 @@ class FewSparseDataset(Dataset, ABC):
         # Returning list.
         return data_list
 
-    def get_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray = None,
+    def get_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray | None = None,
                         sparsity_value: SparsityValue = 'random', seed=0) -> NDArray:
 
         sparse_msk = np.copy(msk)
@@ -365,7 +366,7 @@ class FewSparseDataset(Dataset, ABC):
             sparse_msk = self.sparse_skeleton(
                 msk, self.num_classes, sparsity=selected_sparsity_value, seed=seed,
                 radius_thick=self.sparsity_params.get('skeleton_radius_thick'))
-        elif selected_sparsity_mode == 'region':
+        elif selected_sparsity_mode == 'region' and img is not None:
             sparse_msk = self.sparse_region(
                 msk, img, self.num_classes, sparsity=selected_sparsity_value, seed=seed,
                 compactness=self.sparsity_params.get('region_compactness'))
@@ -391,21 +392,21 @@ class FewSparseDataset(Dataset, ABC):
         img, msk, img_filename = self.get_data(index)
 
         sparse_msk = self.get_sparse_mask(self.sparsity_mode, msk, img,
-                                          self.sparsity_value, index)
+                                          self.sparsity_value, index) # type: ignore
 
         # Returning to iterator.
         return img, msk, sparse_msk, img_filename
 
     def get_data_with_sparse_all(self,
                                  index: int,
-                                 sparsity_values: dict[str, SparsityValue] = None,
+                                 sparsity_values: dict[str, SparsityValue] | None = None,
                                  ) -> tuple[NDArray, NDArray, dict[str, NDArray], str]:
         img, msk, img_filename = self.get_data(index)
 
         all_sparse_msk = {}
 
         for sparsity_mode in self.sparsity_mode_default + self.sparsity_mode_additional:
-            sparsity_value = sparsity_values.get(sparsity_mode, "random")
+            sparsity_value = sparsity_values.get(sparsity_mode, "random") if sparsity_values is not None else "random"
             all_sparse_msk[sparsity_mode] = self.get_sparse_mask(sparsity_mode, msk, img,
                                                                  sparsity_value, index)
 
@@ -423,9 +424,9 @@ class FewSparseDataset(Dataset, ABC):
 
         # Turning to tensors.
         img = torch.from_numpy(img)
-        msk = torch.from_numpy(msk).type(torch.LongTensor)
+        msk = torch.from_numpy(msk).type(torch.int64)
 
-        sparse_msk = torch.from_numpy(sparse_msk).type(torch.LongTensor)
+        sparse_msk = torch.from_numpy(sparse_msk).type(torch.int64)
 
         # Returning to iterator.
         return img, msk, sparse_msk, img_filename
