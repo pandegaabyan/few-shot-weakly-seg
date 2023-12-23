@@ -13,7 +13,7 @@ from skimage import transform
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
-from data.types import SparsityModes, SparsityValue, DatasetModes
+from data.types import SparsityModes, SparsityValue, DatasetModes, TensorDataItem
 
 
 class FewSparseDataset(Dataset, ABC):
@@ -118,7 +118,7 @@ class FewSparseDataset(Dataset, ABC):
 
     @staticmethod
     def sparse_grid(msk: NDArray, sparsity: SparsityValue = "random", dot_size: int = None, seed=0) -> NDArray:
-        default_dot_size = max(min(msk.shape) // 80, sparsity // 5 if type(sparsity) == int else 0, 1)
+        default_dot_size = max(min(msk.shape) // 80, sparsity // 5 if type(sparsity) is int else 0, 1)
         dot_size = dot_size if dot_size is not None else default_dot_size
 
         small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size), True)
@@ -411,7 +411,7 @@ class FewSparseDataset(Dataset, ABC):
 
         return img, msk, all_sparse_msk, img_filename
 
-    def __getitem__(self, index: int):
+    def __getitem__(self, index: int) -> TensorDataItem:
 
         img, msk, sparse_msk, img_filename = self.get_data_with_sparse(index)
 

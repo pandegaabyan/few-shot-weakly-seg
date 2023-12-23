@@ -1,66 +1,62 @@
 import torch
 from numpy.typing import NDArray
 from torch.nn import functional
-from torch.utils.data import DataLoader
 
+from data.dataset_loaders import DatasetLoaderItem
+from data.types import TensorDataItem
 from learners.learner import MetaLearner
 
 
 class ProtoSegLearner(MetaLearner):
 
-    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
-        loss_list = list()
+    def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
+        x_tr, _, y_tr, _ = train_data
+        x_ts, y_ts, _, _ = test_data
+        if self.config['learn']['use_gpu']:
+            x_tr = x_tr.cuda()
+            y_tr = y_tr.cuda()
+            x_ts = x_ts.cuda()
+            y_ts = y_ts.cuda()
 
-        for index in dataset_indices:
-            x_tr, _, y_tr, _ = next(self.meta_iterators[index]['train'])
-            x_ts, y_ts, _, _ = next(self.meta_iterators[index]['test'])
-            if self.config['learn']['use_gpu']:
-                x_tr = x_tr.cuda()
-                y_tr = y_tr.cuda()
-                x_ts = x_ts.cuda()
-                y_ts = y_ts.cuda()
+        # Clearing model gradients.
+        self.net.zero_grad()
 
-            # Clearing model gradients.
-            self.net.zero_grad()
+        # Start of prototyping
 
-            # Start of prototyping
+        emb_tr = self.net(x_tr)
+        emb_ts = self.net(x_ts)
 
-            emb_tr = self.net(x_tr)
-            emb_ts = self.net(x_ts)
+        emb_tr_linear = emb_tr.permute(0, 2, 3, 1).view(
+            emb_tr.size(0), emb_tr.size(2) * emb_tr.size(3), emb_tr.size(1))
+        emb_ts_linear = emb_ts.permute(0, 2, 3, 1).view(
+            emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1))
 
-            emb_tr_linear = emb_tr.permute(0, 2, 3, 1).view(
-                emb_tr.size(0), emb_tr.size(2) * emb_tr.size(3), emb_tr.size(1))
-            emb_ts_linear = emb_ts.permute(0, 2, 3, 1).view(
-                emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1))
+        y_tr_linear = y_tr.view(y_tr.size(0), -1)
+        y_ts_linear = y_ts.view(y_ts.size(0), -1)
 
-            y_tr_linear = y_tr.view(y_tr.size(0), -1)
-            y_ts_linear = y_ts.view(y_ts.size(0), -1)
+        prototypes = self.get_prototypes(emb_tr_linear,
+                                         y_tr_linear,
+                                         self.config['data']['num_classes'])
 
-            prototypes = self.get_prototypes(emb_tr_linear,
-                                             y_tr_linear,
-                                             self.config['data']['num_classes'])
+        loss = self.prototypical_loss(prototypes,
+                                      emb_ts_linear,
+                                      y_ts_linear,
+                                      ignore_index=-1)
 
-            outer_loss = self.prototypical_loss(prototypes,
-                                                emb_ts_linear,
-                                                y_ts_linear,
-                                                ignore_index=-1)
+        # End of prototyping
 
-            # End of prototyping
+        # Clears the gradients of meta_optimizer.
+        self.meta_optimizer.zero_grad()
 
-            # Clears the gradients of meta_optimizer.
-            self.meta_optimizer.zero_grad()
-
-            # Computing backpropagation.
-            outer_loss.backward()
-            self.meta_optimizer.step()
-
-            loss_list.append(outer_loss.detach().item())
+        # Computing backpropagation.
+        loss.backward()
+        self.meta_optimizer.step()
 
         # Returning loss.
-        return loss_list
+        return loss.detach().item()
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
+    def tune_train_test_process(self, epoch: int,
+                                tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
 
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
@@ -78,7 +74,7 @@ class ProtoSegLearner(MetaLearner):
             y_train_list = []
 
             # Iterating over tune train batches.
-            for i, data in enumerate(tune_train_loader):
+            for i, data in enumerate(tune_loader['train']):
 
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
@@ -104,7 +100,7 @@ class ProtoSegLearner(MetaLearner):
             prototypes = self.get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
 
             # Iterating over tune test batches.
-            for i, data in enumerate(tune_test_loader):
+            for i, data in enumerate(tune_loader['test']):
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_ts, y_ts, _, img_name = data
 

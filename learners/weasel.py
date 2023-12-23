@@ -4,64 +4,58 @@ from collections import OrderedDict
 import torch
 from numpy.typing import NDArray
 from torch.nn import functional
-from torch.utils.data import DataLoader
 
+from data.dataset_loaders import DatasetLoaderItem
+from data.types import TensorDataItem
 from learners.learner import MetaLearner
 
 
 class WeaselLearner(MetaLearner):
 
-    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
+    def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         # Clearing model gradients.
         self.net.zero_grad()
 
-        # Resetting outer loss.
-        outer_loss = torch.tensor(0.0)
+        x_tr, _, y_tr, _ = train_data
+        x_ts, y_ts, _, _ = test_data
+        if self.config['learn']['use_gpu']:
+            x_tr = x_tr.cuda()
+            y_tr = y_tr.cuda()
+            x_ts = x_ts.cuda()
+            y_ts = y_ts.cuda()
+
+        # Forwarding through model.
+        p_tr = self.net(x_tr)
+
+        # Computing inner loss.
+        inner_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
+
+        # Zeroing model gradient.
+        self.net.zero_grad()
+
+        # Computing metaparameters.
+        params = self.update_parameters(inner_loss)
+
+        # Verifying performance on test set.
+        p_ts = self.net(x_ts, params=params)
+
+        # Accumulating outer loss.
+        outer_loss = functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
         if self.config['learn']["use_gpu"]:
             outer_loss = outer_loss.cuda()
 
-        for index in dataset_indices:
-            x_tr, _, y_tr, _ = next(self.meta_iterators[index]['train'])
-            x_ts, y_ts, _, _ = next(self.meta_iterators[index]['test'])
-            if self.config['learn']['use_gpu']:
-                x_tr = x_tr.cuda()
-                y_tr = y_tr.cuda()
-                x_ts = x_ts.cuda()
-                y_ts = y_ts.cuda()
-
-            # Forwarding through model.
-            p_tr = self.net(x_tr)
-
-            # Computing inner loss.
-            inner_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
-
-            # Zeroing model gradient.
-            self.net.zero_grad()
-
-            # Computing metaparameters.
-            params = self.update_parameters(inner_loss)
-
-            # Verifying performance on test set.
-            p_ts = self.net(x_ts, params=params)
-
-            # Accumulating outer loss.
-            outer_loss += functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
-
         # Clears the gradients of meta_optimizer.
         self.meta_optimizer.zero_grad()
-
-        # Computing loss.
-        outer_loss.div_(len(dataset_indices))
 
         # Computing backpropagation.
         outer_loss.backward()
         self.meta_optimizer.step()
 
         # Returning loss.
-        return [outer_loss.detach().item()]
+        return outer_loss.detach().item()
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
+    def tune_train_test_process(self, epoch: int,
+                                tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
 
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
@@ -79,7 +73,7 @@ class WeaselLearner(MetaLearner):
             self.print_and_log('\tTuning epoch %d/%d' % (c, tune_epochs))
 
             # Iterating over tune train batches.
-            for i, data in enumerate(tune_train_loader):
+            for i, data in enumerate(tune_loader['train']):
 
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
@@ -117,7 +111,7 @@ class WeaselLearner(MetaLearner):
                     self.net.eval()
 
                     # Iterating over tune test batches.
-                    for i, data in enumerate(tune_test_loader):
+                    for i, data in enumerate(tune_loader['test']):
                         # Obtaining images, labels and paths for batch.
                         x_ts, y_ts, _, img_name = data
 
@@ -142,7 +136,7 @@ class WeaselLearner(MetaLearner):
 
                     end_time = time.time()
 
-                    self.write_score_to_csv(epoch, sparsity_mode, c,
+                    self.write_score_to_csv(epoch, tune_loader['sparsity_mode'], c,
                                             end_time - start_time, score)
 
                 # Finishing test.

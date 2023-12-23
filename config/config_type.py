@@ -31,8 +31,6 @@ class LearnConfig(TypedDict):
     scheduler_step_size: int
     scheduler_gamma: float
     tune_freq: int  # Run tuning each tune_freq epochs.
-    meta_used_datasets: int  # Number of randomly sampled tasks in meta-learning.
-    meta_iterations: int
 
 
 class SaveConfig(TypedDict):

@@ -1,5 +1,7 @@
 from typing import TypedDict, Literal, Union
 
+from torch import Tensor
+
 DatasetModes = Literal["train", "test", "meta_train", "meta_test", "tune_train", "tune_test"]
 
 SparsityModes = Union[Literal["point", "grid", "contour", "skeleton", "region"], Literal["dense", "random"], str]
@@ -7,6 +9,8 @@ SparsityModes = Union[Literal["point", "grid", "contour", "skeleton", "region"],
 SparsityValue = Union[float, Literal["random"]]
 
 SparsityDict = dict[str, list[SparsityValue]]
+
+TensorDataItem = tuple[Tensor, Tensor, Tensor, str]
 
 
 class FewSparseDatasetKeywordArgs(TypedDict, total=False):

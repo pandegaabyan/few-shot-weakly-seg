@@ -29,8 +29,6 @@ train_config: LearnConfig = {
     'scheduler_step_size': 150,
     'scheduler_gamma': 0.2,
     'tune_freq': 200,
-    'meta_used_datasets': 2,
-    'meta_iterations': 5
 }
 
 save_config: SaveConfig = {

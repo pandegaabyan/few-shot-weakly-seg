@@ -2,10 +2,9 @@ import csv
 import json
 import logging
 import os
-import shutil
 import time
 from abc import ABC, abstractmethod
-from typing import Callable, Iterator
+from typing import Callable
 
 import numpy as np
 import torch
@@ -17,6 +16,8 @@ from torch.utils.data import DataLoader
 from config.config_type import AllConfig
 from config.constants import FILENAMES
 from data.dataset_loaders import DatasetLoaderItem
+from data.types import TensorDataItem
+from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory
 from torchmeta.modules import MetaModule
 
 
@@ -25,20 +26,18 @@ class MetaLearner(ABC):
     def __init__(self,
                  net: MetaModule,
                  config: AllConfig,
-                 meta_loader: list[DatasetLoaderItem],
-                 tune_loader: list[DatasetLoaderItem],
+                 meta_loaders: list[DatasetLoaderItem],
+                 tune_loaders: list[DatasetLoaderItem],
                  func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
         self.config = config
-        self.meta_loader = meta_loader
-        self.tune_loader = tune_loader
+        self.meta_loaders = meta_loaders
+        self.tune_loaders = tune_loaders
         self.func_calc_metrics = func_calc_metrics
 
         self.output_path = os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'])
         self.ckpt_path = os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'])
 
         self.checkpoint = {}
-
-        self.meta_iterators = [{'train': iter(ml['train']), 'test': iter(ml['test'])} for ml in self.meta_loader]
 
         if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
@@ -58,12 +57,12 @@ class MetaLearner(ABC):
                                                    gamma=self.config['learn']['scheduler_gamma'])
 
     @abstractmethod
-    def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
+    def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         pass
 
     @abstractmethod
-    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
+    def tune_train_test_process(self, epoch: int,
+                                tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
         pass
 
     def learn(self):
@@ -98,6 +97,11 @@ class MetaLearner(ABC):
             self.print_and_log('Start learning ...', end="\n")
             curr_epoch = 1
 
+        if self.config['learn']["use_gpu"]:
+            gpu_percentage, gpu_total = get_gpu_memory()
+            self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
+                               (gpu_total, gpu_percentage))
+
         # Iterating over epochs.
         for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
 
@@ -107,8 +111,8 @@ class MetaLearner(ABC):
             self.update_checkpoint({'epoch': epoch})
 
             if epoch % self.config['learn']['tune_freq'] == 0 or epoch == self.config['learn']['num_epochs']:
-                self.run_sparse_tuning(epoch)
                 self.save_net_and_optimizer(epoch)
+                self.run_sparse_tuning(epoch)
 
             self.scheduler.step()
 
@@ -124,20 +128,22 @@ class MetaLearner(ABC):
         # List for batch losses.
         loss_list = list()
 
-        # Iterating over batches.
-        for i in range(1, self.config['learn']['meta_iterations'] + 1):
-            # Randomly selecting datasets.
-            perm = np.random.permutation(len(self.meta_loader))
-            indices = perm[:self.config['learn']['meta_used_datasets']]
-            self.print_and_log('Ep: ' + str(epoch) + ', it: ' + str(i) + ', datasets subset: ' + str(indices))
+        num_epochs = self.config['learn']['num_epochs']
+        meta_loaders_len = len(self.meta_loaders)
 
-            loss = self.meta_train_test_step(list(indices))
-            loss_list.extend(loss)
+        for i, ml in enumerate(self.meta_loaders):
+            train_data_len = len(ml['train'])
+            test_data_cycle = cycle_iterable(ml['test'])
+            for j, train_data in enumerate(ml['train']):
+                loss = self.meta_train_test_step(train_data, next(test_data_cycle))
+                self.print_and_log('Ep: %d/%d, data: %d/%d, it: %d/%d, loss: %.4f' %
+                                   (epoch, num_epochs, i, meta_loaders_len, j, train_data_len, loss))
+                loss_list.append(loss)
 
-        avg_loss = np.asarray(loss_list).mean()
+        avg_loss = np.mean(loss_list)
 
         # Printing epoch loss.
-        self.print_and_log('Ep: %d, train loss: %.4f' % (epoch, avg_loss), end='\n')
+        self.print_and_log('Ep: %d/%d, avg loss: %.4f' % (epoch, num_epochs, avg_loss), end='\n')
 
         end_time = time.time()
 
@@ -147,12 +153,12 @@ class MetaLearner(ABC):
             {'epoch': epoch, 'duration': (end_time - start_time) * 10 ** 3, 'loss': avg_loss}
         )
 
-    def tune_train_test(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                        epoch: int, sparsity_mode: str):
+    def tune_train_test(self, epoch: int, tune_loader: DatasetLoaderItem):
         start_time = time.time()
 
-        labels, preds, names = self.tune_train_test_process(tune_train_loader, tune_test_loader,
-                                                            epoch, sparsity_mode)
+        labels, preds, names = self.tune_train_test_process(epoch, tune_loader)
+
+        sparsity_mode = tune_loader['sparsity_mode']
 
         score = self.calc_and_log_metrics(labels, preds, f'"{sparsity_mode}"')
 
@@ -171,7 +177,7 @@ class MetaLearner(ABC):
                 self.save_prediction(pred, name, sparsity_mode)
 
     def run_sparse_tuning(self, epoch: int):
-        for tl in self.tune_loader:
+        for tl in self.tune_loaders:
             if tl['sparsity_mode'] == 'point':
                 sparsity_unit = 'points'
             elif tl['sparsity_mode'] == 'grid':
@@ -187,38 +193,22 @@ class MetaLearner(ABC):
                 self.print_and_log('Evaluating "%s" (%d-shot, %d-%s) ...' %
                                    (tl['sparsity_mode'], tl['n_shots'], tl['sparsity_value'], sparsity_unit))
 
-            self.tune_train_test(tl['train'], tl['test'],
-                                 epoch, tl['sparsity_mode'])
+            self.tune_train_test(epoch, tl)
 
             print()
-
-    @staticmethod
-    def check_mkdir(dir_name: str):
-        if not os.path.exists(dir_name):
-            os.mkdir(dir_name)
-
-    @staticmethod
-    def check_rmtree(dir_name: str) -> bool:
-        if os.path.exists(dir_name):
-            user_confirm = input(f"directory {dir_name} is not empty, clear it and continue? (Y/N)")
-            if user_confirm != 'Y':
-                return False
-            shutil.rmtree(dir_name)
-
-        return True
 
     def check_output_and_ckpt_dir(self) -> bool:
         return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
 
     def create_output_and_ckpt_dir(self):
-        self.check_mkdir(self.config['save']['output_path'])
-        self.check_mkdir(self.output_path)
-        self.check_mkdir(self.config['save']['ckpt_path'])
-        self.check_mkdir(self.ckpt_path)
+        check_mkdir(self.config['save']['output_path'])
+        check_mkdir(self.output_path)
+        check_mkdir(self.config['save']['ckpt_path'])
+        check_mkdir(self.ckpt_path)
 
     def clear_output_and_ckpt_dir(self) -> bool:
-        output_ok = self.check_rmtree(self.output_path)
-        ckpt_ok = self.check_rmtree(self.ckpt_path)
+        output_ok = check_rmtree(self.output_path)
+        ckpt_ok = check_rmtree(self.ckpt_path)
         return output_ok and ckpt_ok
 
     def initialize_log(self):
@@ -288,7 +278,7 @@ class MetaLearner(ABC):
         return score
 
     def save_all_tune_mask(self, tune_loader: DataLoader, sparsity_mode: str):
-        self.check_mkdir(os.path.join(self.output_path, FILENAMES['tune_masks_folder']))
+        check_mkdir(os.path.join(self.output_path, FILENAMES['tune_masks_folder']))
 
         # Iterating over tune batches for saving.
         for i, data in enumerate(tune_loader):
@@ -305,7 +295,7 @@ class MetaLearner(ABC):
                           stored_sparse)
 
     def save_prediction(self, prediction: NDArray, filename: str, sparsity_mode: str):
-        self.check_mkdir(os.path.join(self.output_path, FILENAMES['prediction_folder']))
+        check_mkdir(os.path.join(self.output_path, FILENAMES['prediction_folder']))
 
         stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
         io.imsave(
