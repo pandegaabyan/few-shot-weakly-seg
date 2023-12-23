@@ -1,4 +1,6 @@
 FILENAMES = {
+    'checkpoint_folder': './ckpt/',
+    'output_folder': './outputs/',
     'optimizer_state': 'meta_optimizer.pth',
     'net_state': 'net.pth',
     'checkpoint': 'checkpoint.json',

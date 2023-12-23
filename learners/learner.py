@@ -34,8 +34,8 @@ class MetaLearner(ABC):
         self.tune_loaders = tune_loaders
         self.func_calc_metrics = func_calc_metrics
 
-        self.output_path = os.path.join(self.config['save']['output_path'], self.config['save']['exp_name'])
-        self.ckpt_path = os.path.join(self.config['save']['ckpt_path'], self.config['save']['exp_name'])
+        self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
+        self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
 
         self.checkpoint = {}
 
@@ -203,9 +203,9 @@ class MetaLearner(ABC):
         return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
 
     def create_output_and_ckpt_dir(self):
-        check_mkdir(self.config['save']['output_path'])
+        check_mkdir(FILENAMES['output_folder'])
         check_mkdir(self.output_path)
-        check_mkdir(self.config['save']['ckpt_path'])
+        check_mkdir(FILENAMES['checkpoint_folder'])
         check_mkdir(self.ckpt_path)
 
     def clear_output_and_ckpt_dir(self) -> bool:

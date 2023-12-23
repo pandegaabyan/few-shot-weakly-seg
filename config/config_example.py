@@ -1,4 +1,4 @@
-from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, SaveConfig, WeaselConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig
 
 data_config: DataConfig = {
     'num_classes': 2,
@@ -29,11 +29,6 @@ train_config: LearnConfig = {
     'scheduler_step_size': 150,
     'scheduler_gamma': 0.2,
     'tune_freq': 200,
-}
-
-save_config: SaveConfig = {
-    'ckpt_path': './ckpt/',
-    'output_path': './outputs/',
     'exp_name': ''
 }
 
@@ -48,6 +43,5 @@ all_config: AllConfig = {
     'data': data_config,
     'data_tune': data_tune_config,
     'learn': train_config,
-    'save': save_config,
     'weasel': weasel_config
 }

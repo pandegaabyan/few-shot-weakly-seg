@@ -31,11 +31,6 @@ class LearnConfig(TypedDict):
     scheduler_step_size: int
     scheduler_gamma: float
     tune_freq: int  # Run tuning each tune_freq epochs.
-
-
-class SaveConfig(TypedDict):
-    ckpt_path: str  # Root folder for checkpoints (model weights)
-    output_path: str  # Root folder for general outputs (img predictions, generated train sparse masks, etc)
     exp_name: str
 
 
@@ -50,5 +45,4 @@ class AllConfig(TypedDict):
     data: DataConfig
     data_tune: DataTuneConfig
     learn: LearnConfig
-    save: SaveConfig
     weasel: WeaselConfig
