@@ -149,10 +149,10 @@ class MetaLearner(ABC):
 
         gpu_percent, _ = get_gpu_memory()
 
-        avg_loss = np.mean(loss_list)
+        total_loss = np.sum(loss_list)
 
         # Printing epoch loss.
-        self.print_and_log('Ep: %d/%d, avg loss: %.4f' % (epoch, num_epochs, avg_loss), end='\n')
+        self.print_and_log('Ep: %d/%d, total loss: %.4f' % (epoch, num_epochs, total_loss), end='\n')
 
         end_time = time.time()
 
@@ -160,7 +160,7 @@ class MetaLearner(ABC):
             FILENAMES['train_loss'],
             ['epoch', 'duration', 'post_gpu_percent', 'loss'],
             {'epoch': epoch, 'duration': (end_time - start_time) * 10 ** 3,
-             'post_gpu_percent': gpu_percent - self.initial_gpu_percent, 'loss': avg_loss}
+             'post_gpu_percent': gpu_percent - self.initial_gpu_percent, 'loss': total_loss}
         )
 
     def tune_train_test(self, epoch: int, tune_loader: DatasetLoaderItem):
