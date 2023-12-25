@@ -25,6 +25,7 @@ class DatasetLoaderParam(TypedDict):
     mode: DatasetModesSimple
     num_classes: int
     resize_to: tuple[int, int]
+    pin_memory: NotRequired[bool]
     num_workers: NotRequired[int]
     train_batch_size: NotRequired[int]
     test_batch_size: NotRequired[int]
@@ -39,6 +40,7 @@ class DatasetLoaderParamComplement(TypedDict):
     mode: DatasetModesSimple
     num_classes: int
     resize_to: tuple[int, int]
+    pin_memory: NotRequired[bool]
     num_workers: NotRequired[int]
     train_batch_size: NotRequired[int]
     test_batch_size: NotRequired[int]
@@ -62,7 +64,8 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
             train_dataset,
             batch_size=param.get('train_batch_size', 1),
             num_workers=param.get('num_workers', 0),
-            shuffle=True
+            shuffle=True,
+            pin_memory=param.get('pin_memory', False)
         )
 
         test_mode: DatasetModes = param['mode'] + '_test' if param['mode'] != '' else 'test'  # type: ignore
@@ -79,7 +82,8 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
             test_dataset,
             batch_size=param.get('test_batch_size', 1),
             num_workers=param.get('num_workers', 0),
-            shuffle=False
+            shuffle=False,
+            pin_memory=param.get('pin_memory', False)
         )
 
         dataset_loaders.append({
@@ -93,12 +97,14 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
     return dataset_loaders
 
 
-def get_meta_loaders(param_list: list[DatasetLoaderParamSimple], data_config: DataConfig) -> list[DatasetLoaderItem]:
+def get_meta_loaders(param_list: list[DatasetLoaderParamSimple], data_config: DataConfig,
+                     pin_memory: bool = False) -> list[DatasetLoaderItem]:
     new_param_list: list[DatasetLoaderParam] = []
     complement_param: DatasetLoaderParamComplement = {
         'mode': 'meta',
         'num_classes': data_config['num_classes'],
         'resize_to': data_config['resize_to'],
+        'pin_memory': pin_memory,
         'num_workers': data_config['num_workers'],
         'train_batch_size': data_config['batch_size'],
         'test_batch_size': data_config['batch_size'],
@@ -110,8 +116,8 @@ def get_meta_loaders(param_list: list[DatasetLoaderParamSimple], data_config: Da
     return get_dataset_loaders(new_param_list)
 
 
-def get_tune_loaders(param: DatasetLoaderParamSimple,
-                     data_config: DataConfig, data_tune_config: DataTuneConfig) -> list[DatasetLoaderItem]:
+def get_tune_loaders(param: DatasetLoaderParamSimple, data_config: DataConfig,
+                     data_tune_config: DataTuneConfig, pin_memory: bool = False) -> list[DatasetLoaderItem]:
     new_param_list: list[DatasetLoaderParam] = []
     for shot in data_tune_config['shot_list']:
         for sparsity_mode, sparsity_values in data_tune_config['sparsity_dict'].items():
@@ -124,6 +130,7 @@ def get_tune_loaders(param: DatasetLoaderParamSimple,
                     'mode': 'tune',
                     'num_classes': data_config['num_classes'],
                     'resize_to': data_config['resize_to'],
+                    'pin_memory': pin_memory,
                     'num_workers': data_config['num_workers'],
                     'train_batch_size': data_config['batch_size'],
                     'test_batch_size': 1,

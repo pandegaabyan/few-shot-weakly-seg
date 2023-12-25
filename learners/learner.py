@@ -35,8 +35,10 @@ class MetaLearner(ABC):
         self.tune_param = tune_param
         self.func_calc_metrics = func_calc_metrics
 
-        self.meta_loaders = get_meta_loaders(self.meta_params, config['data'])
-        self.tune_loaders = get_tune_loaders(self.tune_param, config['data'], config['data_tune'])
+        self.meta_loaders = get_meta_loaders(self.meta_params, config['data'],
+                                             pin_memory=config['learn']['use_gpu'])
+        self.tune_loaders = get_tune_loaders(self.tune_param, config['data'],
+                                             config['data_tune'], pin_memory=config['learn']['use_gpu'])
 
         self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
         self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
