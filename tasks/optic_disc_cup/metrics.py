@@ -4,10 +4,10 @@ from sklearn import metrics
 
 
 def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict, str, str]:
-    labels_od = [(label != 0).astype(label.dtype) for label in labels]
-    labels_oc = [(label == 2).astype(label.dtype) for label in labels]
-    preds_od = [(pred != 0).astype(pred.dtype) for pred in preds]
-    preds_oc = [(pred == 2).astype(pred.dtype) for pred in preds]
+    labels_od = [np.not_equal(label, 0).astype(label.dtype) for label in labels]
+    labels_oc = [np.equal(label, 2).astype(label.dtype) for label in labels]
+    preds_od = [np.not_equal(pred, 0).astype(pred.dtype) for pred in preds]
+    preds_oc = [np.equal(pred, 2).astype(pred.dtype) for pred in preds]
 
     # Converting to numpy for computing metrics.
     labels_od_np = np.asarray(labels_od).ravel()
