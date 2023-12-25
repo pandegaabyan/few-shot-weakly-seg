@@ -137,7 +137,7 @@ class MetaLearner(ABC):
         meta_loaders_len = len(self.meta_loaders)
 
         for i, ml in enumerate(self.meta_loaders):
-            train_len = min(len(ml['train']), ml['max_iterations'] or len(ml['train']))
+            train_len = len(ml['train'])
             test_data_cycle = cycle_iterable(ml['test'])
             for j, train_data in enumerate(ml['train']):
                 if j == train_len:

@@ -13,7 +13,6 @@ DatasetModesSimple = Literal["", "meta", "tune"]
 
 class DatasetLoaderItem(TypedDict):
     n_shots: int
-    max_iterations: int | None
     sparsity_mode: SparsityModes
     sparsity_value: SparsityValue
     train: DataLoader
@@ -29,13 +28,11 @@ class DatasetLoaderParam(TypedDict):
     num_workers: NotRequired[int]
     train_batch_size: NotRequired[int]
     test_batch_size: NotRequired[int]
-    max_iterations: NotRequired[int]
 
 
 class DatasetLoaderParamSimple(TypedDict):
     dataset_class: Type[FewSparseDataset]
     dataset_kwargs: FewSparseDatasetKeywordArgs
-    max_iterations: NotRequired[int]
 
 
 class DatasetLoaderParamComplement(TypedDict):
@@ -87,7 +84,6 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
 
         dataset_loaders.append({
             'n_shots': param['dataset_kwargs'].get('num_shots', -1),
-            'max_iterations': param.get('max_iterations', None),
             'sparsity_mode': param['dataset_kwargs'].get('sparsity_mode', 'random'),
             'sparsity_value': param['dataset_kwargs'].get('sparsity_value', 'random'),
             'train': train_loader,
