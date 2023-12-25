@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
-from data.dataset_loaders import DatasetLoaderItem
+from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamSimple, get_meta_loaders, get_tune_loaders
 from data.types import TensorDataItem
 from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory
 from torchmeta.modules import MetaModule
@@ -26,23 +26,26 @@ class MetaLearner(ABC):
     def __init__(self,
                  net: MetaModule,
                  config: AllConfig,
-                 meta_loaders: list[DatasetLoaderItem],
-                 tune_loaders: list[DatasetLoaderItem],
+                 meta_params: list[DatasetLoaderParamSimple],
+                 tune_param: DatasetLoaderParamSimple,
                  func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
         self.config = config
-        self.meta_loaders = meta_loaders
-        self.tune_loaders = tune_loaders
+        self.meta_params = meta_params
+        self.tune_param = tune_param
         self.func_calc_metrics = func_calc_metrics
-
-        self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
-        self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
-
-        self.checkpoint = {}
-
+        
         if self.config['learn']["use_gpu"]:
             self.net = net.cuda()
         else:
             self.net = net
+            
+        self.meta_loaders = get_meta_loaders(self.meta_params, config['data'])
+        self.tune_loaders = get_tune_loaders(self.tune_param, config['data'], config['data_tune'])
+
+        self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
+        self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
+        
+        self.checkpoint = {}
 
         self.meta_optimizer = optim.Adam([
             {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
