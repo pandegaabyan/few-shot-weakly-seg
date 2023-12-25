@@ -137,7 +137,7 @@ class FewSparseDataset(Dataset, ABC):
 
         else:
             # Predetermined sparsity (x and y point spacing).
-            spacing = (int(sparsity), int(sparsity))
+            spacing = (int(sparsity / dot_size), int(sparsity / dot_size))
 
             np.random.seed(seed)
 
