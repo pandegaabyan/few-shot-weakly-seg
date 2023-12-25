@@ -4,6 +4,8 @@ import shutil
 import subprocess
 from typing import Iterable
 
+from data.dataset_loaders import DatasetLoaderParamSimple
+
 
 def check_mkdir(dir_name: str):
     if not os.path.exists(dir_name):
@@ -34,3 +36,9 @@ def get_gpu_memory() -> tuple[float, int]:
     total_memory = int(total_memory[:-3])
     percent_memory = used_memory * 100 / total_memory
     return percent_memory, total_memory
+
+
+def serialize_loader_param(param: DatasetLoaderParamSimple) -> dict:
+    new_param: dict = param.copy()
+    new_param['dataset_class'] = str(param['dataset_class']).replace('\'', '')
+    return new_param

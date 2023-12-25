@@ -5,6 +5,7 @@ FILENAMES = {
     'net_state': 'net.pth',
     'checkpoint': 'checkpoint.json',
     'config': 'config.json',
+    'dataset_config': 'dataset.json',
     'net_text': 'net.txt',
     'learn_log': 'learn.log',
     'train_loss': 'train_loss.csv',

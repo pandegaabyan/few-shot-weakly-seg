@@ -17,7 +17,7 @@ from config.config_type import AllConfig
 from config.constants import FILENAMES
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamSimple, get_meta_loaders, get_tune_loaders
 from data.types import TensorDataItem
-from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory
+from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory, serialize_loader_param
 from torchmeta.modules import MetaModule
 
 
@@ -29,23 +29,20 @@ class MetaLearner(ABC):
                  meta_params: list[DatasetLoaderParamSimple],
                  tune_param: DatasetLoaderParamSimple,
                  func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
+        self.net = net
         self.config = config
         self.meta_params = meta_params
         self.tune_param = tune_param
         self.func_calc_metrics = func_calc_metrics
-        
-        if self.config['learn']["use_gpu"]:
-            self.net = net.cuda()
-        else:
-            self.net = net
-            
+
         self.meta_loaders = get_meta_loaders(self.meta_params, config['data'])
         self.tune_loaders = get_tune_loaders(self.tune_param, config['data'], config['data_tune'])
 
         self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
         self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
-        
+
         self.checkpoint = {}
+        self.initial_gpu_percent = 0
 
         self.meta_optimizer = optim.Adam([
             {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
@@ -70,6 +67,12 @@ class MetaLearner(ABC):
 
     def learn(self):
 
+        gpu_percent, gpu_total = 0, 0
+        if self.config['learn']["use_gpu"]:
+            gpu_percent, gpu_total = get_gpu_memory()
+            self.initial_gpu_percent = gpu_percent
+            self.net = self.net.cuda()
+
         # Loading optimizer state in case of resuming training.
         if self.config['learn']['should_resume']:
             ok = self.check_output_and_ckpt_dir()
@@ -81,7 +84,7 @@ class MetaLearner(ABC):
             self.load_net_and_optimizer()
 
             self.initialize_log()
-            self.save_config_and_net()
+            self.save_configuration()
 
             self.print_and_log('Resume learning ...', end='\n')
             curr_epoch = self.checkpoint['epoch'] + 1
@@ -95,15 +98,14 @@ class MetaLearner(ABC):
             self.create_output_and_ckpt_dir()
 
             self.initialize_log()
-            self.save_config_and_net()
+            self.save_configuration()
 
             self.print_and_log('Start learning ...', end="\n")
             curr_epoch = 1
 
         if self.config['learn']["use_gpu"]:
-            gpu_percentage, gpu_total = get_gpu_memory()
             self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
-                               (gpu_total, gpu_percentage))
+                               (gpu_total, gpu_percent))
 
         # Iterating over epochs.
         for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
@@ -135,15 +137,17 @@ class MetaLearner(ABC):
         meta_loaders_len = len(self.meta_loaders)
 
         for i, ml in enumerate(self.meta_loaders):
-            train_len = max(len(ml['train']), ml['max_iterations'] or 0)
+            train_len = min(len(ml['train']), ml['max_iterations'] or len(ml['train']))
             test_data_cycle = cycle_iterable(ml['test'])
             for j, train_data in enumerate(ml['train']):
                 if j == train_len:
                     break
                 loss = self.meta_train_test_step(train_data, next(test_data_cycle))
                 self.print_and_log('Ep: %d/%d, data: %d/%d, it: %d/%d, loss: %.4f' %
-                                   (epoch, num_epochs, i, meta_loaders_len, j, train_len, loss))
+                                   (epoch, num_epochs, i + 1, meta_loaders_len, j + 1, train_len, loss))
                 loss_list.append(loss)
+
+        gpu_percent, _ = get_gpu_memory()
 
         avg_loss = np.mean(loss_list)
 
@@ -154,8 +158,9 @@ class MetaLearner(ABC):
 
         self.write_to_csv(
             FILENAMES['train_loss'],
-            ['epoch', 'duration', 'loss'],
-            {'epoch': epoch, 'duration': (end_time - start_time) * 10 ** 3, 'loss': avg_loss}
+            ['epoch', 'duration', 'post_gpu_percent', 'loss'],
+            {'epoch': epoch, 'duration': (end_time - start_time) * 10 ** 3,
+             'post_gpu_percent': gpu_percent - self.initial_gpu_percent, 'loss': avg_loss}
         )
 
     def tune_train_test(self, epoch: int, tune_loader: DatasetLoaderItem):
@@ -163,17 +168,23 @@ class MetaLearner(ABC):
 
         labels, preds, names = self.tune_train_test_process(epoch, tune_loader)
 
+        gpu_percent, _ = get_gpu_memory()
+
         sparsity_mode = tune_loader['sparsity_mode']
 
         score = self.calc_and_log_metrics(labels, preds, f'"{sparsity_mode}"')
 
         end_time = time.time()
 
-        row = {'epoch': epoch, 'sparsity_mode': sparsity_mode, 'duration': (end_time - start_time) * 10 ** 3}
+        row = {'epoch': epoch,
+               'sparsity_mode': sparsity_mode,
+               'duration': (end_time - start_time) * 10 ** 3,
+               'post_gpu_percent': gpu_percent - self.initial_gpu_percent
+               }
         row.update(score)
         self.write_to_csv(
             FILENAMES['tuned_score'],
-            ['epoch', 'sparsity_mode', 'duration'] + sorted(score.keys()),
+            ['epoch', 'sparsity_mode', 'duration', 'post_gpu_percent'] + sorted(score.keys()),
             row
         )
 
@@ -226,8 +237,8 @@ class MetaLearner(ABC):
 
     @staticmethod
     def print_and_log(message: str, start: str = '', end: str = ''):
-        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
         print(start + message + end)
+        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
 
     @staticmethod
     def remove_log_handlers():
@@ -256,22 +267,32 @@ class MetaLearner(ABC):
             self.checkpoint.update(data)
             json.dump(self.checkpoint, ckpt_file, indent=4)
 
-    def save_config_and_net(self):
+    def save_configuration(self):
+        dataset_params = {
+            'meta': [serialize_loader_param(mp) for mp in self.meta_params],
+            'tune': serialize_loader_param(self.tune_param)
+        }
         if self.config['learn']['should_resume']:
             i = 1
             while True:
                 suffix = str(i) if i != 1 else ''
-                filename = f'{suffix}.'.join(FILENAMES['config'].rsplit('.', 1))
-                filename = os.path.join(self.output_path, filename)
-                if os.path.isfile(filename):
+                config_filename = f'{suffix}.'.join(FILENAMES['config'].rsplit('.', 1))
+                config_filename = os.path.join(self.output_path, config_filename)
+                dataset_filename = f'{suffix}.'.join(FILENAMES['dataset_config'].rsplit('.', 1))
+                dataset_filename = os.path.join(self.output_path, dataset_filename)
+                if os.path.isfile(config_filename) or os.path.isfile(dataset_filename):
                     i += 1
                     continue
-                with open(filename, "w") as config_file:
+                with open(config_filename, "w") as config_file:
                     json.dump(self.config, config_file, indent=4)
+                with open(dataset_filename, "w") as dataset_file:
+                    json.dump(dataset_params, dataset_file, indent=4)
                 break
         else:
             with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
                 json.dump(self.config, config_file, indent=4)
+            with open(os.path.join(self.output_path, FILENAMES['dataset_config']), "w") as dataset_file:
+                json.dump(dataset_params, dataset_file, indent=4)
             with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
                 n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
                 net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
