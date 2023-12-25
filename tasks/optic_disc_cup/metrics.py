@@ -1,6 +1,6 @@
 import numpy as np
-from sklearn import metrics
 from numpy.typing import NDArray
+from sklearn import metrics
 
 
 def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict, str, str]:
@@ -19,7 +19,7 @@ def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict
     iou_od = metrics.jaccard_score(labels_od_np, preds_od_np)
     iou_oc = metrics.jaccard_score(labels_oc_np, preds_oc_np)
 
-    score_text = 'Disc = %.2f | Cup = %.2f' % (iou_od * 100, iou_oc * 100) # type: ignore
+    score_text = 'Disc = %.2f | Cup = %.2f' % (iou_od * 100, iou_oc * 100)  # type: ignore
     name = 'IoU score'
 
     return {'iou_od': iou_od, 'iou_oc': iou_oc}, score_text, name

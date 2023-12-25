@@ -1,8 +1,8 @@
 import copy
 from typing import Type, Literal
-from typing_extensions import NotRequired, TypedDict
 
 from torch.utils.data import DataLoader
+from typing_extensions import NotRequired, TypedDict
 
 from data.few_sparse_dataset import FewSparseDataset
 from data.types import SparsityDict, DatasetModes, SparsityModes, SparsityValue, FewSparseDatasetKeywordArgs
@@ -36,7 +36,7 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
         dataset_class = param['dataset_class']
         kwargs = copy.deepcopy(param['dataset_kwargs'])
 
-        train_mode: DatasetModes = param['mode'] + '_train' if param['mode'] != '' else 'train' # type: ignore
+        train_mode: DatasetModes = param['mode'] + '_train' if param['mode'] != '' else 'train'  # type: ignore
         train_dataset = dataset_class(
             train_mode,
             param['num_classes'],
@@ -50,7 +50,7 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
             shuffle=True
         )
 
-        test_mode: DatasetModes = param['mode'] + '_test' if param['mode'] != '' else 'test' # type: ignore
+        test_mode: DatasetModes = param['mode'] + '_test' if param['mode'] != '' else 'test'  # type: ignore
         kwargs.pop('sparsity_mode')
         kwargs.pop('sparsity_value')
         test_dataset = dataset_class(
@@ -58,7 +58,7 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
             param['num_classes'],
             param['resize_to'],
             sparsity_mode="dense",
-            **kwargs # type: ignore
+            **kwargs  # type: ignore
         )
         test_loader = DataLoader(
             test_dataset,

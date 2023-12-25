@@ -392,7 +392,7 @@ class FewSparseDataset(Dataset, ABC):
         img, msk, img_filename = self.get_data(index)
 
         sparse_msk = self.get_sparse_mask(self.sparsity_mode, msk, img,
-                                          self.sparsity_value, index) # type: ignore
+                                          self.sparsity_value, index)  # type: ignore
 
         # Returning to iterator.
         return img, msk, sparse_msk, img_filename

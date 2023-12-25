@@ -147,7 +147,7 @@ class WeaselLearner(MetaLearner):
         return labels, preds, names
 
     def update_parameters(self, loss: torch.Tensor):
-        grads = torch.autograd.grad(loss, self.net.meta_parameters(), # type: ignore
+        grads = torch.autograd.grad(loss, self.net.meta_parameters(),  # type: ignore
                                     create_graph=not self.config['weasel']['use_first_order'])
 
         params = OrderedDict()
