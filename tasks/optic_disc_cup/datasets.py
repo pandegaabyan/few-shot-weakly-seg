@@ -33,7 +33,7 @@ class RimOneDataset(OpticDiscCupDataset):
         img_dir = "/images/"
         msk_dir = "/masks/"
         img_files = os.listdir(data_path + img_dir)
-        img_files_no_ext = list(map(self.filename_from_path, img_files))
+        img_files_no_ext = [self.filename_from_path(img_file) for img_file in img_files]
         msk_files = os.listdir(data_path + msk_dir)
 
         all_data_path = []
@@ -65,7 +65,7 @@ class DrishtiDataset(OpticDiscCupDataset):
         img_dir = "/images/"
         msk_dir = "/masks/"
         img_files = os.listdir(data_path + img_dir)
-        img_files_no_ext = list(map(self.filename_from_path, img_files))
+        img_files_no_ext = [self.filename_from_path(img_file) for img_file in img_files]
         msk_files = os.listdir(data_path + msk_dir)
 
         all_data_path = []

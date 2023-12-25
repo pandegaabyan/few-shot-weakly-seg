@@ -44,7 +44,7 @@ class FewSparseDataset(Dataset, ABC):
         self.sparsity_mode_additional: list[SparsityModes] = self.set_additional_sparse_mode()
 
         # Creating list of paths.
-        self.items = self.make_dataset()
+        self.items = self.make_data_list()
         if len(self.items) == 0:
             raise (RuntimeError('Found 0 items, please check the dataset'))
 
@@ -114,6 +114,8 @@ class FewSparseDataset(Dataset, ABC):
             mask_point_c[mask_point_c == 1] = c + 1
             new_msk += mask_point_c
 
+        np.random.seed(None)
+
         return new_msk
 
     @staticmethod
@@ -146,6 +148,8 @@ class FewSparseDataset(Dataset, ABC):
             small_msk[starting[0]::spacing[0], starting[1]::spacing[1]]
 
         new_msk = FewSparseDataset.resize_image(small_new_msk, msk.shape, True)
+
+        np.random.seed(None)
 
         return new_msk
 
@@ -193,6 +197,8 @@ class FewSparseDataset(Dataset, ABC):
             # Merging boundary masks.
             new_msk += msk_bound
 
+        np.random.seed(None)
+
         return new_msk - 1
 
     @staticmethod
@@ -226,6 +232,8 @@ class FewSparseDataset(Dataset, ABC):
         n_sp = np.zeros_like(new_msk)
         n_sp[:] = -1
         n_sp[blobs] = new_msk[blobs]
+
+        np.random.seed(None)
 
         return n_sp
 
@@ -264,6 +272,8 @@ class FewSparseDataset(Dataset, ABC):
             perm_last_idx = max(1, round(sparsity_num * len(perm)))
             for sp in np.array(pure_region)[perm[:perm_last_idx]]:
                 new_msk[slic == sp] = c
+
+        np.random.seed(None)
 
         return new_msk
 
@@ -310,7 +320,7 @@ class FewSparseDataset(Dataset, ABC):
 
         return filename
 
-    def make_dataset(self) -> list[tuple[str, str]]:
+    def make_data_list(self) -> list[tuple[str, str]]:
         # Split the data in train/val
         tr, ts = train_test_split(self.get_all_data_path(), test_size=self.split_test_size,
                                   random_state=self.split_seed, shuffle=False)
