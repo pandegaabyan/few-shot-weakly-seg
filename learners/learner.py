@@ -243,6 +243,10 @@ class MetaLearner(ABC):
         logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
 
     @staticmethod
+    def log_error():
+        logging.error("Exception:", exc_info=True, stack_info=True)
+
+    @staticmethod
     def remove_log_handlers():
         logger = logging.getLogger()
         while logger.hasHandlers():

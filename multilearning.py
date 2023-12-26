@@ -103,9 +103,9 @@ def get_tune_loader_params() -> DatasetLoaderParamSimple:
     return drishti_tune_loader_params
 
 
-def run_and_clean_learning(all_config: AllConfig,
-                           meta_params: list[DatasetLoaderParamSimple],
-                           tune_param: DatasetLoaderParamSimple):
+def run_clean_learning(all_config: AllConfig,
+                       meta_params: list[DatasetLoaderParamSimple],
+                       tune_param: DatasetLoaderParamSimple):
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
     learner = WeaselLearner(net,
@@ -113,14 +113,18 @@ def run_and_clean_learning(all_config: AllConfig,
                             meta_params,
                             tune_param,
                             calc_disc_cup_iou)
-    learner.learn()
 
-    learner.remove_log_handlers()
-    del net
-    del learner
-
-    gc.collect()
-    cuda.empty_cache()
+    try:
+        learner.learn()
+    except BaseException as e:
+        learner.log_error()
+        raise e
+    finally:
+        learner.remove_log_handlers()
+        del net
+        del learner
+        gc.collect()
+        cuda.empty_cache()
 
 
 def main():
@@ -176,9 +180,9 @@ def main():
 
         new_tune_loader_params = copy.deepcopy(tune_loader_params)
     
-        run_and_clean_learning(new_config,
-                               new_meta_loader_params_list,
-                               new_tune_loader_params)
+        run_clean_learning(new_config,
+                           new_meta_loader_params_list,
+                           new_tune_loader_params)
 
         time.sleep(60)
 
