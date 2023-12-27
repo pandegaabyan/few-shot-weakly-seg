@@ -49,7 +49,10 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
 
             # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            sparsity_num = round(sparsity) if sparsity != "random" else np.random.randint(low=1, high=len(perm))
+            if type(sparsity) is float or type(sparsity) is int:
+                sparsity_num = round(sparsity)
+            else:
+                sparsity_num = np.random.randint(low=1, high=len(perm))
             msk_class[perm[:min(sparsity_num, len(perm))]] = c
 
             # Merging sparse masks.
@@ -58,31 +61,33 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
         # Reshaping linearized sparse mask to the original 2 dimensions.
         new_msk = new_msk.reshape(msk.shape)
 
+        np.random.seed(None)
+
         return new_msk
 
     @staticmethod
     def sparse_grid_old(msk: NDArray, sparsity: SparsityValue = "random", seed=0) -> NDArray:
+        if sparsity != 'random':
+            np.random.seed(seed)
+
         # Copying mask and starting it with -1 for inserting sparsity.
         new_msk = np.zeros_like(msk)
         new_msk[:, :] = -1
 
-        if sparsity == 'random':
-            # Random sparsity (x and y point spacing).
+        if type(sparsity) is float or type(sparsity) is int:
+            spacing_value = int(sparsity)
+        else:
             max_high = int(np.max(msk.shape) / 2)
             spacing_value = np.random.randint(low=1, high=max_high)
-            spacing = (spacing_value, spacing_value)
-
-        else:
-            # Predetermined sparsity (x and y point spacing).
-            spacing = (int(sparsity), int(sparsity))
-
-            np.random.seed(seed)
+        spacing = (spacing_value, spacing_value)
 
         starting = (np.random.randint(spacing[0]),
                     np.random.randint(spacing[1]))
 
         new_msk[starting[0]::spacing[0], starting[1]::spacing[1]] = \
             msk[starting[0]::spacing[0], starting[1]::spacing[1]]
+
+        np.random.seed(None)
 
         return new_msk
 

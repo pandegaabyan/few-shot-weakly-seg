@@ -208,7 +208,7 @@ class MetaLearner(ABC):
             if tl['sparsity_mode'] == 'dense':
                 self.print_and_log('Evaluating "%s" (%d-shot) ...' % (tl['sparsity_mode'], tl['n_shots']))
             else:
-                self.print_and_log('Evaluating "%s" (%d-shot, %d-%s) ...' %
+                self.print_and_log('Evaluating "%s" (%d-shot, %s %s) ...' %
                                    (tl['sparsity_mode'], tl['n_shots'], tl['sparsity_value'], sparsity_unit))
 
             self.tune_train_test(epoch, tl)

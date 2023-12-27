@@ -93,7 +93,12 @@ class FewSparseDataset(Dataset, ABC):
 
             # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            sparsity_num = round(sparsity) if sparsity != "random" else np.random.randint(low=1, high=len(perm))
+            if type(sparsity) is float or type(sparsity) is int:
+                sparsity_num = round(sparsity)
+            elif type(sparsity) is tuple:
+                sparsity_num = round(np.random.uniform(low=sparsity[0], high=sparsity[1]))
+            else:
+                sparsity_num = np.random.randint(low=1, high=len(perm))
             msk_class[perm[:min(sparsity_num, len(perm))]] = c
 
             # Merging sparse masks.
@@ -120,7 +125,14 @@ class FewSparseDataset(Dataset, ABC):
 
     @staticmethod
     def sparse_grid(msk: NDArray, sparsity: SparsityValue = "random", dot_size: int | None = None, seed=0) -> NDArray:
-        default_dot_size = max(min(msk.shape) // 80, sparsity // 5 if type(sparsity) is int else 0, 1)
+        if sparsity != 'random':
+            np.random.seed(seed)
+
+        default_dot_size = max(
+            min(msk.shape) // 80,
+            sparsity // 5 if (type(sparsity) is float or type(sparsity) is int) else 0,
+            1
+        )
         dot_size = dot_size or default_dot_size
 
         small_msk = FewSparseDataset.resize_image(msk, np.divide(msk.shape, dot_size).tolist(), True)
@@ -129,17 +141,16 @@ class FewSparseDataset(Dataset, ABC):
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        if sparsity == 'random':
+        if type(sparsity) is float or type(sparsity) is int:
+            # Predetermined sparsity (x and y point spacing).
+            spacing_value = int(sparsity / dot_size)
+        elif type(sparsity) is tuple:
+            spacing_value = round(np.random.uniform(low=sparsity[0], high=sparsity[1]))
+        else:
             # Random sparsity (x and y point spacing).
             max_high = int(np.max(small_msk.shape) / 2)
             spacing_value = np.random.randint(low=1, high=max_high)
-            spacing = (spacing_value, spacing_value)
-
-        else:
-            # Predetermined sparsity (x and y point spacing).
-            spacing = (int(sparsity / dot_size), int(sparsity / dot_size))
-
-            np.random.seed(seed)
+        spacing = (spacing_value, spacing_value)
 
         starting = (np.random.randint(spacing[0]),
                     np.random.randint(spacing[1]))
@@ -156,15 +167,20 @@ class FewSparseDataset(Dataset, ABC):
     @staticmethod
     def sparse_contour(msk: NDArray, num_classes: int, sparsity: SparsityValue = 'random',
                        radius_dist: int | None = None, radius_thick: int | None = None, seed=0) -> NDArray:
-        sparsity_num = sparsity if sparsity != "random" else np.random.random()
-
         if sparsity != 'random':
             np.random.seed(seed)
+
+        if type(sparsity) is float or type(sparsity) is int:
+            sparsity_num = sparsity
+        elif type(sparsity) is tuple:
+            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
+        else:
+            sparsity_num = np.random.uniform()
 
         new_msk = np.zeros_like(msk)
 
         # Random disk radius for erosions and dilations from the original mask.
-        radius_dist = radius_dist or np.random.randint(low=4, high=10)
+        radius_dist = radius_dist or min(msk.shape) // 60
 
         # Random disk radius for annotation thickness.
         radius_thick = radius_thick or 1
@@ -204,12 +220,17 @@ class FewSparseDataset(Dataset, ABC):
     @staticmethod
     def sparse_skeleton(msk: NDArray, num_classes: int, sparsity: SparsityValue = 'random',
                         radius_thick: int | None = None, seed=0) -> NDArray:
-        sparsity_num = sparsity if sparsity != "random" else np.random.random()
-
         bseed = None  # Blobs generator seed
         if sparsity != 'random':
             np.random.seed(seed)
             bseed = seed
+
+        if type(sparsity) is float or type(sparsity) is int:
+            sparsity_num = sparsity
+        elif type(sparsity) is tuple:
+            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
+        else:
+            sparsity_num = np.random.uniform()
 
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
@@ -240,10 +261,15 @@ class FewSparseDataset(Dataset, ABC):
     @staticmethod
     def sparse_region(msk: NDArray, img: NDArray, num_classes: int, compactness: float | None = 0.5,
                       sparsity: SparsityValue = 'random', seed=0) -> NDArray:
-        sparsity_num = sparsity if sparsity != "random" else np.random.random()
-
         if sparsity != "random":
             np.random.seed(seed)
+
+        if type(sparsity) is float or type(sparsity) is int:
+            sparsity_num = sparsity
+        elif type(sparsity) is tuple:
+            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
+        else:
+            sparsity_num = np.random.uniform()
 
         # Copying mask and starting it with -1 for inserting sparsity.
         new_msk = np.zeros_like(msk)
@@ -335,6 +361,7 @@ class FewSparseDataset(Dataset, ABC):
 
         random.seed(self.split_seed)
         random.shuffle(data_list)
+        random.seed(None)
 
         # If few-shot, select only a subset of samples
         if self.num_shots != -1 and self.num_shots <= len(data_list):

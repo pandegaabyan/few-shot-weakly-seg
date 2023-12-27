@@ -6,7 +6,7 @@ DatasetModes = Literal["train", "test", "meta_train", "meta_test", "tune_train",
 
 SparsityModes = Union[Literal["point", "grid", "contour", "skeleton", "region"], Literal["dense", "random"], str]
 
-SparsityValue = Union[float, Literal["random"]]
+SparsityValue = Union[float, tuple[float, float], int, tuple[int, int], Literal["random"]]
 
 SparsityDict = dict[str, list[SparsityValue]]
 
