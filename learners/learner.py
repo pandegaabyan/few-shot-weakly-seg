@@ -86,7 +86,7 @@ class MetaLearner(ABC):
             self.load_net_and_optimizer()
 
             self.initialize_log()
-            self.save_configuration()
+            self.save_configuration(False)
 
             self.print_and_log('Resume learning ...', end='\n')
             curr_epoch = self.checkpoint['epoch'] + 1
@@ -100,7 +100,7 @@ class MetaLearner(ABC):
             self.create_output_and_ckpt_dir()
 
             self.initialize_log()
-            self.save_configuration()
+            self.save_configuration(True)
 
             self.print_and_log('Start learning ...', end="\n")
             curr_epoch = 1
@@ -124,6 +124,40 @@ class MetaLearner(ABC):
             self.scheduler.step()
 
         self.print_and_log('Finish learning ...')
+        self.remove_log_handlers()
+
+    def retune(self):
+        gpu_percent, gpu_total = 0, 0
+        if self.config['learn']["use_gpu"]:
+            gpu_percent, gpu_total = get_gpu_memory()
+            self.initial_gpu_percent = gpu_percent
+            self.net = self.net.cuda()
+
+        ok = self.check_output_and_ckpt_dir()
+        if not ok:
+            print('No data from previous learning')
+            return
+
+        self.initialize_log()
+        self.save_configuration(False)
+
+        self.print_and_log('Start retuning ...', end='\n')
+        if self.config['learn']["use_gpu"]:
+            self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
+                               (gpu_total, gpu_percent))
+
+        num_epochs = self.config['learn']['num_epochs']
+        tune_freq = self.config['learn']['tune_freq']
+        for epoch in range(tune_freq, num_epochs+1, tune_freq):
+            self.print_and_log('Ep: %d/%d' % (epoch, num_epochs))
+            try:
+                self.load_net_and_optimizer(epoch)
+            except FileNotFoundError:
+                self.print_and_log('Checkpoint not found, continue ...')
+                continue
+            self.run_sparse_tuning(epoch)
+
+        self.print_and_log('Finish retuning ...')
         self.remove_log_handlers()
 
     def meta_train_test(self, epoch: int):
@@ -277,12 +311,20 @@ class MetaLearner(ABC):
             self.checkpoint.update(data)
             json.dump(self.checkpoint, ckpt_file, indent=4)
 
-    def save_configuration(self):
+    def save_configuration(self, is_new: bool):
         dataset_params = {
             'meta': [serialize_loader_param(mp) for mp in self.meta_params],
             'tune': serialize_loader_param(self.tune_param)
         }
-        if self.config['learn']['should_resume']:
+        if is_new:
+            with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
+                json.dump(self.config, config_file, indent=4)
+            with open(os.path.join(self.output_path, FILENAMES['dataset_config']), "w") as dataset_file:
+                json.dump(dataset_params, dataset_file, indent=4)
+            with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
+                n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+                net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
+        else:
             i = 1
             while True:
                 suffix = str(i) if i != 1 else ''
@@ -298,14 +340,6 @@ class MetaLearner(ABC):
                 with open(dataset_filename, "w") as dataset_file:
                     json.dump(dataset_params, dataset_file, indent=4)
                 break
-        else:
-            with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
-                json.dump(self.config, config_file, indent=4)
-            with open(os.path.join(self.output_path, FILENAMES['dataset_config']), "w") as dataset_file:
-                json.dump(dataset_params, dataset_file, indent=4)
-            with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
-                n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-                net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
 
     def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str,
                              start: str = '', end: str = '') -> dict:
