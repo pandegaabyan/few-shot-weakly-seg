@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from numpy.typing import NDArray
 from torch.nn import functional
@@ -214,7 +213,7 @@ class ProtoSegLearner(MetaLearner):
             new_embed = embeddings[:prototypes.shape[0]]
             new_target = targets[:prototypes.shape[0]]
         squared_distances = torch.sum((prototypes.unsqueeze(2) - new_embed.unsqueeze(1)) ** 2, dim=-1)
-        return functional.cross_entropy(-squared_distances, new_target, ignore_index=-1)
+        return functional.cross_entropy(-squared_distances, new_target, **kwargs)
 
     @staticmethod
     def get_predictions(prototypes, embeddings):
