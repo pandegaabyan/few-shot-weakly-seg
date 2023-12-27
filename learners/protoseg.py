@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from numpy.typing import NDArray
 from torch.nn import functional
@@ -202,9 +203,17 @@ class ProtoSegLearner(MetaLearner):
         loss : `torch.FloatTensor` instance
             The negative log-likelihood on the query points.
         """
-        squared_distances = torch.sum((prototypes.unsqueeze(2)
-                                       - embeddings.unsqueeze(1)) ** 2, dim=-1)
-        return functional.cross_entropy(-squared_distances, targets, **kwargs)
+        if prototypes.shape[0] == embeddings.shape[0]:
+            squared_distances = torch.sum((prototypes.unsqueeze(2)
+                                           - embeddings.unsqueeze(1)) ** 2, dim=-1)
+            return functional.cross_entropy(-squared_distances, targets, **kwargs)
+
+        lcm = np.lcm(prototypes.shape[0], embeddings.shape[0])
+        proto_repeat = prototypes.repeat(lcm // prototypes.shape[0], 1, 1)
+        embed_repeat = embeddings.repeat(lcm // embeddings.shape[0], 1, 1)
+        target_repeat = targets.repeat(lcm // targets.shape[0], 1)
+        squared_distances_loss = torch.sum((proto_repeat.unsqueeze(2) - embed_repeat.unsqueeze(1)) ** 2, dim=-1)
+        return functional.cross_entropy(-squared_distances_loss, target_repeat, ignore_index=-1)
 
     @staticmethod
     def get_predictions(prototypes, embeddings):
@@ -222,7 +231,7 @@ class ProtoSegLearner(MetaLearner):
         accuracy : `torch.FloatTensor` instance
             Mean accuracy on the query points.
         """
-        sq_distances = torch.sum((prototypes.unsqueeze(1)
-                                  - embeddings.unsqueeze(2)) ** 2, dim=-1)
-        _, predictions = torch.min(sq_distances, dim=-1)
+        squared_distances = torch.sum((prototypes.unsqueeze(1)
+                                       - embeddings.unsqueeze(2)) ** 2, dim=-1)
+        predictions = torch.argmin(squared_distances, dim=-1)
         return predictions
