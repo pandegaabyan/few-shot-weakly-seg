@@ -169,7 +169,7 @@ class WeaselLearner(MetaLearner):
         row.update(score)
         self.write_to_csv(
             'tuning_score.csv',
-            ['epoch', 'num_shots', 'sparsity_mode', 'sparsity_value', 'tune_epoch', 'test_duration']
+            ['epoch', 'n_shots', 'sparsity_mode', 'sparsity_value', 'tune_epoch', 'test_duration']
             + sorted(score.keys()),
             row
         )
