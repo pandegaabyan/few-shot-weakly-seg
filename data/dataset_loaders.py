@@ -82,7 +82,7 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
             test_dataset,
             batch_size=param.get('test_batch_size', 1),
             num_workers=param.get('num_workers', 0),
-            shuffle=False,
+            shuffle=param['mode'] != 'tune',
             pin_memory=param.get('pin_memory', False)
         )
 

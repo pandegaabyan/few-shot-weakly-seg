@@ -203,17 +203,18 @@ class ProtoSegLearner(MetaLearner):
         loss : `torch.FloatTensor` instance
             The negative log-likelihood on the query points.
         """
-        if prototypes.shape[0] == embeddings.shape[0]:
-            squared_distances = torch.sum((prototypes.unsqueeze(2)
-                                           - embeddings.unsqueeze(1)) ** 2, dim=-1)
-            return functional.cross_entropy(-squared_distances, targets, **kwargs)
-
-        lcm = np.lcm(prototypes.shape[0], embeddings.shape[0])
-        proto_repeat = prototypes.repeat(lcm // prototypes.shape[0], 1, 1)
-        embed_repeat = embeddings.repeat(lcm // embeddings.shape[0], 1, 1)
-        target_repeat = targets.repeat(lcm // targets.shape[0], 1)
-        squared_distances_loss = torch.sum((proto_repeat.unsqueeze(2) - embed_repeat.unsqueeze(1)) ** 2, dim=-1)
-        return functional.cross_entropy(-squared_distances_loss, target_repeat, ignore_index=-1)
+        batch_diff = prototypes.shape[0] - embeddings.shape[0]
+        if batch_diff == 0:
+            new_embed = embeddings
+            new_target = targets
+        elif batch_diff > 0:
+            new_embed = torch.cat([embeddings, embeddings[:batch_diff]], dim=0)
+            new_target = torch.cat([targets, targets[:batch_diff]], dim=0)
+        else:
+            new_embed = embeddings[:prototypes.shape[0]]
+            new_target = targets[:prototypes.shape[0]]
+        squared_distances = torch.sum((prototypes.unsqueeze(2) - new_embed.unsqueeze(1)) ** 2, dim=-1)
+        return functional.cross_entropy(-squared_distances, new_target, ignore_index=-1)
 
     @staticmethod
     def get_predictions(prototypes, embeddings):
