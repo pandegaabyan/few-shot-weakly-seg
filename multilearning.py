@@ -2,15 +2,15 @@ import copy
 import gc
 import time
 
-from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset
-from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
+from torch import cuda
+
 from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig
 from data.dataset_loaders import DatasetLoaderParamSimple
 # from learners.protoseg import ProtoSegLearner
 from learners.weasel import WeaselLearner
 from models.u_net import UNet
-
-from torch import cuda
+from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset
+from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
 
 
 def get_base_config() -> AllConfig:
@@ -127,6 +127,30 @@ def run_clean_learning(all_config: AllConfig,
         cuda.empty_cache()
 
 
+def run_clean_retuning(all_config: AllConfig,
+                       meta_params: list[DatasetLoaderParamSimple],
+                       tune_param: DatasetLoaderParamSimple):
+    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
+
+    learner = WeaselLearner(net,
+                            all_config,
+                            meta_params,
+                            tune_param,
+                            calc_disc_cup_iou)
+
+    try:
+        learner.retune()
+    except BaseException as e:
+        learner.log_error()
+        raise e
+    finally:
+        learner.remove_log_handlers()
+        del net
+        del learner
+        gc.collect()
+        cuda.empty_cache()
+
+
 def main():
     all_config = get_base_config()
     all_config['data']['num_workers'] = 3
@@ -142,7 +166,9 @@ def main():
     tune_loader_params = get_tune_loader_params()
 
     run_clean_learning(all_config, meta_loader_params_list, tune_loader_params)
-    
+
+    run_clean_retuning(all_config, meta_loader_params_list, tune_loader_params)
+
     config_items = [
         {
             'sparsity_mode': 'point',
@@ -172,7 +198,7 @@ def main():
         new_config['data_tune']['sparsity_dict'] = {
             config_item['sparsity_mode']: [config_item['sparsity_value']]
         }
-        
+
         new_meta_loader_params_list = []
         for param in meta_loader_params_list:
             new_param = copy.deepcopy(param)
@@ -181,7 +207,7 @@ def main():
             new_meta_loader_params_list.append(new_param)
 
         new_tune_loader_params = copy.deepcopy(tune_loader_params)
-    
+
         run_clean_learning(new_config,
                            new_meta_loader_params_list,
                            new_tune_loader_params)
