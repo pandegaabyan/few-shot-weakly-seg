@@ -132,11 +132,16 @@ def main():
     all_config['data']['num_workers'] = 3
     # all_config['learn']['should_resume'] = True
 
-    # all_config['learn']['exp_name'] = 'WS RO-DR long v3'
+    all_config['learn']['exp_name'] = 'WS RO-DR long v3'
     all_config['data']['batch_size'] = 14
 
     # all_config['learn']['exp_name'] = 'PS RO-DR long v3'
     # all_config['data']['batch_size'] = 36
+
+    meta_loader_params_list = get_meta_loader_params_list()
+    tune_loader_params = get_tune_loader_params()
+
+    run_clean_learning(all_config, meta_loader_params_list, tune_loader_params)
     
     config_items = [
         {
@@ -161,9 +166,6 @@ def main():
         },
     ]
 
-    meta_loader_params_list = get_meta_loader_params_list()
-    tune_loader_params = get_tune_loader_params()
-    
     for config_item in config_items:
         new_config = copy.deepcopy(all_config)
         new_config['learn']['exp_name'] = f'WS RO-DR long v3 {config_item["sparsity_mode"]}'
