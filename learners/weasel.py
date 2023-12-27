@@ -136,7 +136,7 @@ class WeaselLearner(MetaLearner):
 
                     end_time = time.time()
 
-                    self.write_score_to_csv(epoch, tune_loader['sparsity_mode'], c,
+                    self.write_score_to_csv(tune_loader, epoch, c,
                                             end_time - start_time, score)
 
                 # Finishing test.
@@ -156,12 +156,20 @@ class WeaselLearner(MetaLearner):
 
         return params
 
-    def write_score_to_csv(self, epoch: int, sparsity_mode: str, tune_epoch: int, test_duration: float, score: dict):
-        row = {'epoch': epoch, 'sparsity_mode': sparsity_mode,
-               'tune_epoch': tune_epoch, 'test_duration': test_duration * 10 ** 3}
+    def write_score_to_csv(self, tune_loader: DatasetLoaderItem,
+                           epoch: int, tune_epoch: int, test_duration: float, score: dict):
+        row = {
+            'epoch': epoch,
+            'n_shots': tune_loader['n_shots'],
+            'sparsity_mode': tune_loader['sparsity_mode'],
+            'sparsity_value': tune_loader['sparsity_value'],
+            'tune_epoch': tune_epoch,
+            'test_duration': test_duration * 10 ** 3
+        }
         row.update(score)
         self.write_to_csv(
             'tuning_score.csv',
-            ['epoch', 'sparsity_mode', 'tune_epoch', 'test_duration'] + sorted(score.keys()),
+            ['epoch', 'num_shots', 'sparsity_mode', 'sparsity_value', 'tune_epoch', 'test_duration']
+            + sorted(score.keys()),
             row
         )

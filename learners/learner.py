@@ -178,15 +178,19 @@ class MetaLearner(ABC):
 
         end_time = time.time()
 
-        row = {'epoch': epoch,
-               'sparsity_mode': sparsity_mode,
-               'duration': (end_time - start_time) * 10 ** 3,
-               'post_gpu_percent': gpu_percent - self.initial_gpu_percent
-               }
+        row = {
+            'epoch': epoch,
+            'n_shots': tune_loader['n_shots'],
+            'sparsity_mode': sparsity_mode,
+            'sparsity_value': tune_loader['sparsity_value'],
+            'duration': (end_time - start_time) * 10 ** 3,
+            'post_gpu_percent': gpu_percent - self.initial_gpu_percent
+        }
         row.update(score)
         self.write_to_csv(
             FILENAMES['tuned_score'],
-            ['epoch', 'sparsity_mode', 'duration', 'post_gpu_percent'] + sorted(score.keys()),
+            ['epoch', 'n_shots', 'sparsity_mode', 'sparsity_value', 'duration', 'post_gpu_percent']
+            + sorted(score.keys()),
             row
         )
 
