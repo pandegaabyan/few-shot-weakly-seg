@@ -129,7 +129,7 @@ class WeaselLearner(MetaLearner):
                         # Appending data to lists.
                         labels.append(y_ts.detach().squeeze(0).cpu().numpy())
                         preds.append(prds)
-                        names.append(img_name)
+                        names.append(img_name[0])
 
                     print_message = f'{c}/{tune_epochs}'
                     score = self.calc_and_log_metrics(labels, preds, print_message, start='\t')

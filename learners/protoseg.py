@@ -123,7 +123,7 @@ class ProtoSegLearner(MetaLearner):
 
                 labels.append(y_ts.cpu().numpy().squeeze())
                 preds.append(p_full.cpu().numpy().squeeze())
-                names.append(img_name)
+                names.append(img_name[0])
 
         return labels, preds, names
 
