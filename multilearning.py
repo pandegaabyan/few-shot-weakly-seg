@@ -1,16 +1,19 @@
 import copy
 import gc
 import time
+from typing import Type
 
 from torch import cuda
 
-from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig
 from data.dataset_loaders import DatasetLoaderParamSimple
-# from learners.protoseg import ProtoSegLearner
+from learners.learner import MetaLearner
+from learners.protoseg import ProtoSegLearner
 from learners.weasel import WeaselLearner
 from models.u_net import UNet
 from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
+from torchmeta.modules import MetaModule
 
 
 def get_base_config() -> AllConfig:
@@ -51,11 +54,15 @@ def get_base_config() -> AllConfig:
         'tune_epochs': 40,
         'tune_test_freq': 8
     }
+    protoseg_config: ProtoSegConfig = {
+        'embedding_size': 4
+    }
     all_config: AllConfig = {
         'data': data_config,
         'data_tune': data_tune_config,
         'learn': learn_config,
-        'weasel': weasel_config
+        'weasel': weasel_config,
+        'protoseg': protoseg_config
     }
     return all_config
 
@@ -103,43 +110,24 @@ def get_tune_loader_params() -> DatasetLoaderParamSimple:
     return drishti_tune_loader_params
 
 
-def run_clean_learning(all_config: AllConfig,
+def run_clean_learning(learner_class: Type[MetaLearner],
+                       net: MetaModule,
+                       all_config: AllConfig,
                        meta_params: list[DatasetLoaderParamSimple],
-                       tune_param: DatasetLoaderParamSimple):
-    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
+                       tune_param: DatasetLoaderParamSimple,
+                       tune_only: bool = False):
 
-    learner = WeaselLearner(net,
+    learner = learner_class(net,
                             all_config,
                             meta_params,
                             tune_param,
                             calc_disc_cup_iou)
 
     try:
-        learner.learn()
-    except BaseException as e:
-        learner.log_error()
-        raise e
-    finally:
-        learner.remove_log_handlers()
-        del net
-        del learner
-        gc.collect()
-        cuda.empty_cache()
-
-
-def run_clean_retuning(all_config: AllConfig,
-                       meta_params: list[DatasetLoaderParamSimple],
-                       tune_param: DatasetLoaderParamSimple):
-    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
-
-    learner = WeaselLearner(net,
-                            all_config,
-                            meta_params,
-                            tune_param,
-                            calc_disc_cup_iou)
-
-    try:
-        learner.retune()
+        if tune_only:
+            learner.retune()
+        else:
+            learner.learn()
     except BaseException as e:
         learner.log_error()
         raise e
@@ -156,18 +144,24 @@ def main():
     all_config['data']['num_workers'] = 3
     # all_config['learn']['should_resume'] = True
 
-    all_config['learn']['exp_name'] = 'WS RO-DR long v3'
-    all_config['data']['batch_size'] = 14
-
-    # all_config['learn']['exp_name'] = 'PS RO-DR long v3'
-    # all_config['data']['batch_size'] = 36
-
     meta_loader_params_list = get_meta_loader_params_list()
     tune_loader_params = get_tune_loader_params()
 
-    run_clean_learning(all_config, meta_loader_params_list, tune_loader_params)
+    all_config['learn']['exp_name'] = 'WS RO-DR long v3'
+    all_config['data']['batch_size'] = 14
 
-    run_clean_retuning(all_config, meta_loader_params_list, tune_loader_params)
+    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
+
+    run_clean_learning(WeaselLearner, net, all_config,
+                       meta_loader_params_list, tune_loader_params)
+
+    all_config['learn']['exp_name'] = 'PS RO-DR long v3'
+    all_config['data']['batch_size'] = 36
+
+    net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
+
+    run_clean_learning(ProtoSegLearner, net, all_config,
+                       meta_loader_params_list, tune_loader_params, True)
 
     config_items = [
         {
@@ -208,9 +202,10 @@ def main():
 
         new_tune_loader_params = copy.deepcopy(tune_loader_params)
 
-        run_clean_learning(new_config,
-                           new_meta_loader_params_list,
-                           new_tune_loader_params)
+        net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
+
+        run_clean_learning(WeaselLearner, net, new_config,
+                           new_meta_loader_params_list, new_tune_loader_params)
 
         time.sleep(60)
 
