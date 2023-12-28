@@ -99,7 +99,7 @@ class _MetaDecoderBlock(modules.MetaModule):
 
 class UNet(modules.MetaModule):
 
-    def __init__(self, input_channels, num_classes, prototype=False):
+    def __init__(self, input_channels, output_channels, prototype=False):
 
         super(UNet, self).__init__()
 
@@ -125,7 +125,7 @@ class UNet(modules.MetaModule):
         )
 
         if not self.prototype:
-            self.final = modules.MetaConv2d(32, num_classes, kernel_size=1)
+            self.final = modules.MetaConv2d(32, output_channels, kernel_size=1)
 
         initialize_weights(self)
 
