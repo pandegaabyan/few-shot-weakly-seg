@@ -41,8 +41,13 @@ class WeaselConfig(TypedDict):
     tune_test_freq: int  # Test each tune_test_freq epochs on the tuning phase.
 
 
+class ProtoSegConfig(TypedDict):
+    embedding_size: int
+
+
 class AllConfig(TypedDict):
     data: DataConfig
     data_tune: DataTuneConfig
     learn: LearnConfig
     weasel: WeaselConfig
+    protoseg: ProtoSegConfig

@@ -1,4 +1,4 @@
-from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig
 
 data_config: DataConfig = {
     'num_classes': 2,
@@ -39,9 +39,14 @@ weasel_config: WeaselConfig = {
     'tune_test_freq': 4
 }
 
+protoseg_config: ProtoSegConfig = {
+    'embedding_size': 4
+}
+
 all_config: AllConfig = {
     'data': data_config,
     'data_tune': data_tune_config,
     'learn': train_config,
-    'weasel': weasel_config
+    'weasel': weasel_config,
+    'protoseg': protoseg_config
 }
