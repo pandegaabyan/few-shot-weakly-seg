@@ -147,7 +147,7 @@ def main():
     meta_loader_params_list = get_meta_loader_params_list()
     tune_loader_params = get_tune_loader_params()
 
-    all_config['learn']['exp_name'] = 'WS RO-DR long v3'
+    all_config['learn']['exp_name'] = 'v3 RO-DR L WS'
     all_config['data']['batch_size'] = 14
 
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
@@ -155,7 +155,7 @@ def main():
     run_clean_learning(WeaselLearner, net, all_config,
                        meta_loader_params_list, tune_loader_params)
 
-    all_config['learn']['exp_name'] = 'PS RO-DR long v3'
+    all_config['learn']['exp_name'] = 'v3 RO-DR L PS'
     all_config['data']['batch_size'] = 36
 
     net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
@@ -188,7 +188,7 @@ def main():
 
     for config_item in config_items:
         new_config = copy.deepcopy(all_config)
-        new_config['learn']['exp_name'] = f'WS RO-DR long v3 {config_item["sparsity_mode"]}'
+        new_config['learn']['exp_name'] = f'v3 RO-DR L WS {config_item["sparsity_mode"]}'
         new_config['data_tune']['sparsity_dict'] = {
             config_item['sparsity_mode']: [config_item['sparsity_value']]
         }
