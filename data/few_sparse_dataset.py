@@ -145,7 +145,7 @@ class FewSparseDataset(Dataset, ABC):
             # Predetermined sparsity (x and y point spacing).
             spacing_value = int(sparsity / dot_size)
         elif type(sparsity) is tuple:
-            spacing_value = round(np.random.uniform(low=sparsity[0], high=sparsity[1]))
+            spacing_value = round(np.random.uniform(low=sparsity[0], high=sparsity[1]) / dot_size)
         else:
             # Random sparsity (x and y point spacing).
             max_high = int(np.max(small_msk.shape) / 2)
