@@ -31,7 +31,8 @@ def cycle_iterable(iterable: Iterable):
 def get_gpu_memory() -> tuple[float, int]:
     command = 'nvidia-smi'
     nvidia_smi_text = subprocess.check_output(command)
-    [used_memory, total_memory] = re.findall(r'\b\d+MiB', str(nvidia_smi_text))
+    memories = re.findall(r'\b\d+MiB', str(nvidia_smi_text))
+    used_memory, total_memory = memories[0], memories[1]
     used_memory = int(used_memory[:-3])
     total_memory = int(total_memory[:-3])
     percent_memory = used_memory * 100 / total_memory
