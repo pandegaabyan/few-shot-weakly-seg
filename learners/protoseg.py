@@ -9,6 +9,9 @@ from learners.learner import MetaLearner
 
 class ProtoSegLearner(MetaLearner):
 
+    def set_used_config(self) -> list[str]:
+        return super().set_used_config() + ['protoseg']
+
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         x_tr, _, y_tr, _ = train_data
         x_ts, y_ts, _, _ = test_data

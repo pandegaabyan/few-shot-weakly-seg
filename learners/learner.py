@@ -30,10 +30,10 @@ class MetaLearner(ABC):
                  tune_param: DatasetLoaderParamSimple,
                  func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
         self.net = net
-        self.config = config
         self.meta_params = meta_params
         self.tune_param = tune_param
         self.func_calc_metrics = func_calc_metrics
+        self.config = self.check_and_clean_config(config)
 
         self.meta_loaders = get_meta_loaders(self.meta_params, config['data'],
                                              pin_memory=config['learn']['use_gpu'])
@@ -252,6 +252,16 @@ class MetaLearner(ABC):
             self.tune_train_test(epoch, tl)
 
             print()
+
+    @staticmethod
+    def set_used_config() -> list[str]:
+        return ['data', 'data_tune', 'learn']
+
+    def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
+        new_config = {}
+        for key in self.set_used_config():
+            new_config[key] = ori_config[key]  # type: ignore
+        return new_config
 
     def check_output_and_ckpt_dir(self) -> bool:
         return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)

@@ -12,6 +12,9 @@ from learners.learner import MetaLearner
 
 class WeaselLearner(MetaLearner):
 
+    def set_used_config(self) -> list[str]:
+        return super().set_used_config() + ['weasel']
+
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         # Clearing model gradients.
         self.net.zero_grad()
