@@ -116,7 +116,6 @@ def run_clean_learning(learner_class: Type[MetaLearner],
                        meta_params: list[DatasetLoaderParamSimple],
                        tune_param: DatasetLoaderParamSimple,
                        tune_only: bool = False):
-
     learner = learner_class(net,
                             all_config,
                             meta_params,
@@ -148,7 +147,7 @@ def main():
     tune_loader_params = get_tune_loader_params()
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L WS'
-    all_config['data']['batch_size'] = 14
+    all_config['data']['batch_size'] = 13
 
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
@@ -166,38 +165,43 @@ def main():
     config_items = [
         {
             'sparsity_mode': 'point',
-            'sparsity_value': 10
+            'sparsity_value_tune': 10,
+            'sparsity_value_meta': (1, 15)
         },
         {
             'sparsity_mode': 'grid',
-            'sparsity_value': 25
+            'sparsity_value_tune': 25,
+            'sparsity_value_meta': (15, 50)
         },
         {
             'sparsity_mode': 'contour',
-            'sparsity_value': 1
+            'sparsity_value_tune': 1,
+            'sparsity_value_meta': (0.2, 1)
         },
         {
             'sparsity_mode': 'skeleton',
-            'sparsity_value': 1
+            'sparsity_value_tune': 1,
+            'sparsity_value_meta': (0.2, 1)
         },
         {
             'sparsity_mode': 'region',
-            'sparsity_value': 1
+            'sparsity_value_tune': 1,
+            'sparsity_value_meta': (0.2, 1)
         },
     ]
 
     for config_item in config_items:
         new_config = copy.deepcopy(all_config)
-        new_config['learn']['exp_name'] = f'v3 RO-DR L WS {config_item["sparsity_mode"]}'
+        new_config['learn']['exp_name'] = f'v3 RO-DR L WS {config_item["sparsity_mode"]}-var'
         new_config['data_tune']['sparsity_dict'] = {
-            config_item['sparsity_mode']: [config_item['sparsity_value']]
+            config_item['sparsity_mode']: [config_item['sparsity_value_tune']]
         }
 
         new_meta_loader_params_list = []
         for param in meta_loader_params_list:
             new_param = copy.deepcopy(param)
             new_param['dataset_kwargs']['sparsity_mode'] = config_item['sparsity_mode']
-            new_param['dataset_kwargs']['sparsity_value'] = config_item['sparsity_value']
+            new_param['dataset_kwargs']['sparsity_value'] = config_item['sparsity_value_meta']
             new_meta_loader_params_list.append(new_param)
 
         new_tune_loader_params = copy.deepcopy(tune_loader_params)
