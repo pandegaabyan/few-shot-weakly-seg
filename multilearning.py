@@ -142,12 +142,14 @@ def main():
     all_config = get_base_config()
     all_config['data']['num_workers'] = 3
     # all_config['learn']['should_resume'] = True
+    # all_config['data']['batch_size'] = 32
+    # all_config['data']['batch_size'] = 13
+
 
     meta_loader_params_list = get_meta_loader_params_list()
     tune_loader_params = get_tune_loader_params()
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L WS'
-    all_config['data']['batch_size'] = 13
 
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
@@ -155,7 +157,6 @@ def main():
                        meta_loader_params_list, tune_loader_params)
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L PS'
-    all_config['data']['batch_size'] = 36
 
     net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
 
