@@ -126,7 +126,7 @@ class MetaLearner(ABC):
         self.print_and_log('Finish learning ...')
         self.remove_log_handlers()
 
-    def retune(self):
+    def retune(self, epochs: list[int] | None = None):
         gpu_percent, gpu_total = 0, 0
         if self.config['learn']["use_gpu"]:
             gpu_percent, gpu_total = get_gpu_memory()
@@ -141,15 +141,18 @@ class MetaLearner(ABC):
         self.initialize_log()
         self.save_configuration(False)
 
-        self.print_and_log('Start retuning ...', end='\n')
+        if epochs is None:
+            num_epochs = self.config['learn']['num_epochs']
+            tune_freq = self.config['learn']['tune_freq']
+            epochs = list(range(tune_freq, num_epochs+1, tune_freq))
+
+        self.print_and_log(f'Start retuning on epochs: {epochs} ...', end='\n')
         if self.config['learn']["use_gpu"]:
             self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
                                (gpu_total, gpu_percent))
 
-        num_epochs = self.config['learn']['num_epochs']
-        tune_freq = self.config['learn']['tune_freq']
-        for epoch in range(tune_freq, num_epochs+1, tune_freq):
-            self.print_and_log('Ep: %d/%d' % (epoch, num_epochs))
+        for epoch in epochs:
+            self.print_and_log('Ep: %d' % epoch)
             try:
                 self.load_net_and_optimizer(epoch)
             except FileNotFoundError:
@@ -206,16 +209,15 @@ class MetaLearner(ABC):
 
         gpu_percent, _ = get_gpu_memory()
 
-        sparsity_mode = tune_loader['sparsity_mode']
-
-        score = self.calc_and_log_metrics(labels, preds, f'"{sparsity_mode}"')
+        tune_param_str = self.encode_tune_param(tune_loader)
+        score = self.calc_and_log_metrics(labels, preds, tune_param_str)
 
         end_time = time.time()
 
         row = {
             'epoch': epoch,
             'n_shots': tune_loader['n_shots'],
-            'sparsity_mode': sparsity_mode,
+            'sparsity_mode': tune_loader['sparsity_mode'],
             'sparsity_value': tune_loader['sparsity_value'],
             'duration': (end_time - start_time) * 10 ** 3,
             'post_gpu_percent': gpu_percent - self.initial_gpu_percent
@@ -230,28 +232,27 @@ class MetaLearner(ABC):
 
         if epoch == self.config['learn']['num_epochs']:
             for pred, name in zip(preds, names):
-                self.save_prediction(pred, name, sparsity_mode)
+                self.save_prediction(pred, name, tune_param_str)
 
     def run_sparse_tuning(self, epoch: int):
         for tl in self.tune_loaders:
-            if tl['sparsity_mode'] == 'point':
-                sparsity_unit = 'points'
-            elif tl['sparsity_mode'] == 'grid':
-                sparsity_unit = 'spacing'
-            elif tl['sparsity_mode'] in ['contour', 'skeleton', 'region']:
-                sparsity_unit = 'density'
-            else:
-                sparsity_unit = 'sparsity'
-
-            if tl['sparsity_mode'] == 'dense':
-                self.print_and_log('Evaluating "%s" (%d-shot) ...' % (tl['sparsity_mode'], tl['n_shots']))
-            else:
-                self.print_and_log('Evaluating "%s" (%d-shot, %s %s) ...' %
-                                   (tl['sparsity_mode'], tl['n_shots'], tl['sparsity_value'], sparsity_unit))
-
+            tune_param_str = self.encode_tune_param(tl)
+            self.print_and_log(f'Evaluating "{tune_param_str}" ...')
             self.tune_train_test(epoch, tl)
 
             print()
+
+    @staticmethod
+    def encode_tune_param(tune_loader: DatasetLoaderItem) -> str:
+        n_shots = tune_loader['n_shots']
+        sparsity_mode = tune_loader['sparsity_mode']
+        sparsity_value = tune_loader['sparsity_value']
+        if type(sparsity_value) is tuple:
+            sparsity_value = f'{sparsity_value[0]},{sparsity_value[1]}'
+        if tune_loader['sparsity_mode'] == 'dense':
+            return f'shot={n_shots} dense'
+        else:
+            return f'shot={n_shots} {sparsity_mode}={sparsity_value}'
 
     @staticmethod
     def set_used_config() -> list[str]:
@@ -374,12 +375,12 @@ class MetaLearner(ABC):
                                        f'{img_name[j]} - {sparsity_mode}.png'),
                           stored_sparse)
 
-    def save_prediction(self, prediction: NDArray, filename: str, sparsity_mode: str):
+    def save_prediction(self, prediction: NDArray, filename: str, tune_param: str):
         check_mkdir(os.path.join(self.output_path, FILENAMES['prediction_folder']))
 
         stored_prediction = (prediction * (255 / prediction.max())).astype(np.uint8)
         io.imsave(
-            os.path.join(self.output_path, FILENAMES['prediction_folder'], f'{filename} - {sparsity_mode}.png'),
+            os.path.join(self.output_path, FILENAMES['prediction_folder'], f'{filename} - {tune_param}.png'),
             stored_prediction)
 
     def save_net_and_optimizer(self, epoch: int = 0):

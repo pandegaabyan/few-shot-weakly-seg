@@ -115,7 +115,8 @@ def run_clean_learning(learner_class: Type[MetaLearner],
                        all_config: AllConfig,
                        meta_params: list[DatasetLoaderParamSimple],
                        tune_param: DatasetLoaderParamSimple,
-                       tune_only: bool = False):
+                       tune_only: bool = False,
+                       tune_epochs: list[int] | None = None):
     learner = learner_class(net,
                             all_config,
                             meta_params,
@@ -124,7 +125,7 @@ def run_clean_learning(learner_class: Type[MetaLearner],
 
     try:
         if tune_only:
-            learner.retune()
+            learner.retune(tune_epochs)
         else:
             learner.learn()
     except BaseException as e:
@@ -161,7 +162,8 @@ def main():
     net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
 
     run_clean_learning(ProtoSegLearner, net, all_config,
-                       meta_loader_params_list, tune_loader_params, True)
+                       meta_loader_params_list, tune_loader_params,
+                       tune_only=True, tune_epochs=[40, 200])
 
     config_items = [
         {
