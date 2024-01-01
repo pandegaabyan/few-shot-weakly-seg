@@ -17,6 +17,7 @@ from config.config_type import AllConfig
 from config.constants import FILENAMES
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamSimple, get_meta_loaders, get_tune_loaders
 from data.types import TensorDataItem
+from learners.losses import CustomLoss
 from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory, serialize_loader_param
 from torchmeta.modules import MetaModule
 
@@ -28,11 +29,14 @@ class MetaLearner(ABC):
                  config: AllConfig,
                  meta_params: list[DatasetLoaderParamSimple],
                  tune_param: DatasetLoaderParamSimple,
-                 func_calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]]):
+                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]],
+                 calc_loss: CustomLoss | None = None,
+                 meta_optimizer: optim.Optimizer | None = None,
+                 scheduler: optim.lr_scheduler.LRScheduler | None = None):
         self.net = net
         self.meta_params = meta_params
         self.tune_param = tune_param
-        self.func_calc_metrics = func_calc_metrics
+        self.calc_metrics = calc_metrics
         self.config = self.check_and_clean_config(config)
 
         self.meta_loaders = get_meta_loaders(self.meta_params, config['data'],
@@ -46,17 +50,28 @@ class MetaLearner(ABC):
         self.checkpoint = {}
         self.initial_gpu_percent = 0
 
-        self.meta_optimizer = optim.Adam([
-            {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
-             'lr': 2 * self.config['learn']['optimizer_lr']},
-            {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
-             'lr': self.config['learn']['optimizer_lr'],
-             'weight_decay': self.config['learn']['optimizer_weight_decay']}
-        ], betas=(self.config['learn']['optimizer_momentum'], 0.99))
+        if calc_loss is None:
+            self.calc_loss = CustomLoss()
+        else:
+            self.calc_loss = calc_loss
 
-        self.scheduler = optim.lr_scheduler.StepLR(self.meta_optimizer,
-                                                   self.config['learn']['scheduler_step_size'],
-                                                   gamma=self.config['learn']['scheduler_gamma'])
+        if meta_optimizer is None:
+            self.meta_optimizer = optim.Adam([
+                {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
+                 'lr': 2 * self.config['learn']['optimizer_lr']},
+                {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
+                 'lr': self.config['learn']['optimizer_lr'],
+                 'weight_decay': self.config['learn']['optimizer_weight_decay']}
+            ], betas=(self.config['learn']['optimizer_momentum'], 0.99))
+        else:
+            self.meta_optimizer = meta_optimizer
+
+        if scheduler is None:
+            self.scheduler = optim.lr_scheduler.StepLR(self.meta_optimizer,
+                                                       self.config['learn']['scheduler_step_size'],
+                                                       gamma=self.config['learn']['scheduler_gamma'])
+        else:
+            self.scheduler = scheduler
 
     @abstractmethod
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
@@ -144,7 +159,7 @@ class MetaLearner(ABC):
         if epochs is None:
             num_epochs = self.config['learn']['num_epochs']
             tune_freq = self.config['learn']['tune_freq']
-            epochs = list(range(tune_freq, num_epochs+1, tune_freq))
+            epochs = list(range(tune_freq, num_epochs + 1, tune_freq))
 
         self.print_and_log(f'Start retuning on epochs: {epochs} ...', end='\n')
         if self.config['learn']["use_gpu"]:
@@ -354,7 +369,7 @@ class MetaLearner(ABC):
 
     def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str,
                              start: str = '', end: str = '') -> dict:
-        score, score_text, name = self.func_calc_metrics(labels, preds)
+        score, score_text, name = self.calc_metrics(labels, preds)
         self.print_and_log(f'{name} - {message}: {score_text}', start, end)
         return score
 

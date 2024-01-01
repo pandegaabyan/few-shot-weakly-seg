@@ -43,8 +43,7 @@ class ProtoSegLearner(MetaLearner):
 
         loss = self.prototypical_loss(prototypes,
                                       emb_ts_linear,
-                                      y_ts_linear,
-                                      ignore_index=-1)
+                                      y_ts_linear)
 
         # End of prototyping
 
@@ -185,8 +184,7 @@ class ProtoSegLearner(MetaLearner):
 
         return prototypes
 
-    @staticmethod
-    def prototypical_loss(prototypes, embeddings, targets, **kwargs):
+    def prototypical_loss(self, prototypes, embeddings, targets):
         """Compute the loss (i.e. negative log-likelihood) for the prototypical
         network, on the test/query points.
         Parameters
@@ -216,7 +214,7 @@ class ProtoSegLearner(MetaLearner):
             new_embed = embeddings[:prototypes.shape[0]]
             new_target = targets[:prototypes.shape[0]]
         squared_distances = torch.sum((prototypes.unsqueeze(2) - new_embed.unsqueeze(1)) ** 2, dim=-1)
-        return functional.cross_entropy(-squared_distances, new_target, **kwargs)
+        return self.calc_loss(-squared_distances, new_target)
 
     @staticmethod
     def get_predictions(prototypes, embeddings):

@@ -3,7 +3,6 @@ from collections import OrderedDict
 
 import torch
 from numpy.typing import NDArray
-from torch.nn import functional
 
 from data.dataset_loaders import DatasetLoaderItem
 from data.types import TensorDataItem
@@ -31,7 +30,7 @@ class WeaselLearner(MetaLearner):
         p_tr = self.net(x_tr)
 
         # Computing inner loss.
-        inner_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
+        inner_loss = self.calc_loss(p_tr, y_tr)
 
         # Zeroing model gradient.
         self.net.zero_grad()
@@ -43,7 +42,7 @@ class WeaselLearner(MetaLearner):
         p_ts = self.net(x_ts, params=params)
 
         # Accumulating outer loss.
-        outer_loss = functional.cross_entropy(p_ts, y_ts, ignore_index=-1)
+        outer_loss = self.calc_loss(p_ts, y_ts)
         if self.config['learn']["use_gpu"]:
             outer_loss = outer_loss.cuda()
 
@@ -93,7 +92,7 @@ class WeaselLearner(MetaLearner):
                 p_tr = self.net(x_tr)
 
                 # Computing inner loss.
-                tune_train_loss = functional.cross_entropy(p_tr, y_tr, ignore_index=-1)
+                tune_train_loss = self.calc_loss(p_tr, y_tr)
 
                 # Computing gradients and taking step in optimizer.
                 tune_train_loss.backward()
