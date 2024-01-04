@@ -6,6 +6,7 @@ FILENAMES = {
     'checkpoint': 'checkpoint.json',
     'config': 'config.json',
     'dataset_config': 'dataset.json',
+    'optimization_data': 'optimization.json',
     'net_text': 'net.txt',
     'learn_log': 'learn.log',
     'train_loss': 'train_loss.csv',

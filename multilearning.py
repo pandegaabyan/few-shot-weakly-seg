@@ -3,11 +3,13 @@ import gc
 import time
 from typing import Type
 
-from torch import cuda
+from torch import cuda, optim
 
-from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig, \
+    LossConfig, OptimizerConfig, SchedulerConfig
 from data.dataset_loaders import DatasetLoaderParamSimple
 from learners.learner import MetaLearner
+from learners.losses import CustomLoss
 from learners.protoseg import ProtoSegLearner
 from learners.weasel import WeaselLearner
 from models.u_net import UNet
@@ -40,13 +42,23 @@ def get_base_config() -> AllConfig:
         'should_resume': False,
         'use_gpu': True,
         'num_epochs': 200,
-        'optimizer_lr': 1e-3,
-        'optimizer_weight_decay': 5e-5,
-        'optimizer_momentum': 0.9,
-        'scheduler_step_size': 150,
-        'scheduler_gamma': 0.2,
         'tune_freq': 40,
         'exp_name': ''
+    }
+    loss_config: LossConfig = {
+        'type': 'ce',
+        'ignored_index': -1
+    }
+    optimizer_config: OptimizerConfig = {
+        'lr': 1e-3,
+        'lr_bias': 2 * 1e-3,
+        'weight_decay': 5e-5,
+        'weight_decay_bias': 0,
+        'betas': (0.9, 0.99)
+    }
+    scheduler_config: SchedulerConfig = {
+        'step_size': 150,
+        'gamma': 0.2
     }
     weasel_config: WeaselConfig = {
         'use_first_order': False,
@@ -55,12 +67,15 @@ def get_base_config() -> AllConfig:
         'tune_test_freq': 8
     }
     protoseg_config: ProtoSegConfig = {
-        'embedding_size': 4
+        'embedding_size': 8
     }
     all_config: AllConfig = {
         'data': data_config,
         'data_tune': data_tune_config,
         'learn': learn_config,
+        'loss': loss_config,
+        'optimizer': optimizer_config,
+        'scheduler': scheduler_config,
         'weasel': weasel_config,
         'protoseg': protoseg_config
     }
@@ -116,12 +131,30 @@ def run_clean_learning(learner_class: Type[MetaLearner],
                        meta_params: list[DatasetLoaderParamSimple],
                        tune_param: DatasetLoaderParamSimple,
                        tune_only: bool = False,
-                       tune_epochs: list[int] | None = None):
+                       tune_epochs: list[int] | None = None,
+                       calc_loss: CustomLoss | None = None):
+
+    adam_optimizer = optim.Adam([
+        {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
+         'lr': all_config['optimizer']['lr_bias'],
+         'weight_decay': all_config['optimizer']['weight_decay_bias']},
+        {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
+         'lr': all_config['optimizer']['lr'],
+         'weight_decay': all_config['optimizer']['weight_decay']}
+    ], betas=all_config['optimizer']['betas'])
+
+    step_scheduler = optim.lr_scheduler.StepLR(adam_optimizer,
+                                               step_size=all_config['scheduler']['step_size'],
+                                               gamma=all_config['scheduler']['gamma'])
+
     learner = learner_class(net,
                             all_config,
                             meta_params,
                             tune_param,
-                            calc_disc_cup_iou)
+                            calc_disc_cup_iou,
+                            calc_loss=calc_loss,
+                            optimizer=adam_optimizer,
+                            scheduler=step_scheduler)
 
     try:
         if tune_only:
@@ -145,7 +178,6 @@ def main():
     # all_config['learn']['should_resume'] = True
     # all_config['data']['batch_size'] = 32
     # all_config['data']['batch_size'] = 13
-
 
     meta_loader_params_list = get_meta_loader_params_list()
     tune_loader_params = get_tune_loader_params()

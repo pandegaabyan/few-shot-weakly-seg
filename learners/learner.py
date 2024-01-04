@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import io
+from sklearn import metrics
 from torch import optim
 from torch.utils.data import DataLoader
 
@@ -18,7 +19,8 @@ from config.constants import FILENAMES
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamSimple, get_meta_loaders, get_tune_loaders
 from data.types import TensorDataItem
 from learners.losses import CustomLoss
-from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory, serialize_loader_param
+from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory, serialize_dataset_params, \
+    serialize_optimization_data
 from torchmeta.modules import MetaModule
 
 
@@ -29,9 +31,9 @@ class MetaLearner(ABC):
                  config: AllConfig,
                  meta_params: list[DatasetLoaderParamSimple],
                  tune_param: DatasetLoaderParamSimple,
-                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]],
+                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
                  calc_loss: CustomLoss | None = None,
-                 meta_optimizer: optim.Optimizer | None = None,
+                 optimizer: optim.Optimizer | None = None,
                  scheduler: optim.lr_scheduler.LRScheduler | None = None):
         self.net = net
         self.meta_params = meta_params
@@ -55,21 +57,16 @@ class MetaLearner(ABC):
         else:
             self.calc_loss = calc_loss
 
-        if meta_optimizer is None:
-            self.meta_optimizer = optim.Adam([
-                {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
-                 'lr': 2 * self.config['learn']['optimizer_lr']},
-                {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
-                 'lr': self.config['learn']['optimizer_lr'],
-                 'weight_decay': self.config['learn']['optimizer_weight_decay']}
-            ], betas=(self.config['learn']['optimizer_momentum'], 0.99))
+        if optimizer is None:
+            self.optimizer = optim.Adam([
+                {'params': net.parameters(), 'lr': self.config['optimizer']['lr']}
+            ])
         else:
-            self.meta_optimizer = meta_optimizer
+            self.optimizer = optimizer
 
         if scheduler is None:
-            self.scheduler = optim.lr_scheduler.StepLR(self.meta_optimizer,
-                                                       self.config['learn']['scheduler_step_size'],
-                                                       gamma=self.config['learn']['scheduler_gamma'])
+            self.scheduler = optim.lr_scheduler.StepLR(self.optimizer,
+                                                       self.config['scheduler']['step_size'])
         else:
             self.scheduler = scheduler
 
@@ -271,7 +268,7 @@ class MetaLearner(ABC):
 
     @staticmethod
     def set_used_config() -> list[str]:
-        return ['data', 'data_tune', 'learn']
+        return ['data', 'data_tune', 'learn', 'loss', 'optimizer', 'scheduler']
 
     def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
         new_config = {}
@@ -338,15 +335,18 @@ class MetaLearner(ABC):
             json.dump(self.checkpoint, ckpt_file, indent=4)
 
     def save_configuration(self, is_new: bool):
-        dataset_params = {
-            'meta': [serialize_loader_param(mp) for mp in self.meta_params],
-            'tune': serialize_loader_param(self.tune_param)
-        }
+        dataset_params = serialize_dataset_params(self.meta_params, self.tune_param)
+        optimization_data = serialize_optimization_data(self.calc_metrics,
+                                                        self.calc_loss,
+                                                        self.optimizer,
+                                                        self.scheduler)
         if is_new:
             with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
                 json.dump(self.config, config_file, indent=4)
             with open(os.path.join(self.output_path, FILENAMES['dataset_config']), "w") as dataset_file:
                 json.dump(dataset_params, dataset_file, indent=4)
+            with open(os.path.join(self.output_path, FILENAMES['optimization_data']), "w") as opt_file:
+                json.dump(optimization_data, opt_file, indent=4)
             with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
                 n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
                 net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
@@ -358,18 +358,30 @@ class MetaLearner(ABC):
                 config_filename = os.path.join(self.output_path, config_filename)
                 dataset_filename = f'{suffix}.'.join(FILENAMES['dataset_config'].rsplit('.', 1))
                 dataset_filename = os.path.join(self.output_path, dataset_filename)
-                if os.path.isfile(config_filename) or os.path.isfile(dataset_filename):
+                opt_filename = f'{suffix}.'.join(FILENAMES['optimization_data'].rsplit('.', 1))
+                opt_filename = os.path.join(self.output_path, opt_filename)
+                if os.path.isfile(config_filename) or os.path.isfile(dataset_filename) or os.path.isfile(opt_filename):
                     i += 1
                     continue
                 with open(config_filename, "w") as config_file:
                     json.dump(self.config, config_file, indent=4)
                 with open(dataset_filename, "w") as dataset_file:
                     json.dump(dataset_params, dataset_file, indent=4)
+                with open(opt_filename, "w") as opt_file:
+                    json.dump(optimization_data, opt_file, indent=4)
                 break
 
     def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str,
                              start: str = '', end: str = '') -> dict:
-        score, score_text, name = self.calc_metrics(labels, preds)
+        if self.calc_metrics is None:
+            iou_mean = metrics.jaccard_score(np.asarray(labels).ravel(),
+                                             np.asarray(preds).ravel(),
+                                             average='macro')
+            score = {'iou_mean': iou_mean}
+            score_text = '%.2f' % (iou_mean * 100)
+            name = 'Mean IoU score'
+        else:
+            score, score_text, name = self.calc_metrics(labels, preds)
         self.print_and_log(f'{name} - {message}: {score_text}', start, end)
         return score
 
@@ -402,12 +414,12 @@ class MetaLearner(ABC):
         prefix = f'ep{epoch}_' if epoch != 0 else ''
         torch.save(self.net.state_dict(),
                    os.path.join(self.ckpt_path, prefix + FILENAMES['net_state']))
-        torch.save(self.meta_optimizer.state_dict(),
+        torch.save(self.optimizer.state_dict(),
                    os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state']))
 
     def load_net_and_optimizer(self, epoch: int = 0):
         prefix = f'ep{epoch}_' if epoch != 0 else ''
         self.net.load_state_dict(
             torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['net_state'])))
-        self.meta_optimizer.load_state_dict(
+        self.optimizer.load_state_dict(
             torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state'])))

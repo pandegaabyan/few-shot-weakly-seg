@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 from data.types import SparsityDict
 
@@ -25,13 +25,26 @@ class LearnConfig(TypedDict):
     should_resume: bool
     use_gpu: bool
     num_epochs: int  # Number of epochs.
-    optimizer_lr: float  # Learning rate.
-    optimizer_weight_decay: float  # L2 penalty.
-    optimizer_momentum: float  # Momentum.
-    scheduler_step_size: int
-    scheduler_gamma: float
     tune_freq: int  # Run tuning each tune_freq epochs.
     exp_name: str
+
+
+class LossConfig(TypedDict, total=False):
+    type: str
+    ignored_index: int
+
+
+class OptimizerConfig(TypedDict, total=False):
+    lr: float  # Learning rate.
+    lr_bias: float
+    weight_decay: float  # L2 penalty.
+    weight_decay_bias: float
+    betas: tuple[float, float]  # Momentum.
+
+
+class SchedulerConfig(TypedDict, total=False):
+    step_size: int
+    gamma: float
 
 
 class WeaselConfig(TypedDict):
@@ -49,5 +62,8 @@ class AllConfig(TypedDict):
     data: DataConfig
     data_tune: DataTuneConfig
     learn: LearnConfig
-    weasel: WeaselConfig
-    protoseg: ProtoSegConfig
+    loss: LossConfig
+    optimizer: OptimizerConfig
+    scheduler: SchedulerConfig
+    weasel: NotRequired[WeaselConfig]
+    protoseg: NotRequired[ProtoSegConfig]

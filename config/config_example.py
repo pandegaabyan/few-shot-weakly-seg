@@ -1,4 +1,5 @@
-from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig
+from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig, \
+    LossConfig, OptimizerConfig, SchedulerConfig
 
 data_config: DataConfig = {
     'num_classes': 2,
@@ -23,13 +24,26 @@ train_config: LearnConfig = {
     'should_resume': False,
     'use_gpu': True,
     'num_epochs': 200,
-    'optimizer_lr': 1e-3,
-    'optimizer_weight_decay': 5e-5,
-    'optimizer_momentum': 0.9,
-    'scheduler_step_size': 150,
-    'scheduler_gamma': 0.2,
     'tune_freq': 200,
     'exp_name': ''
+}
+
+loss_config: LossConfig = {
+    'type': 'ce',
+    'ignored_index': -1
+}
+
+optimizer_config: OptimizerConfig = {
+    'lr': 1e-3,
+    'lr_bias': 2 * 1e-3,
+    'weight_decay': 5e-5,
+    'weight_decay_bias': 0,
+    'betas': (0.9, 0.99)
+}
+
+scheduler_config: SchedulerConfig = {
+    'step_size': 150,
+    'gamma': 0.2
 }
 
 weasel_config: WeaselConfig = {
@@ -47,6 +61,9 @@ all_config: AllConfig = {
     'data': data_config,
     'data_tune': data_tune_config,
     'learn': train_config,
+    'loss': loss_config,
+    'optimizer': optimizer_config,
+    'scheduler': scheduler_config,
     'weasel': weasel_config,
     'protoseg': protoseg_config
 }

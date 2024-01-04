@@ -1,6 +1,5 @@
 import torch
 from numpy.typing import NDArray
-from torch.nn import functional
 
 from data.dataset_loaders import DatasetLoaderItem
 from data.types import TensorDataItem
@@ -48,11 +47,11 @@ class ProtoSegLearner(MetaLearner):
         # End of prototyping
 
         # Clears the gradients of meta_optimizer.
-        self.meta_optimizer.zero_grad()
+        self.optimizer.zero_grad()
 
         # Computing backpropagation.
         loss.backward()
-        self.meta_optimizer.step()
+        self.optimizer.step()
 
         # Returning loss.
         return loss.detach().item()

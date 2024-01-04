@@ -2,9 +2,12 @@ import os
 import re
 import shutil
 import subprocess
-from typing import Iterable
+from typing import Iterable, Union
+
+from torch import optim
 
 from data.dataset_loaders import DatasetLoaderParamSimple
+from learners.losses import CustomLoss
 
 
 def check_mkdir(dir_name: str):
@@ -43,3 +46,40 @@ def serialize_loader_param(param: DatasetLoaderParamSimple) -> dict:
     new_param: dict = param.copy()
     new_param['dataset_class'] = str(param['dataset_class']).replace('\'', '')
     return new_param
+
+
+def serialize_dataset_params(meta_params: list[DatasetLoaderParamSimple],
+                             tune_param: DatasetLoaderParamSimple) -> dict:
+    return {
+        'meta': [serialize_loader_param(mp) for mp in meta_params],
+        'tune': serialize_loader_param(tune_param)
+    }
+
+
+def get_name_from_function(func: callable) -> str:
+    return f'<function {func.__module__}.{func.__name__}>'
+
+
+def get_name_from_instance(instance: object) -> str:
+    return str(instance.__class__).replace('\'', '').replace('class', 'object')
+
+
+def serialize_optimization_data(calc_metrics: Union[callable, None], loss: CustomLoss, optimizer: optim.Optimizer,
+                                scheduler: optim.lr_scheduler.LRScheduler) -> dict:
+    optimizer_data = [
+        {key: param_group[key] for key in filter(lambda x: x != 'params', param_group.keys())}
+        for param_group in optimizer.__dict__['param_groups']
+    ]
+    scheduler_data = {
+        key: scheduler.__dict__[key]
+        for key in filter(lambda x: x != 'optimizer' and not x.startswith('_'), scheduler.__dict__.keys())
+    }
+    return {
+        'metrics': None if calc_metrics is None else get_name_from_function(calc_metrics),
+        'loss': get_name_from_instance(loss),
+        'loss_data': loss.params(),
+        'optimizer': get_name_from_instance(optimizer),
+        'optimizer_data': optimizer_data,
+        'scheduler': get_name_from_instance(scheduler),
+        'scheduler_data': scheduler_data
+    }

@@ -47,11 +47,11 @@ class WeaselLearner(MetaLearner):
             outer_loss = outer_loss.cuda()
 
         # Clears the gradients of meta_optimizer.
-        self.meta_optimizer.zero_grad()
+        self.optimizer.zero_grad()
 
         # Computing backpropagation.
         outer_loss.backward()
-        self.meta_optimizer.step()
+        self.optimizer.step()
 
         # Returning loss.
         return outer_loss.detach().item()
@@ -86,7 +86,7 @@ class WeaselLearner(MetaLearner):
                     y_tr = y_tr.cuda()
 
                 # Zeroing gradients for optimizer.
-                self.meta_optimizer.zero_grad()
+                self.optimizer.zero_grad()
 
                 # Forwarding through model.
                 p_tr = self.net(x_tr)
@@ -96,7 +96,7 @@ class WeaselLearner(MetaLearner):
 
                 # Computing gradients and taking step in optimizer.
                 tune_train_loss.backward()
-                self.meta_optimizer.step()
+                self.optimizer.step()
 
             if (c % self.config['weasel']['tune_test_freq'] == 0
                     or c == tune_epochs):
