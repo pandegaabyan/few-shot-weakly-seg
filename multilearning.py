@@ -8,7 +8,7 @@ from torch import cuda, optim
 from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig, \
     LossConfig, OptimizerConfig, SchedulerConfig
 from data.dataset_loaders import DatasetLoaderParamSimple
-from learners.learner import MetaLearner
+from learners.meta_learner import MetaLearner
 from learners.losses import CustomLoss
 from learners.protoseg import ProtoSegLearner
 from learners.weasel import WeaselLearner

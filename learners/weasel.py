@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 
 from data.dataset_loaders import DatasetLoaderItem
 from data.types import TensorDataItem
-from learners.learner import MetaLearner
+from learners.meta_learner import MetaLearner
 
 
 class WeaselLearner(MetaLearner):
