@@ -25,8 +25,9 @@ class LearnConfig(TypedDict):
     should_resume: bool
     use_gpu: bool
     num_epochs: int  # Number of epochs.
-    tune_freq: int  # Run tuning each tune_freq epochs.
     exp_name: str
+    tune_freq: NotRequired[int]  # Run tuning each tune_freq epochs, only for MetaLearner.
+    test_freq: NotRequired[int]  # Save predictions each save_pred_freq epochs, only for SimpleLearner.
 
 
 class LossConfig(TypedDict, total=False):
@@ -60,10 +61,10 @@ class ProtoSegConfig(TypedDict):
 
 class AllConfig(TypedDict):
     data: DataConfig
-    data_tune: DataTuneConfig
     learn: LearnConfig
     loss: LossConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
+    data_tune: NotRequired[DataTuneConfig]
     weasel: NotRequired[WeaselConfig]
     protoseg: NotRequired[ProtoSegConfig]

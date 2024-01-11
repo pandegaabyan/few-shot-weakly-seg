@@ -1,74 +1,44 @@
-import csv
-import json
-import logging
 import os
 import time
 from abc import ABC, abstractmethod
 from typing import Callable
 
 import numpy as np
-import torch
 from numpy.typing import NDArray
 from skimage import io
-from sklearn import metrics
 from torch import optim
 from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
-from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamSimple, get_meta_loaders, get_tune_loaders
+from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced, get_meta_loaders, get_tune_loaders
 from data.types import TensorDataItem
+from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
-from learners.utils import check_mkdir, check_rmtree, cycle_iterable, get_gpu_memory, serialize_dataset_params, \
-    serialize_optimization_data
+from learners.utils import check_mkdir, cycle_iterable, get_gpu_memory, dump_json, add_suffix_to_filename
 from torchmeta.modules import MetaModule
 
 
-class MetaLearner(ABC):
+class MetaLearner(BaseLearner, ABC):
 
     def __init__(self,
                  net: MetaModule,
                  config: AllConfig,
-                 meta_params: list[DatasetLoaderParamSimple],
-                 tune_param: DatasetLoaderParamSimple,
+                 meta_params: list[DatasetLoaderParamReduced],
+                 tune_param: DatasetLoaderParamReduced,
                  calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
                  calc_loss: CustomLoss | None = None,
                  optimizer: optim.Optimizer | None = None,
                  scheduler: optim.lr_scheduler.LRScheduler | None = None):
-        self.net = net
+        super().__init__(net, config, calc_metrics, calc_loss, optimizer, scheduler)
+
         self.meta_params = meta_params
         self.tune_param = tune_param
-        self.calc_metrics = calc_metrics
-        self.config = self.check_and_clean_config(config)
 
         self.meta_loaders = get_meta_loaders(self.meta_params, config['data'],
                                              pin_memory=config['learn']['use_gpu'])
         self.tune_loaders = get_tune_loaders(self.tune_param, config['data'],
                                              config['data_tune'], pin_memory=config['learn']['use_gpu'])
-
-        self.output_path = os.path.join(FILENAMES['output_folder'], self.config['learn']['exp_name'])
-        self.ckpt_path = os.path.join(FILENAMES['checkpoint_folder'], self.config['learn']['exp_name'])
-
-        self.checkpoint = {}
-        self.initial_gpu_percent = 0
-
-        if calc_loss is None:
-            self.calc_loss = CustomLoss()
-        else:
-            self.calc_loss = calc_loss
-
-        if optimizer is None:
-            self.optimizer = optim.Adam([
-                {'params': net.parameters(), 'lr': self.config['optimizer']['lr']}
-            ])
-        else:
-            self.optimizer = optimizer
-
-        if scheduler is None:
-            self.scheduler = optim.lr_scheduler.StepLR(self.optimizer,
-                                                       self.config['scheduler']['step_size'])
-        else:
-            self.scheduler = scheduler
 
     @abstractmethod
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
@@ -79,64 +49,21 @@ class MetaLearner(ABC):
                                 tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
         pass
 
-    def learn(self):
+    @staticmethod
+    def set_used_config() -> list[str]:
+        return ['data', 'data_tune', 'learn', 'loss', 'optimizer', 'scheduler']
 
-        gpu_percent, gpu_total = 0, 0
-        if self.config['learn']["use_gpu"]:
-            gpu_percent, gpu_total = get_gpu_memory()
-            self.initial_gpu_percent = gpu_percent
-            self.net = self.net.cuda()
+    def learn_process(self, epoch: int):
+        self.meta_train_test(epoch)
+        self.save_net_and_optimizer()
+        self.update_checkpoint({'epoch': epoch})
 
-        # Loading optimizer state in case of resuming training.
-        if self.config['learn']['should_resume']:
-            ok = self.check_output_and_ckpt_dir()
-            if not ok:
-                print('No data from previous learning')
-                return
+        tune_freq = self.config['learn'].get('tune_freq')
+        if tune_freq is not None and epoch % tune_freq == 0 or epoch == self.config['learn']['num_epochs']:
+            self.save_net_and_optimizer(epoch)
+            self.run_sparse_tuning(epoch)
 
-            self.read_checkpoint()
-            self.load_net_and_optimizer()
-
-            self.initialize_log()
-            self.save_configuration(False)
-
-            self.print_and_log('Resume learning ...', end='\n')
-            curr_epoch = self.checkpoint['epoch'] + 1
-
-        else:
-            ok = self.clear_output_and_ckpt_dir()
-            if not ok:
-                print('Learning canceled')
-                return
-
-            self.create_output_and_ckpt_dir()
-
-            self.initialize_log()
-            self.save_configuration(True)
-
-            self.print_and_log('Start learning ...', end="\n")
-            curr_epoch = 1
-
-        if self.config['learn']["use_gpu"]:
-            self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
-                               (gpu_total, gpu_percent))
-
-        # Iterating over epochs.
-        for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
-
-            # Meta training on source datasets.
-            self.meta_train_test(epoch)
-            self.save_net_and_optimizer()
-            self.update_checkpoint({'epoch': epoch})
-
-            if epoch % self.config['learn']['tune_freq'] == 0 or epoch == self.config['learn']['num_epochs']:
-                self.save_net_and_optimizer(epoch)
-                self.run_sparse_tuning(epoch)
-
-            self.scheduler.step()
-
-        self.print_and_log('Finish learning ...')
-        self.remove_log_handlers()
+        self.scheduler.step()
 
     def retune(self, epochs: list[int] | None = None):
         gpu_percent, gpu_total = 0, 0
@@ -150,13 +77,17 @@ class MetaLearner(ABC):
             print('No data from previous learning')
             return
 
-        self.initialize_log()
-        self.save_configuration(False)
-
         if epochs is None:
             num_epochs = self.config['learn']['num_epochs']
-            tune_freq = self.config['learn']['tune_freq']
-            epochs = list(range(tune_freq, num_epochs + 1, tune_freq))
+            tune_freq = self.config['learn'].get('tune_freq')
+            if tune_freq is None:
+                print('No epochs argument and no tune_freq in config')
+                return
+            else:
+                epochs = list(range(tune_freq, num_epochs + 1, tune_freq))
+
+        self.initialize_log()
+        self.save_configuration(False)
 
         self.print_and_log(f'Start retuning on epochs: {epochs} ...', end='\n')
         if self.config['learn']["use_gpu"]:
@@ -267,123 +198,36 @@ class MetaLearner(ABC):
             return f'shot={n_shots} {sparsity_mode}={sparsity_value}'
 
     @staticmethod
-    def set_used_config() -> list[str]:
-        return ['data', 'data_tune', 'learn', 'loss', 'optimizer', 'scheduler']
+    def dictify_loader_param(param: DatasetLoaderParamReduced) -> dict:
+        new_param: dict = param.copy()
+        new_param['dataset_class'] = str(param['dataset_class']).replace('\'', '')
+        return new_param
 
-    def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
-        new_config = {}
-        for key in self.set_used_config():
-            new_config[key] = ori_config[key]  # type: ignore
-        return new_config
-
-    def check_output_and_ckpt_dir(self) -> bool:
-        return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
-
-    def create_output_and_ckpt_dir(self):
-        check_mkdir(FILENAMES['output_folder'])
-        check_mkdir(self.output_path)
-        check_mkdir(FILENAMES['checkpoint_folder'])
-        check_mkdir(self.ckpt_path)
-
-    def clear_output_and_ckpt_dir(self) -> bool:
-        output_ok = check_rmtree(self.output_path)
-        ckpt_ok = check_rmtree(self.ckpt_path)
-        return output_ok and ckpt_ok
-
-    def initialize_log(self):
-        logging.basicConfig(filename=os.path.join(self.output_path, FILENAMES['learn_log']),
-                            encoding='utf-8',
-                            level=logging.INFO,
-                            format='%(asctime)s | %(message)s',
-                            datefmt='%Y-%m-%d %H:%M:%S',
-                            force=True)
-
-    @staticmethod
-    def print_and_log(message: str, start: str = '', end: str = ''):
-        print(start + message + end)
-        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
-
-    @staticmethod
-    def log_error():
-        logging.error("Exception:", exc_info=True, stack_info=True)
-
-    @staticmethod
-    def remove_log_handlers():
-        logger = logging.getLogger()
-        while logger.hasHandlers():
-            logger.removeHandler(logger.handlers[0])
-
-    def write_to_csv(self, filename: str, fieldnames: list[str], row: dict):
-        filename = os.path.join(self.output_path, filename)
-        if os.path.isfile(filename):
-            with open(filename, 'a', encoding='UTF8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writerow(row)
-        else:
-            with open(filename, 'w', encoding='UTF8', newline='') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerow(row)
-
-    def read_checkpoint(self):
-        with open(os.path.join(self.ckpt_path, FILENAMES['checkpoint']), 'r') as ckpt_file:
-            self.checkpoint: dict = json.load(ckpt_file)
-
-    def update_checkpoint(self, data: dict):
-        with open(os.path.join(self.ckpt_path, FILENAMES['checkpoint']), 'w') as ckpt_file:
-            self.checkpoint.update(data)
-            json.dump(self.checkpoint, ckpt_file, indent=4)
+    def get_dataset_params_dict(self) -> dict:
+        return {
+            'meta': [self.dictify_loader_param(mp) for mp in self.meta_params],
+            'tune': self.dictify_loader_param(self.tune_param)
+        }
 
     def save_configuration(self, is_new: bool):
-        dataset_params = serialize_dataset_params(self.meta_params, self.tune_param)
-        optimization_data = serialize_optimization_data(self.calc_metrics,
-                                                        self.calc_loss,
-                                                        self.optimizer,
-                                                        self.scheduler)
-        if is_new:
-            with open(os.path.join(self.output_path, FILENAMES['config']), "w") as config_file:
-                json.dump(self.config, config_file, indent=4)
-            with open(os.path.join(self.output_path, FILENAMES['dataset_config']), "w") as dataset_file:
-                json.dump(dataset_params, dataset_file, indent=4)
-            with open(os.path.join(self.output_path, FILENAMES['optimization_data']), "w") as opt_file:
-                json.dump(optimization_data, opt_file, indent=4)
-            with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
-                n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-                net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
-        else:
+        dataset_params = self.get_dataset_params_dict()
+        optimization_data = self.get_optimization_data_dict()
+        config_filepath = os.path.join(self.output_path, FILENAMES['config'])
+        dataset_path = os.path.join(self.output_path, FILENAMES['dataset_config'])
+        opt_path = os.path.join(self.output_path, FILENAMES['optimization_data'])
+        if not is_new:
             i = 1
-            while True:
-                suffix = str(i) if i != 1 else ''
-                config_filename = f'{suffix}.'.join(FILENAMES['config'].rsplit('.', 1))
-                config_filename = os.path.join(self.output_path, config_filename)
-                dataset_filename = f'{suffix}.'.join(FILENAMES['dataset_config'].rsplit('.', 1))
-                dataset_filename = os.path.join(self.output_path, dataset_filename)
-                opt_filename = f'{suffix}.'.join(FILENAMES['optimization_data'].rsplit('.', 1))
-                opt_filename = os.path.join(self.output_path, opt_filename)
-                if os.path.isfile(config_filename) or os.path.isfile(dataset_filename) or os.path.isfile(opt_filename):
-                    i += 1
-                    continue
-                with open(config_filename, "w") as config_file:
-                    json.dump(self.config, config_file, indent=4)
-                with open(dataset_filename, "w") as dataset_file:
-                    json.dump(dataset_params, dataset_file, indent=4)
-                with open(opt_filename, "w") as opt_file:
-                    json.dump(optimization_data, opt_file, indent=4)
-                break
+            while os.path.isfile(config_filepath) or os.path.isfile(dataset_path) or os.path.isfile(opt_path):
+                i += 1
+                config_filepath = add_suffix_to_filename(config_filepath, str(i))
+                dataset_path = add_suffix_to_filename(dataset_path, str(i))
+                opt_path = add_suffix_to_filename(opt_path, str(i))
 
-    def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str,
-                             start: str = '', end: str = '') -> dict:
-        if self.calc_metrics is None:
-            iou_mean = metrics.jaccard_score(np.asarray(labels).ravel(),
-                                             np.asarray(preds).ravel(),
-                                             average='macro')
-            score = {'iou_mean': iou_mean}
-            score_text = '%.2f' % (iou_mean * 100)
-            name = 'Mean IoU score'
-        else:
-            score, score_text, name = self.calc_metrics(labels, preds)
-        self.print_and_log(f'{name} - {message}: {score_text}', start, end)
-        return score
+        dump_json(config_filepath, self.config)
+        dump_json(dataset_path, dataset_params)
+        dump_json(opt_path, optimization_data)
+        if is_new:
+            self.save_net_as_text()
 
     def save_all_tune_mask(self, tune_loader: DataLoader, sparsity_mode: str):
         check_mkdir(os.path.join(self.output_path, FILENAMES['tune_masks_folder']))
@@ -409,17 +253,3 @@ class MetaLearner(ABC):
         io.imsave(
             os.path.join(self.output_path, FILENAMES['prediction_folder'], f'{filename} - {tune_param}.png'),
             stored_prediction)
-
-    def save_net_and_optimizer(self, epoch: int = 0):
-        prefix = f'ep{epoch}_' if epoch != 0 else ''
-        torch.save(self.net.state_dict(),
-                   os.path.join(self.ckpt_path, prefix + FILENAMES['net_state']))
-        torch.save(self.optimizer.state_dict(),
-                   os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state']))
-
-    def load_net_and_optimizer(self, epoch: int = 0):
-        prefix = f'ep{epoch}_' if epoch != 0 else ''
-        self.net.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['net_state'])))
-        self.optimizer.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state'])))
