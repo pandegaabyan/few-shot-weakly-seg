@@ -10,10 +10,10 @@ def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict
     preds_oc = [np.equal(pred, 2).astype(pred.dtype) for pred in preds]
 
     # Converting to numpy for computing metrics.
-    labels_od_np = np.asarray(labels_od).ravel()
-    labels_oc_np = np.asarray(labels_oc).ravel()
-    preds_od_np = np.asarray(preds_od).ravel()
-    preds_oc_np = np.asarray(preds_oc).ravel()
+    labels_od_np = np.concatenate(labels_od, axis=0).ravel()
+    labels_oc_np = np.concatenate(labels_oc, axis=0).ravel()
+    preds_od_np = np.concatenate(preds_od, axis=0).ravel()
+    preds_oc_np = np.concatenate(preds_oc, axis=0).ravel()
 
     # Computing metrics.
     iou_od = metrics.jaccard_score(labels_od_np, preds_od_np)
