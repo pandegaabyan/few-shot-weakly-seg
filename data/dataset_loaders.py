@@ -8,7 +8,7 @@ from config.config_type import DataConfig, DataTuneConfig
 from data.few_sparse_dataset import FewSparseDataset
 from data.types import DatasetModes, SparsityModes, SparsityValue, FewSparseDatasetKeywordArgs
 
-DatasetModesSimple = Literal["", "meta", "tune"]
+DatasetModesReduced = Literal["", "meta", "tune"]
 
 
 class DatasetLoaderItem(TypedDict):
@@ -22,7 +22,7 @@ class DatasetLoaderItem(TypedDict):
 class DatasetLoaderParam(TypedDict):
     dataset_class: Type[FewSparseDataset]
     dataset_kwargs: FewSparseDatasetKeywordArgs
-    mode: DatasetModesSimple
+    mode: DatasetModesReduced
     num_classes: int
     resize_to: tuple[int, int]
     pin_memory: NotRequired[bool]
@@ -31,13 +31,13 @@ class DatasetLoaderParam(TypedDict):
     test_batch_size: NotRequired[int]
 
 
-class DatasetLoaderParamSimple(TypedDict):
+class DatasetLoaderParamReduced(TypedDict):
     dataset_class: Type[FewSparseDataset]
     dataset_kwargs: FewSparseDatasetKeywordArgs
 
 
 class DatasetLoaderParamComplement(TypedDict):
-    mode: DatasetModesSimple
+    mode: DatasetModesReduced
     num_classes: int
     resize_to: tuple[int, int]
     pin_memory: NotRequired[bool]
@@ -97,7 +97,7 @@ def get_dataset_loaders(param_list: list[DatasetLoaderParam]) -> list[DatasetLoa
     return dataset_loaders
 
 
-def get_meta_loaders(param_list: list[DatasetLoaderParamSimple], data_config: DataConfig,
+def get_meta_loaders(param_list: list[DatasetLoaderParamReduced], data_config: DataConfig,
                      pin_memory: bool = False) -> list[DatasetLoaderItem]:
     new_param_list: list[DatasetLoaderParam] = []
     complement_param: DatasetLoaderParamComplement = {
@@ -109,23 +109,23 @@ def get_meta_loaders(param_list: list[DatasetLoaderParamSimple], data_config: Da
         'train_batch_size': data_config['batch_size'],
         'test_batch_size': data_config['batch_size'],
     }
-    for simple_param in param_list:
-        full_param: DatasetLoaderParam = {**simple_param, **complement_param}  # type: ignore
+    for reduced_param in param_list:
+        full_param: DatasetLoaderParam = {**reduced_param, **complement_param}  # type: ignore
         new_param_list.append(full_param)
 
     return get_dataset_loaders(new_param_list)
 
 
-def get_tune_loaders(param: DatasetLoaderParamSimple, data_config: DataConfig,
+def get_tune_loaders(param: DatasetLoaderParamReduced, data_config: DataConfig,
                      data_tune_config: DataTuneConfig, pin_memory: bool = False) -> list[DatasetLoaderItem]:
     new_param_list: list[DatasetLoaderParam] = []
     for shot in data_tune_config['shot_list']:
         for sparsity_mode, sparsity_values in data_tune_config['sparsity_dict'].items():
             for sparsity_value in sparsity_values:
-                simple_param = copy.deepcopy(param)
-                simple_param['dataset_kwargs']['num_shots'] = shot
-                simple_param['dataset_kwargs']['sparsity_mode'] = sparsity_mode
-                simple_param['dataset_kwargs']['sparsity_value'] = sparsity_value
+                reduced_param = copy.deepcopy(param)
+                reduced_param['dataset_kwargs']['num_shots'] = shot
+                reduced_param['dataset_kwargs']['sparsity_mode'] = sparsity_mode
+                reduced_param['dataset_kwargs']['sparsity_value'] = sparsity_value
                 complement_param: DatasetLoaderParamComplement = {
                     'mode': 'tune',
                     'num_classes': data_config['num_classes'],
@@ -135,7 +135,7 @@ def get_tune_loaders(param: DatasetLoaderParamSimple, data_config: DataConfig,
                     'train_batch_size': data_config['batch_size'],
                     'test_batch_size': 1,
                 }
-                full_param: DatasetLoaderParam = {**simple_param, **complement_param}  # type: ignore
+                full_param: DatasetLoaderParam = {**reduced_param, **complement_param}  # type: ignore
                 new_param_list.append(full_param)
 
     return get_dataset_loaders(new_param_list)
