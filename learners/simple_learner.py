@@ -53,7 +53,19 @@ class SimpleLearner(BaseLearner):
         return ['data', 'learn', 'loss', 'optimizer', 'scheduler']
 
     def learn_process(self, epoch: int):
+        self.train_val_process(epoch)
 
+        self.save_net_and_optimizer()
+        self.update_checkpoint({'epoch': epoch})
+        self.scheduler.step()
+
+        num_epochs = self.config['learn']['num_epochs']
+        test_freq = self.config['learn'].get('test_freq')
+        if test_freq is not None and epoch % test_freq == 0 or epoch == num_epochs:
+            self.save_net_and_optimizer(epoch)
+            self.test_process(epoch)
+
+    def train_val_process(self, epoch: int):
         total_train_loss = 0.0
         total_val_loss = 0.0
         val_labels = []
@@ -135,15 +147,6 @@ class SimpleLearner(BaseLearner):
             row
         )
 
-        self.save_net_and_optimizer()
-        self.update_checkpoint({'epoch': epoch})
-        self.scheduler.step()
-
-        test_freq = self.config['learn'].get('test_freq')
-        if test_freq is not None and epoch % test_freq == 0 or epoch == num_epochs:
-            self.save_net_and_optimizer(epoch)
-            self.test_process(epoch)
-
     def test_process(self, epoch: int):
         test_labels = []
         test_preds = []
@@ -155,8 +158,8 @@ class SimpleLearner(BaseLearner):
         start_time = time.time()
 
         print('')
+        self.net.eval()
         with torch.no_grad():
-            self.net.eval()
             for i, test_data in enumerate(self.dataset_loader['test']):
                 x_ts, y_ts, img_name = test_data
                 if self.config['learn']['use_gpu']:
