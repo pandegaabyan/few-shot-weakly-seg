@@ -14,8 +14,12 @@ class SimpleDatasetLoaderItem(TypedDict):
     val: DataLoader
 
 
-def get_simple_dataset_loader(dataset_class: Type[SimpleDataset], dataset_kwargs: SimpleDatasetKeywordArgs,
-                              data_config: DataConfig, pin_memory: bool = False) -> SimpleDatasetLoaderItem:
+def get_simple_dataset_loader(data_config: DataConfig,
+                              dataset_class: Type[SimpleDataset],
+                              dataset_kwargs: SimpleDatasetKeywordArgs,
+                              test_dataset_class: Type[SimpleDataset] | None = None,
+                              test_dataset_kwargs: SimpleDatasetKeywordArgs | None = None,
+                              pin_memory: bool = False) -> SimpleDatasetLoaderItem:
     train_dataset = dataset_class(
         'train',
         data_config['num_classes'],
@@ -44,11 +48,15 @@ def get_simple_dataset_loader(dataset_class: Type[SimpleDataset], dataset_kwargs
         pin_memory=pin_memory
     )
 
-    test_dataset = dataset_class(
+    if test_dataset_class is None or test_dataset_kwargs is None:
+        test_dataset_class = dataset_class
+        test_dataset_kwargs = dataset_kwargs
+
+    test_dataset = test_dataset_class(
         'test',
         data_config['num_classes'],
         data_config['resize_to'],
-        **dataset_kwargs
+        **test_dataset_kwargs
     )
     test_loader = DataLoader(
         test_dataset,

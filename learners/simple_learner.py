@@ -43,10 +43,12 @@ class SimpleLearner(BaseLearner):
             self.test_dataset_class = dataset_class
             self.test_dataset_kwargs = dataset_kwargs
 
-        self.dataset_loader = get_simple_dataset_loader(self.dataset_class,
+        self.dataset_loader = get_simple_dataset_loader(self.config['data'],
+                                                        self.dataset_class,
                                                         self.dataset_kwargs,
-                                                        self.config['data'],
-                                                        self.config['learn']['use_gpu'])
+                                                        test_dataset_class=self.test_dataset_class,
+                                                        test_dataset_kwargs=self.test_dataset_kwargs,
+                                                        pin_memory=self.config['learn']['use_gpu'])
 
     @staticmethod
     def set_used_config() -> list[str]:
