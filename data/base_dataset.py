@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import transform
+from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
 
@@ -93,6 +94,19 @@ class BaseDataset(Dataset, ABC):
         filename = ".".join(filename.split(".")[:-1])
 
         return filename
+
+    @staticmethod
+    def split_train_test(data: list, test_size: float | int,
+                         random_state: int | None = None,
+                         shuffle: bool = False) -> tuple[list, list]:
+        if test_size == 0:
+            tr, ts = data, []
+        elif test_size == 1:
+            tr, ts = [], data
+        else:
+            tr, ts = train_test_split(data, test_size=test_size,
+                                      random_state=random_state, shuffle=shuffle)
+        return tr, ts
 
     # Function to load images and masks
     # Implement this function based on your data

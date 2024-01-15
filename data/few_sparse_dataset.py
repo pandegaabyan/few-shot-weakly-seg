@@ -286,8 +286,8 @@ class FewSparseDataset(BaseDataset, ABC):
 
     def make_data_list(self) -> list[tuple[str, str]]:
         # Splitting data.
-        tr, ts = train_test_split(self.get_all_data_path(), test_size=self.split_test_size,
-                                  random_state=self.split_seed, shuffle=False)
+        tr, ts = self.split_train_test(self.get_all_data_path(),
+                                       test_size=self.split_test_size, random_state=self.split_seed, shuffle=False)
 
         # Select split, based on the mode
         if 'train' in self.mode:

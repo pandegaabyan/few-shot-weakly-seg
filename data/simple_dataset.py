@@ -31,10 +31,10 @@ class SimpleDataset(BaseDataset, ABC):
     def make_data_list(self) -> list[tuple[str, str]]:
         # Splitting data.
         val_test_size = self.split_val_size + self.split_test_size
-        tr, val_ts = train_test_split(self.get_all_data_path(), test_size=val_test_size,
-                                      random_state=self.split_seed, shuffle=False)
-        val, ts = train_test_split(val_ts, test_size=self.split_test_size / val_test_size,
-                                   random_state=self.split_seed, shuffle=False)
+        tr, val_ts = self.split_train_test(self.get_all_data_path(), test_size=val_test_size,
+                                           random_state=self.split_seed, shuffle=False)
+        val, ts = self.split_train_test(val_ts, test_size=self.split_test_size / val_test_size,
+                                        random_state=self.split_seed, shuffle=False)
 
         # Select split, based on the mode
         if 'train' in self.mode:
