@@ -119,8 +119,8 @@ class SimpleLearner(BaseLearner):
                 detached_loss = loss.detach().item()
                 total_val_loss += detached_loss
 
-                val_labels.append(y_val.detach().squeeze(0).cpu().numpy())
-                val_preds.append(p_val.detach().max(1)[1].squeeze(1).squeeze(0).cpu().numpy())
+                val_labels.append(y_val.detach().cpu().numpy())
+                val_preds.append(p_val.detach().max(1)[1].squeeze(1).cpu().numpy())
 
                 self.print_and_log('Val Ep: %d/%d, it: %d/%d, loss: %.4f' %
                                    (epoch, num_epochs, i + 1, val_loader_len, detached_loss))
