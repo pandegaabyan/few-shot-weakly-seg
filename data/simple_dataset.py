@@ -2,7 +2,6 @@ import random
 from abc import ABC
 
 import torch
-from sklearn.model_selection import train_test_split
 
 from data.base_dataset import BaseDataset
 from data.types import SimpleDatasetModes, SimpleTensorDataItem
@@ -33,8 +32,11 @@ class SimpleDataset(BaseDataset, ABC):
         val_test_size = self.split_val_size + self.split_test_size
         tr, val_ts = self.split_train_test(self.get_all_data_path(), test_size=val_test_size,
                                            random_state=self.split_seed, shuffle=False)
-        val, ts = self.split_train_test(val_ts, test_size=self.split_test_size / val_test_size,
-                                        random_state=self.split_seed, shuffle=False)
+        if val_test_size == 0:
+            val, ts = [], []
+        else:
+            val, ts = self.split_train_test(val_ts, test_size=self.split_test_size / val_test_size,
+                                            random_state=self.split_seed, shuffle=False)
 
         # Select split, based on the mode
         if 'train' in self.mode:

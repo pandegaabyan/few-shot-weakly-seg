@@ -8,7 +8,6 @@ from skimage import data as skdata
 from skimage import measure
 from skimage import morphology
 from skimage import segmentation
-from sklearn.model_selection import train_test_split
 
 from data.base_dataset import BaseDataset
 from data.types import SparsityModes, SparsityValue, DatasetModes, TensorDataItem
