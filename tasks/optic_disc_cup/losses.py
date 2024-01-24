@@ -8,7 +8,7 @@ from learners.losses import CustomLoss
 class DiscCupLoss(CustomLoss):
     def __init__(self, loss_type: str, ignored_index: int = -1):
         super(DiscCupLoss, self).__init__()
-        if loss_type not in ['ce', 'bce', 'iou', 'iou_bce']:
+        if loss_type not in ['ce', 'bce', 'mce', 'iou', 'iou_bce']:
             raise ValueError(f'Invalid loss type: {loss_type}')
         self.loss_type = loss_type
         self.ignored_index = ignored_index
