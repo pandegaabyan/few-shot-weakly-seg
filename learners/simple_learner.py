@@ -6,7 +6,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import io
-from torch import optim
+from torch import optim, nn
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
@@ -16,13 +16,12 @@ from data.types import SimpleDatasetKeywordArgs
 from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
 from learners.utils import check_mkdir, dump_json, add_suffix_to_filename, get_gpu_memory
-from torchmeta.modules import MetaModule
 
 
 class SimpleLearner(BaseLearner):
 
     def __init__(self,
-                 net: MetaModule,
+                 net: nn.Module,
                  config: AllConfig,
                  dataset_class: Type[SimpleDataset],
                  dataset_kwargs: SimpleDatasetKeywordArgs,
@@ -200,11 +199,8 @@ class SimpleLearner(BaseLearner):
                 self.save_prediction(pred, name)
 
     def retest(self, epochs: list[int] | None = None):
-        gpu_percent, gpu_total = 0, 0
-        if self.config['learn']["use_gpu"]:
-            gpu_percent, gpu_total = get_gpu_memory()
-            self.initial_gpu_percent = gpu_percent
-            self.net = self.net.cuda()
+
+        gpu_percent, gpu_total = self.initialize_gpu_usage()
 
         ok = self.check_output_and_ckpt_dir()
         if not ok:

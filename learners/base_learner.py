@@ -8,20 +8,19 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from sklearn import metrics
-from torch import optim
+from torch import optim, nn
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
 from learners.losses import CustomLoss
 from learners.utils import check_mkdir, check_rmtree, get_gpu_memory, load_json, dump_json, \
     get_name_from_function, get_name_from_instance
-from torchmeta.modules import MetaModule
 
 
 class BaseLearner(ABC):
 
     def __init__(self,
-                 net: MetaModule,
+                 net: nn.Module,
                  config: AllConfig,
                  calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
                  calc_loss: CustomLoss | None = None,
@@ -70,11 +69,7 @@ class BaseLearner(ABC):
 
     def learn(self):
 
-        gpu_percent, gpu_total = 0, 0
-        if self.config['learn']["use_gpu"]:
-            gpu_percent, gpu_total = get_gpu_memory()
-            self.initial_gpu_percent = gpu_percent
-            self.net = self.net.cuda()
+        gpu_percent, gpu_total = self.initialize_gpu_usage()
 
         # Loading optimizer state in case of resuming training.
         if self.config['learn']['should_resume']:
@@ -122,6 +117,14 @@ class BaseLearner(ABC):
         for key in self.set_used_config():
             new_config[key] = ori_config[key]  # type: ignore
         return new_config
+
+    def initialize_gpu_usage(self) -> tuple[float, int]:
+        gpu_percent, gpu_total = 0, 0
+        if self.config['learn']["use_gpu"]:
+            gpu_percent, gpu_total = get_gpu_memory()
+            self.initial_gpu_percent = gpu_percent
+            self.net = self.net.cuda()
+        return gpu_percent, gpu_total
 
     def check_output_and_ckpt_dir(self) -> bool:
         return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
@@ -199,9 +202,10 @@ class BaseLearner(ABC):
         }
 
     def save_net_as_text(self):
+        n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+        net_text = '# of parameters: ' + str(n_params) + '\n\n' + str(self.net)
         with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
-            n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-            net_file.write('# of parameters: ' + str(n_params) + '\n\n' + str(self.net))
+            net_file.write(net_text)
 
     def calc_and_log_metrics(self, labels: list[NDArray], preds: list[NDArray], message: str = '',
                              start: str = '', end: str = '') -> dict:
@@ -221,16 +225,18 @@ class BaseLearner(ABC):
         self.print_and_log(full_message, start, end)
         return score
 
-    def save_net_and_optimizer(self, epoch: int = 0):
+    def save_torch_dict(self, state_dict: dict, filename: str, epoch: int = 0):
         prefix = f'ep{epoch}_' if epoch != 0 else ''
-        torch.save(self.net.state_dict(),
-                   os.path.join(self.ckpt_path, prefix + FILENAMES['net_state']))
-        torch.save(self.optimizer.state_dict(),
-                   os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state']))
+        torch.save(state_dict, os.path.join(self.ckpt_path, prefix + filename))
+
+    def load_torch_dict(self, filename: str, epoch: int = 0) -> dict:
+        prefix = f'ep{epoch}_' if epoch != 0 else ''
+        return torch.load(os.path.join(self.ckpt_path, prefix + filename))
+
+    def save_net_and_optimizer(self, epoch: int = 0):
+        self.save_torch_dict(self.net.state_dict(), FILENAMES['net_state'], epoch)
+        self.save_torch_dict(self.optimizer.state_dict(), FILENAMES['optimizer_state'], epoch)
 
     def load_net_and_optimizer(self, epoch: int = 0):
-        prefix = f'ep{epoch}_' if epoch != 0 else ''
-        self.net.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['net_state'])))
-        self.optimizer.load_state_dict(
-            torch.load(os.path.join(self.ckpt_path, prefix + FILENAMES['optimizer_state'])))
+        self.net.load_state_dict(self.load_torch_dict(FILENAMES['net_state'], epoch))
+        self.optimizer.load_state_dict(self.load_torch_dict(FILENAMES['optimizer_state'], epoch))

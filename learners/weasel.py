@@ -3,13 +3,20 @@ from collections import OrderedDict
 
 import torch
 from numpy.typing import NDArray
+from torch import Tensor
 
 from data.dataset_loaders import DatasetLoaderItem
 from data.types import TensorDataItem
 from learners.meta_learner import MetaLearner
+from torchmeta.modules import MetaModule
 
 
 class WeaselLearner(MetaLearner):
+
+    def post_init(self):
+        super().post_init()
+        if not isinstance(self.net, MetaModule):
+            raise ValueError('WeaselLearner only supports MetaModule networks.')
 
     def set_used_config(self) -> list[str]:
         return super().set_used_config() + ['weasel']
@@ -148,7 +155,7 @@ class WeaselLearner(MetaLearner):
 
         return labels, preds, names
 
-    def update_parameters(self, loss: torch.Tensor):
+    def update_parameters(self, loss: Tensor):
         grads = torch.autograd.grad(loss, self.net.meta_parameters(),  # type: ignore
                                     create_graph=not self.config['weasel']['use_first_order'])
 

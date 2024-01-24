@@ -6,7 +6,7 @@ from typing import Callable
 import numpy as np
 from numpy.typing import NDArray
 from skimage import io
-from torch import optim
+from torch import optim, nn
 from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
@@ -16,13 +16,12 @@ from data.types import TensorDataItem
 from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
 from learners.utils import check_mkdir, cycle_iterable, get_gpu_memory, dump_json, add_suffix_to_filename
-from torchmeta.modules import MetaModule
 
 
 class MetaLearner(BaseLearner, ABC):
 
     def __init__(self,
-                 net: MetaModule,
+                 net: nn.Module,
                  config: AllConfig,
                  meta_params: list[DatasetLoaderParamReduced],
                  tune_param: DatasetLoaderParamReduced,
@@ -40,6 +39,8 @@ class MetaLearner(BaseLearner, ABC):
         self.tune_loaders = get_tune_loaders(self.tune_param, config['data'],
                                              config['data_tune'], pin_memory=config['learn']['use_gpu'])
 
+        self.post_init()
+
     @abstractmethod
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         pass
@@ -49,11 +50,18 @@ class MetaLearner(BaseLearner, ABC):
                                 tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
         pass
 
+    def post_init(self):
+        pass
+
+    def pre_meta_train_test(self, epoch: int):
+        pass
+
     @staticmethod
     def set_used_config() -> list[str]:
         return ['data', 'data_tune', 'learn', 'loss', 'optimizer', 'scheduler']
 
     def learn_process(self, epoch: int):
+        self.pre_meta_train_test(epoch)
         self.meta_train_test(epoch)
         self.save_net_and_optimizer()
         self.update_checkpoint({'epoch': epoch})
@@ -66,11 +74,8 @@ class MetaLearner(BaseLearner, ABC):
         self.scheduler.step()
 
     def retune(self, epochs: list[int] | None = None):
-        gpu_percent, gpu_total = 0, 0
-        if self.config['learn']["use_gpu"]:
-            gpu_percent, gpu_total = get_gpu_memory()
-            self.initial_gpu_percent = gpu_percent
-            self.net = self.net.cuda()
+
+        gpu_percent, gpu_total = self.initialize_gpu_usage()
 
         ok = self.check_output_and_ckpt_dir()
         if not ok:
