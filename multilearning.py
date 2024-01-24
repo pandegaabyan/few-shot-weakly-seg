@@ -17,6 +17,7 @@ from learners.simple_learner import SimpleLearner
 from learners.weasel import WeaselLearner
 from models.u_net import UNet
 from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset, RimOneSimpleDataset, DrishtiSimpleDataset
+from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
 
 
@@ -225,7 +226,8 @@ def run_clean_guidednets_learning(all_config: AllConfig,
                                   tune_param: DatasetLoaderParamReduced,
                                   calc_loss: CustomLoss | None = None,
                                   tune_only: bool = False,
-                                  tune_epochs: list[int] | None = None):
+                                  tune_epochs: list[int] | None = None,
+                                  use_original_way: bool = False):
     embedding_size = all_config['guidednets']['embedding_size']
 
     net_image = UNet(all_config['data']['num_channels'], embedding_size, prototype=True).cuda()
@@ -243,13 +245,30 @@ def run_clean_guidednets_learning(all_config: AllConfig,
 
     net_merge = nn.AdaptiveAvgPool2d((1, 1)).cuda()
 
-    net_named_parameters = list(net_image.named_parameters()) + list(net_head.named_parameters()) \
-        + list(net_merge.named_parameters())
-    if net_mask is not None:
-        net_named_parameters += net_mask.named_parameters()
+    if use_original_way:
+        del all_config['optimizer']['lr_bias'], all_config['optimizer']['betas']
+        del all_config['optimizer']['weight_decay'], all_config['optimizer']['weight_decay_bias']
+        all_config['scheduler']['step_size'] = 50
+        all_config['scheduler']['gamma'] = 0.5
 
-    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net_named_parameters,
-                                                                           all_config)
+        calc_loss = DiscCupLoss('mce')
+
+        net_parameters = list(net_image.parameters()) + list(net_head.parameters()) + list(net_merge.parameters())
+        if net_mask is not None:
+            net_parameters += net_mask.parameters()
+
+        adam_optimizer = optim.Adam(net_parameters, all_config['optimizer']['lr'])
+        step_scheduler = optim.lr_scheduler.StepLR(adam_optimizer,
+                                                   all_config['scheduler']['step_size'],
+                                                   gamma=all_config['scheduler']['gamma'])
+    else:
+        net_named_parameters = list(net_image.named_parameters()) + list(net_head.named_parameters()) \
+                               + list(net_merge.named_parameters())
+        if net_mask is not None:
+            net_named_parameters += net_mask.named_parameters()
+
+        adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net_named_parameters,
+                                                                               all_config)
 
     learner = GuidedNetsLearner(net_image, net_mask, net_merge, net_head,
                                 all_config, meta_params, tune_param,
