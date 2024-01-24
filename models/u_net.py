@@ -114,13 +114,14 @@ class UNet(modules.MetaModule):
         self.dec3 = _MetaDecoderBlock(256, 128, 64)
         self.dec2 = _MetaDecoderBlock(128, 64, 32)
 
+        dec1_out_channels = output_channels if self.prototype else 32
         self.dec1 = modules.MetaSequential(
             nn.Dropout2d(),
-            modules.MetaConv2d(64, 32, kernel_size=3, padding=1),
-            modules.MetaBatchNorm2d(32),
+            modules.MetaConv2d(64, dec1_out_channels, kernel_size=3, padding=1),
+            modules.MetaBatchNorm2d(dec1_out_channels),
             nn.ReLU(inplace=True),
-            modules.MetaConv2d(32, 32, kernel_size=3, padding=1),
-            modules.MetaBatchNorm2d(32),
+            modules.MetaConv2d(dec1_out_channels, dec1_out_channels, kernel_size=3, padding=1),
+            modules.MetaBatchNorm2d(dec1_out_channels),
             nn.ReLU(inplace=True),
         )
 
