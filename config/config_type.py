@@ -59,6 +59,10 @@ class ProtoSegConfig(TypedDict):
     embedding_size: int
 
 
+class GuidedNetsConfig(TypedDict):
+    embedding_size: int
+
+
 class AllConfig(TypedDict):
     data: DataConfig
     learn: LearnConfig
@@ -68,3 +72,4 @@ class AllConfig(TypedDict):
     data_tune: NotRequired[DataTuneConfig]
     weasel: NotRequired[WeaselConfig]
     protoseg: NotRequired[ProtoSegConfig]
+    guidednets: NotRequired[GuidedNetsConfig]
