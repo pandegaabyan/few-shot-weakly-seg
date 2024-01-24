@@ -1,7 +1,7 @@
 import copy
 import gc
 import time
-from typing import Type
+from typing import Type, Iterator, Iterable
 
 from torch import cuda, optim
 
@@ -10,7 +10,6 @@ from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfi
 from data.dataset_loaders import DatasetLoaderParamReduced
 from data.simple_dataset import SimpleDataset
 from data.types import SimpleDatasetKeywordArgs
-from learners.meta_learner import MetaLearner
 from learners.losses import CustomLoss
 from learners.protoseg import ProtoSegLearner
 from learners.simple_learner import SimpleLearner
@@ -18,7 +17,6 @@ from learners.weasel import WeaselLearner
 from models.u_net import UNet
 from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset, RimOneSimpleDataset, DrishtiSimpleDataset
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
-from torchmeta.modules import MetaModule
 
 
 def get_base_config() -> AllConfig:
@@ -129,13 +127,13 @@ def get_tune_loader_params() -> DatasetLoaderParamReduced:
     return drishti_tune_loader_params
 
 
-def get_adam_optimizer_and_step_scheduler(net: MetaModule, all_config: AllConfig) \
+def get_adam_optimizer_and_step_scheduler(net_named_params: Iterator | Iterable, all_config: AllConfig) \
         -> tuple[optim.Optimizer, optim.lr_scheduler.LRScheduler]:
     adam_optimizer = optim.Adam([
-        {'params': [param for name, param in net.named_parameters() if name[-4:] == 'bias'],
+        {'params': [param for name, param in net_named_params if name[-4:] == 'bias'],
          'lr': all_config['optimizer']['lr_bias'],
          'weight_decay': all_config['optimizer']['weight_decay_bias']},
-        {'params': [param for name, param in net.named_parameters() if name[-4:] != 'bias'],
+        {'params': [param for name, param in net_named_params if name[-4:] != 'bias'],
          'lr': all_config['optimizer']['lr'],
          'weight_decay': all_config['optimizer']['weight_decay']}
     ], betas=all_config['optimizer']['betas'])
@@ -147,18 +145,19 @@ def get_adam_optimizer_and_step_scheduler(net: MetaModule, all_config: AllConfig
     return adam_optimizer, step_scheduler
 
 
-def run_clean_meta_learning(learner_class: Type[MetaLearner],
-                            net: MetaModule,
-                            all_config: AllConfig,
-                            meta_params: list[DatasetLoaderParamReduced],
-                            tune_param: DatasetLoaderParamReduced,
-                            calc_loss: CustomLoss | None = None,
-                            tune_only: bool = False,
-                            tune_epochs: list[int] | None = None):
+def run_clean_weasel_learning(all_config: AllConfig,
+                              meta_params: list[DatasetLoaderParamReduced],
+                              tune_param: DatasetLoaderParamReduced,
+                              calc_loss: CustomLoss | None = None,
+                              tune_only: bool = False,
+                              tune_epochs: list[int] | None = None):
 
-    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net, all_config)
+    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
-    learner = learner_class(net,
+    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
+                                                                           all_config)
+
+    learner = WeaselLearner(net,
                             all_config,
                             meta_params,
                             tune_param,
@@ -182,9 +181,43 @@ def run_clean_meta_learning(learner_class: Type[MetaLearner],
         cuda.empty_cache()
 
 
-def run_clean_simple_learning(learner_class: Type[SimpleLearner],
-                              net: MetaModule,
-                              all_config: AllConfig,
+def run_clean_protoseg_learning(all_config: AllConfig,
+                                meta_params: list[DatasetLoaderParamReduced],
+                                tune_param: DatasetLoaderParamReduced,
+                                calc_loss: CustomLoss | None = None,
+                                tune_only: bool = False,
+                                tune_epochs: list[int] | None = None):
+
+    net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
+
+    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
+                                                                           all_config)
+
+    learner = ProtoSegLearner(net,
+                              all_config,
+                              meta_params,
+                              tune_param,
+                              calc_disc_cup_iou,
+                              calc_loss=calc_loss,
+                              optimizer=adam_optimizer,
+                              scheduler=step_scheduler)
+
+    try:
+        if tune_only:
+            learner.retune(tune_epochs)
+        else:
+            learner.learn()
+    except BaseException as e:
+        learner.log_error()
+        raise e
+    finally:
+        learner.remove_log_handlers()
+        del net, adam_optimizer, step_scheduler, learner
+        gc.collect()
+        cuda.empty_cache()
+
+
+def run_clean_simple_learning(all_config: AllConfig,
                               dataset_class: Type[SimpleDataset],
                               dataset_kwargs: SimpleDatasetKeywordArgs,
                               test_dataset_class: Type[SimpleDataset] | None = None,
@@ -193,9 +226,12 @@ def run_clean_simple_learning(learner_class: Type[SimpleLearner],
                               test_only: bool = False,
                               test_epochs: list[int] | None = None):
 
-    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net, all_config)
+    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
-    learner = learner_class(net,
+    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
+                                                                           all_config)
+
+    learner = SimpleLearner(net,
                             all_config,
                             dataset_class,
                             dataset_kwargs,
@@ -228,10 +264,7 @@ def main():
     # all_config['data']['batch_size'] = 13
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L SL'
-
-    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
-
-    run_clean_simple_learning(SimpleLearner, net, all_config,
+    run_clean_simple_learning(all_config,
                               RimOneSimpleDataset,
                               {'split_seed': 0, 'split_val_size': 0.2, 'split_test_size': 0.2},
                               test_dataset_class=DrishtiSimpleDataset,
@@ -241,19 +274,11 @@ def main():
     tune_loader_params = get_tune_loader_params()
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L WS'
-
-    net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
-
-    run_clean_meta_learning(WeaselLearner, net, all_config,
-                            meta_loader_params_list, tune_loader_params)
+    run_clean_weasel_learning(all_config, meta_loader_params_list, tune_loader_params)
 
     all_config['learn']['exp_name'] = 'v3 RO-DR L PS'
-
-    net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
-
-    run_clean_meta_learning(ProtoSegLearner, net, all_config,
-                            meta_loader_params_list, tune_loader_params,
-                            tune_only=True, tune_epochs=[40, 200])
+    run_clean_protoseg_learning(all_config, meta_loader_params_list, tune_loader_params,
+                                tune_only=True, tune_epochs=[40, 200])
 
     config_items = [
         {
@@ -299,10 +324,8 @@ def main():
 
         new_tune_loader_params = copy.deepcopy(tune_loader_params)
 
-        net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
-
-        run_clean_meta_learning(WeaselLearner, net, new_config,
-                                new_meta_loader_params_list, new_tune_loader_params)
+        run_clean_weasel_learning(new_config,
+                                  new_meta_loader_params_list, new_tune_loader_params)
 
         time.sleep(60)
 
