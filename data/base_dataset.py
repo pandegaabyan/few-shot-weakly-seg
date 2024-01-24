@@ -6,6 +6,7 @@ import torch
 from numpy.typing import NDArray
 from skimage import transform
 from sklearn.model_selection import train_test_split
+from torch import Tensor
 from torch.utils.data import Dataset
 
 
@@ -59,14 +60,14 @@ class BaseDataset(Dataset, ABC):
         return img
 
     @staticmethod
-    def prepare_img_as_tensor(img: NDArray) -> torch.Tensor:
+    def prepare_img_as_tensor(img: NDArray) -> Tensor:
         new_img = BaseDataset.norm(img)
         new_img = BaseDataset.ensure_channels(new_img)
         new_img = torch.from_numpy(new_img)
         return new_img
 
     @staticmethod
-    def prepare_msk_as_tensor(msk: NDArray) -> torch.Tensor:
+    def prepare_msk_as_tensor(msk: NDArray) -> Tensor:
         new_msk = torch.from_numpy(msk).type(torch.int64)
         return new_msk
 
