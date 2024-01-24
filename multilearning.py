@@ -3,13 +3,14 @@ import gc
 import time
 from typing import Type, Iterator, Iterable
 
-from torch import cuda, optim
+from torch import cuda, optim, nn
 
 from config.config_type import AllConfig, DataConfig, DataTuneConfig, LearnConfig, WeaselConfig, ProtoSegConfig, \
-    LossConfig, OptimizerConfig, SchedulerConfig
+    LossConfig, OptimizerConfig, SchedulerConfig, GuidedNetsConfig
 from data.dataset_loaders import DatasetLoaderParamReduced
 from data.simple_dataset import SimpleDataset
 from data.types import SimpleDatasetKeywordArgs
+from learners.guidednets import GuidedNetsLearner
 from learners.losses import CustomLoss
 from learners.protoseg import ProtoSegLearner
 from learners.simple_learner import SimpleLearner
@@ -71,6 +72,9 @@ def get_base_config() -> AllConfig:
     protoseg_config: ProtoSegConfig = {
         'embedding_size': 8
     }
+    guidednets_config: GuidedNetsConfig = {
+        'embedding_size': 32
+    }
     all_config: AllConfig = {
         'data': data_config,
         'data_tune': data_tune_config,
@@ -79,7 +83,8 @@ def get_base_config() -> AllConfig:
         'optimizer': optimizer_config,
         'scheduler': scheduler_config,
         'weasel': weasel_config,
-        'protoseg': protoseg_config
+        'protoseg': protoseg_config,
+        'guidednets': guidednets_config
     }
     return all_config
 
@@ -151,7 +156,6 @@ def run_clean_weasel_learning(all_config: AllConfig,
                               calc_loss: CustomLoss | None = None,
                               tune_only: bool = False,
                               tune_epochs: list[int] | None = None):
-
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
@@ -187,7 +191,6 @@ def run_clean_protoseg_learning(all_config: AllConfig,
                                 calc_loss: CustomLoss | None = None,
                                 tune_only: bool = False,
                                 tune_epochs: list[int] | None = None):
-
     net = UNet(all_config['data']['num_channels'], all_config['protoseg']['embedding_size'])
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
@@ -217,6 +220,57 @@ def run_clean_protoseg_learning(all_config: AllConfig,
         cuda.empty_cache()
 
 
+def run_clean_guidednets_learning(all_config: AllConfig,
+                                  meta_params: list[DatasetLoaderParamReduced],
+                                  tune_param: DatasetLoaderParamReduced,
+                                  calc_loss: CustomLoss | None = None,
+                                  tune_only: bool = False,
+                                  tune_epochs: list[int] | None = None):
+    embedding_size = all_config['guidednets']['embedding_size']
+
+    net_image = UNet(all_config['data']['num_channels'], embedding_size, prototype=True).cuda()
+
+    net_mask = UNet(1, embedding_size, prototype=True).cuda()
+    # net_mask = None
+
+    net_head = nn.Sequential(
+        nn.Conv2d(embedding_size * 2, embedding_size, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.Conv2d(embedding_size, all_config['data']['num_classes'], kernel_size=1)
+    ).cuda()
+    nn.init.ones_(net_head[0].weight)
+    nn.init.ones_(net_head[-1].weight)
+
+    net_merge = nn.AdaptiveAvgPool2d((1, 1)).cuda()
+
+    net_named_parameters = list(net_image.named_parameters()) + list(net_head.named_parameters()) \
+        + list(net_merge.named_parameters())
+    if net_mask is not None:
+        net_named_parameters += net_mask.named_parameters()
+
+    adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net_named_parameters,
+                                                                           all_config)
+
+    learner = GuidedNetsLearner(net_image, net_mask, net_merge, net_head,
+                                all_config, meta_params, tune_param,
+                                calc_disc_cup_iou,
+                                calc_loss=calc_loss, optimizer=adam_optimizer, scheduler=step_scheduler)
+
+    try:
+        if tune_only:
+            learner.retune(tune_epochs)
+        else:
+            learner.learn()
+    except BaseException as e:
+        learner.log_error()
+        raise e
+    finally:
+        learner.remove_log_handlers()
+        del net_image, net_mask, net_head, net_merge, adam_optimizer, step_scheduler, learner
+        gc.collect()
+        cuda.empty_cache()
+
+
 def run_clean_simple_learning(all_config: AllConfig,
                               dataset_class: Type[SimpleDataset],
                               dataset_kwargs: SimpleDatasetKeywordArgs,
@@ -225,7 +279,6 @@ def run_clean_simple_learning(all_config: AllConfig,
                               calc_loss: CustomLoss | None = None,
                               test_only: bool = False,
                               test_epochs: list[int] | None = None):
-
     net = UNet(all_config['data']['num_channels'], all_config['data']['num_classes'])
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net.named_parameters(),
@@ -279,6 +332,9 @@ def main():
     all_config['learn']['exp_name'] = 'v3 RO-DR L PS'
     run_clean_protoseg_learning(all_config, meta_loader_params_list, tune_loader_params,
                                 tune_only=True, tune_epochs=[40, 200])
+
+    all_config['learn']['exp_name'] = 'v3 RO-DR L GN'
+    run_clean_guidednets_learning(all_config, meta_loader_params_list, tune_loader_params)
 
     config_items = [
         {
