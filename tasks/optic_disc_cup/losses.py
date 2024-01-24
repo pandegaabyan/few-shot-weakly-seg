@@ -15,13 +15,7 @@ class DiscCupLoss(CustomLoss):
 
     def forward(self, inputs: Tensor, targets: Tensor):
         if self.loss_type == 'ce':
-            return functional.cross_entropy(inputs, targets, ignore_index=self.ignored_index)
-
-        if self.loss_type == 'iou':
-            od_input, oc_input, od_target, oc_target = self.process_input_and_target(inputs, targets)
-            od_loss = self.iou_loss(od_input, od_target)
-            oc_loss = self.iou_loss(oc_input, oc_target)
-            return od_loss + oc_loss
+            return self.ce_loss(inputs, targets, ignore_index=self.ignored_index)
 
         if self.loss_type == 'bce':
             od_input, oc_input, od_target, oc_target = self.split_od_oc(inputs, targets)
@@ -29,10 +23,20 @@ class DiscCupLoss(CustomLoss):
             oc_loss = self.bce_loss(oc_input, oc_target, ignore_index=self.ignored_index)
             return od_loss + oc_loss
 
+        if self.loss_type == 'mce':
+            return self.mce_loss(inputs, targets,
+                                 ignore_index=self.ignored_index, weight=self.mce_weights)
+
+        if self.loss_type == 'iou':
+            od_input, oc_input, od_target, oc_target = self.process_input_and_target(inputs, targets)
+            od_loss = self.iou_loss(od_input, od_target, self.iou_smooth)
+            oc_loss = self.iou_loss(oc_input, oc_target, self.iou_smooth)
+            return od_loss + oc_loss
+
         if self.loss_type == 'iou_bce':
             od_input, oc_input, od_target, oc_target = self.process_input_and_target(inputs, targets)
-            od_loss_iou = self.iou_loss(od_input, od_target)
-            oc_loss_iou = self.iou_loss(oc_input, oc_target)
+            od_loss_iou = self.iou_loss(od_input, od_target, self.iou_smooth)
+            oc_loss_iou = self.iou_loss(oc_input, oc_target, self.iou_smooth)
             od_input, oc_input, od_target, oc_target = self.split_od_oc(inputs, targets)
             od_loss_bce = self.bce_loss(od_input, od_target, ignore_index=self.ignored_index)
             oc_loss_bce = self.bce_loss(oc_input, oc_target, ignore_index=self.ignored_index)
