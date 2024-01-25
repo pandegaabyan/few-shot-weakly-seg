@@ -50,12 +50,14 @@ class CustomLoss(nn.Module):
         iou = (intersection + smooth)/(union + smooth)
         return 1 - iou
 
-    def set_mce_weights_from_target(self, targets: Tensor, num_classes: int):
+    def set_mce_weights_from_target(self, targets: Tensor, num_classes: int, use_gpu: bool = False):
         weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])  # type: ignore
         if torch.any(weights == 0):  # type: ignore
             weights = torch.Tensor([1 for _ in range(num_classes)])
         else:
             weights = weights / weights.max()
+        if use_gpu:
+            weights = weights.cuda()
         self.mce_weights = weights
 
     def set_iou_smooth(self, smooth: int = 1):

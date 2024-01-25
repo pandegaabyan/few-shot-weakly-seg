@@ -102,7 +102,8 @@ class GuidedNetsLearner(MetaLearner):
         p_ts = self.get_predictions(x_ts, prototypes)
 
         if self.calc_loss.loss_type == 'mce':
-            self.calc_loss.set_mce_weights_from_target(y_tr, self.config['data']['num_classes'])
+            self.calc_loss.set_mce_weights_from_target(y_tr, self.config['data']['num_classes'],
+                                                       use_gpu=self.config['learn']['use_gpu'])
         loss = self.calc_loss(p_ts, y_ts)
 
         self.optimizer.zero_grad()
