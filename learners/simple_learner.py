@@ -1,12 +1,12 @@
 import os
 import time
-from typing import Callable, Type
+from typing import Type
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import io
-from torch import optim, nn
+from torch import nn
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
@@ -15,6 +15,7 @@ from data.simple_dataset_loaders import get_simple_dataset_loader
 from data.types import SimpleDatasetKeywordArgs
 from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
+from learners.types import CalcMetrics, Optimizer, Scheduler
 from learners.utils import check_mkdir, dump_json, add_suffix_to_filename, get_gpu_memory
 
 
@@ -27,10 +28,10 @@ class SimpleLearner(BaseLearner):
                  dataset_kwargs: SimpleDatasetKeywordArgs,
                  test_dataset_class: Type[SimpleDataset] | None = None,
                  test_dataset_kwargs: SimpleDatasetKeywordArgs | None = None,
-                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
+                 calc_metrics: CalcMetrics | None = None,
                  calc_loss: CustomLoss | None = None,
-                 optimizer: optim.Optimizer | None = None,
-                 scheduler: optim.lr_scheduler.LRScheduler | None = None):
+                 optimizer: Optimizer | None = None,
+                 scheduler: Scheduler | None = None):
         super().__init__(net, config, calc_metrics, calc_loss, optimizer, scheduler)
 
         self.dataset_class = dataset_class

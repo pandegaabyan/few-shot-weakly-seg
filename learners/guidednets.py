@@ -1,86 +1,42 @@
-import os
-from typing import Callable
-
 import torch
 from numpy.typing import NDArray
-from torch import optim, nn, Tensor
+from torch import Tensor, nn
 
 from config.config_type import AllConfig
-from config.constants import FILENAMES
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced
 from data.types import TensorDataItem
 from learners.losses import CustomLoss
 from learners.meta_learner import MetaLearner
+from learners.types import NeuralNetworks, CalcMetrics, Optimizer, Scheduler
 
 
 class GuidedNetsLearner(MetaLearner):
 
     def __init__(self,
-                 net_image: nn.Module,
-                 net_mask: nn.Module | None,
-                 net_merge: nn.Module,
-                 net_head: nn.Module,
+                 net: NeuralNetworks,
                  config: AllConfig,
                  meta_params: list[DatasetLoaderParamReduced],
                  tune_param: DatasetLoaderParamReduced,
-                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
+                 calc_metrics: CalcMetrics | None = None,
                  calc_loss: CustomLoss | None = None,
-                 optimizer: optim.Optimizer | None = None,
-                 scheduler: optim.lr_scheduler.LRScheduler | None = None):
-        super().__init__(net_image, config, meta_params, tune_param,
+                 optimizer: Optimizer | None = None,
+                 scheduler: Scheduler | None = None):
+        super().__init__(net, config, meta_params, tune_param,
                          calc_metrics, calc_loss, optimizer, scheduler)
+        assert isinstance(net, dict), 'net should be dict of nn.Module'
+        self.net = net
 
-        self.net_mask = net_mask
-        self.net_merge = net_merge
-        self.net_head = net_head
-
-    def initialize_gpu_usage(self) -> tuple[float, int]:
-        gpu_percent, gpu_total = super().initialize_gpu_usage()
-        if self.config['learn']["use_gpu"]:
-            self.net_merge.cuda()
-            self.net_head.cuda()
-            if self.net_mask is not None:
-                self.net_mask.cuda()
-        return gpu_percent, gpu_total
-
-    def save_net_as_text(self):
-        net_text = ''
-        net_list = [('net_image', self.net), ('net_mask', self.net_mask),
-                    ('net_merge', self.net_merge), ('net_head', self.net_head)]
-        for i, (name, net) in enumerate(net_list):
-            if net is None:
-                continue
-            if i != 0:
-                net_text += '\n\n\n'
-            n_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
-            net_text += '# of ' + name + ' parameters: ' + str(n_params) + '\n\n' + str(net)
-        with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
-            net_file.write(net_text)
-
-    def save_net_and_optimizer(self, epoch: int = 0):
-        self.save_torch_dict(self.optimizer.state_dict(), FILENAMES['optimizer_state'], epoch)
-        self.save_torch_dict(self.net.state_dict(), 'net_image.pth', epoch)
-        self.save_torch_dict(self.net_merge.state_dict(), 'net_merge.pth', epoch)
-        self.save_torch_dict(self.net_head.state_dict(), 'net_head.pth', epoch)
-        if self.net_mask is not None:
-            self.save_torch_dict(self.net_mask.state_dict(), 'net_mask.pth', epoch)
-
-    def load_net_and_optimizer(self, epoch: int = 0):
-        self.optimizer.load_state_dict(self.load_torch_dict(FILENAMES['optimizer_state'], epoch))
-        self.net.load_state_dict(self.load_torch_dict('net_image.pth', epoch))
-        self.net_merge.load_state_dict(self.load_torch_dict('net_merge.pth', epoch))
-        self.net_head.load_state_dict(self.load_torch_dict('net_head.pth', epoch))
-        if self.net_mask is not None:
-            self.net_mask.load_state_dict(self.load_torch_dict('net_mask.pth', epoch))
+        if self.net.get('image') is None or not isinstance(self.net['image'], nn.Module):
+            raise ValueError('net should have "image" nn.Module')
+        if self.net.get('mask') is None:
+            self.set_default_mask_net()
+        if self.net.get('merge') is None:
+            self.set_default_merge_net()
+        if self.net.get('head') is None:
+            self.set_default_head_net()
 
     def set_used_config(self) -> list[str]:
         return super().set_used_config() + ['guidednets']
-
-    def pre_meta_train_test(self, epoch: int):
-        self.net_merge.train()
-        self.net_head.train()
-        if self.net_mask is not None:
-            self.net_mask.train()
 
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         x_tr, _, y_tr, _ = train_data
@@ -91,11 +47,8 @@ class GuidedNetsLearner(MetaLearner):
             x_ts = x_ts.cuda()
             y_ts = y_ts.cuda()
 
-        self.net.zero_grad()
-        self.net_merge.zero_grad()
-        self.net_head.zero_grad()
-        if self.net_mask is not None:
-            self.net_mask.zero_grad()
+        for net in self.net.values():
+            net.zero_grad()
 
         embeddings = self.get_embeddings(x_tr, y_tr)
         prototypes = self.get_prototypes(embeddings, list(x_ts.shape))
@@ -119,17 +72,9 @@ class GuidedNetsLearner(MetaLearner):
 
         with torch.no_grad():
 
-            self.net.eval()
-            self.net_merge.eval()
-            self.net_head.eval()
-            if self.net_mask is not None:
-                self.net_mask.eval()
-
-            self.net.zero_grad()
-            self.net_merge.zero_grad()
-            self.net_head.zero_grad()
-            if self.net_mask is not None:
-                self.net_mask.zero_grad()
+            for net in self.net.values():
+                net.eval()
+                net.zero_grad()
 
             embed_tr_list = []
             for i, data in enumerate(tune_loader['train']):
@@ -171,22 +116,16 @@ class GuidedNetsLearner(MetaLearner):
         return c_masks
 
     def get_embeddings(self, image: Tensor, mask: Tensor) -> Tensor:
-        image_embedding = self.net(image)
+        # TODO: alternative mask handling is to use one-hot single mask Tensor as input to network
+        image_embedding = self.net['image'](image)
         c_masks = self.one_hot_masks(mask, self.config['data']['num_classes'])
-        mask_embeddings = [self.net_mask(c_mask) if self.net_mask is not None else c_mask for c_mask in c_masks]
 
-        if self.net_mask is None:
-            # TODO: isn't the combined_mask_embeddings just become ones tensor
-            combined_mask_embeddings = torch.zeros_like(mask_embeddings[0])
-            for mask_embedding in mask_embeddings:
-                combined_mask_embeddings += mask_embedding
-            combined_embeddings = image_embedding * combined_mask_embeddings
-        else:
-            combined_embeddings = torch.clone(image_embedding)
-            for mask_embedding in mask_embeddings:
-                combined_embeddings *= mask_embedding
+        mask_embeddings = [self.net['mask'](c_mask) for c_mask in c_masks]
+        combined_embeddings = torch.clone(image_embedding)
+        for mask_embedding in mask_embeddings:
+            combined_embeddings *= mask_embedding
 
-        merged_embeddings = self.net_merge(combined_embeddings)
+        merged_embeddings = self.net['merge'](combined_embeddings)
 
         return merged_embeddings
 
@@ -198,7 +137,23 @@ class GuidedNetsLearner(MetaLearner):
         return proto
 
     def get_predictions(self, image: Tensor, prototypes: Tensor) -> Tensor:
-        image_embedding = self.net(image)
+        image_embedding = self.net['image'](image)
         mask_embedding = torch.cat([prototypes, image_embedding], dim=1)
-        mask = self.net_head(mask_embedding)
+        mask = self.net['head'](mask_embedding)
         return mask
+
+    def set_default_mask_net(self):
+        self.net['mask'] = nn.Identity()
+
+    def set_default_merge_net(self):
+        self.net['merge'] = nn.AdaptiveAvgPool2d((1, 1)).cuda()
+
+    def set_default_head_net(self):
+        embedding_size = self.config['guidednets']['embedding_size']
+        self.net['head'] = nn.Sequential(
+            nn.Conv2d(embedding_size * 2, embedding_size, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(embedding_size, self.config['data']['num_classes'], kernel_size=1)
+        ).cuda()
+        nn.init.ones_(self.net['head'][0].weight)
+        nn.init.ones_(self.net['head'][-1].weight)

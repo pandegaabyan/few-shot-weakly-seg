@@ -2,7 +2,6 @@ import csv
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Callable
 
 import numpy as np
 import torch
@@ -13,6 +12,7 @@ from torch import optim, nn
 from config.config_type import AllConfig
 from config.constants import FILENAMES
 from learners.losses import CustomLoss
+from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 from learners.utils import check_mkdir, check_rmtree, get_gpu_memory, load_json, dump_json, \
     get_name_from_function, get_name_from_instance
 
@@ -20,12 +20,12 @@ from learners.utils import check_mkdir, check_rmtree, get_gpu_memory, load_json,
 class BaseLearner(ABC):
 
     def __init__(self,
-                 net: nn.Module,
+                 net: NeuralNetworks,
                  config: AllConfig,
-                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
+                 calc_metrics: CalcMetrics | None = None,
                  calc_loss: CustomLoss | None = None,
-                 optimizer: optim.Optimizer | None = None,
-                 scheduler: optim.lr_scheduler.LRScheduler | None = None):
+                 optimizer: Optimizer | None = None,
+                 scheduler: Scheduler | None = None):
         self.net = net
         self.calc_metrics = calc_metrics
         self.config = self.check_and_clean_config(config)
@@ -36,23 +36,23 @@ class BaseLearner(ABC):
         self.checkpoint = {}
         self.initial_gpu_percent = 0
 
-        if calc_loss is None:
-            self.calc_loss = CustomLoss()
-        else:
+        if calc_loss is not None:
             self.calc_loss = calc_loss
+        else:
+            self.calc_loss = CustomLoss()
 
-        if optimizer is None:
+        if optimizer is not None:
+            self.optimizer = optimizer
+        else:
             self.optimizer = optim.Adam([
                 {'params': net.parameters(), 'lr': self.config['optimizer']['lr']}
             ])
-        else:
-            self.optimizer = optimizer
 
-        if scheduler is None:
+        if scheduler is not None:
+            self.scheduler = scheduler
+        else:
             self.scheduler = optim.lr_scheduler.StepLR(self.optimizer,
                                                        self.config['scheduler']['step_size'])
-        else:
-            self.scheduler = scheduler
 
     @staticmethod
     @abstractmethod
@@ -123,7 +123,11 @@ class BaseLearner(ABC):
         if self.config['learn']["use_gpu"]:
             gpu_percent, gpu_total = get_gpu_memory()
             self.initial_gpu_percent = gpu_percent
-            self.net = self.net.cuda()
+            if isinstance(self.net, nn.Module):
+                self.net = self.net.cuda()
+            else:
+                for net in self.net.values():
+                    net.cuda()
         return gpu_percent, gpu_total
 
     def check_output_and_ckpt_dir(self) -> bool:
@@ -202,8 +206,17 @@ class BaseLearner(ABC):
         }
 
     def save_net_as_text(self):
-        n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-        net_text = '# of parameters: ' + str(n_params) + '\n\n' + str(self.net)
+        if isinstance(self.net, nn.Module):
+            n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
+            net_text = '# of parameters: ' + str(n_params) + '\n\n' + str(self.net)
+        else:
+            net_text = ''
+            for i, name in enumerate(self.net.keys()):
+                if i != 0:
+                    net_text += '\n\n\n'
+                net = self.net[name]
+                n_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
+                net_text += '# of net_' + name + ' parameters: ' + str(n_params) + '\n\n' + str(net)
         with open(os.path.join(self.output_path, FILENAMES['net_text']), "w") as net_file:
             net_file.write(net_text)
 
@@ -234,9 +247,17 @@ class BaseLearner(ABC):
         return torch.load(os.path.join(self.ckpt_path, prefix + filename))
 
     def save_net_and_optimizer(self, epoch: int = 0):
-        self.save_torch_dict(self.net.state_dict(), FILENAMES['net_state'], epoch)
         self.save_torch_dict(self.optimizer.state_dict(), FILENAMES['optimizer_state'], epoch)
+        if isinstance(self.net, nn.Module):
+            self.save_torch_dict(self.net.state_dict(), FILENAMES['net_state'], epoch)
+        else:
+            for name, net in self.net.items():
+                self.save_torch_dict(net.state_dict(), f'net_{name}.pth', epoch)
 
     def load_net_and_optimizer(self, epoch: int = 0):
-        self.net.load_state_dict(self.load_torch_dict(FILENAMES['net_state'], epoch))
         self.optimizer.load_state_dict(self.load_torch_dict(FILENAMES['optimizer_state'], epoch))
+        if isinstance(self.net, nn.Module):
+            self.net.load_state_dict(self.load_torch_dict(FILENAMES['net_state'], epoch))
+        else:
+            for name, net in self.net.items():
+                net.load_state_dict(self.load_torch_dict(f'net_{name}.pth', epoch))

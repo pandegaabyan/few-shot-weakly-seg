@@ -1,12 +1,11 @@
 import os
 import time
 from abc import ABC, abstractmethod
-from typing import Callable
 
 import numpy as np
 from numpy.typing import NDArray
 from skimage import io
-from torch import optim, nn
+from torch import nn
 from torch.utils.data import DataLoader
 
 from config.config_type import AllConfig
@@ -15,20 +14,21 @@ from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced, g
 from data.types import TensorDataItem
 from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
+from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 from learners.utils import check_mkdir, cycle_iterable, get_gpu_memory, dump_json, add_suffix_to_filename
 
 
 class MetaLearner(BaseLearner, ABC):
 
     def __init__(self,
-                 net: nn.Module,
+                 net: NeuralNetworks,
                  config: AllConfig,
                  meta_params: list[DatasetLoaderParamReduced],
                  tune_param: DatasetLoaderParamReduced,
-                 calc_metrics: Callable[[list[NDArray], list[NDArray]], tuple[dict, str, str]] | None = None,
+                 calc_metrics: CalcMetrics | None = None,
                  calc_loss: CustomLoss | None = None,
-                 optimizer: optim.Optimizer | None = None,
-                 scheduler: optim.lr_scheduler.LRScheduler | None = None):
+                 optimizer: Optimizer | None = None,
+                 scheduler: Scheduler | None = None):
         super().__init__(net, config, calc_metrics, calc_loss, optimizer, scheduler)
 
         self.meta_params = meta_params
@@ -39,8 +39,6 @@ class MetaLearner(BaseLearner, ABC):
         self.tune_loaders = get_tune_loaders(self.tune_param, config['data'],
                                              config['data_tune'], pin_memory=config['learn']['use_gpu'])
 
-        self.post_init()
-
     @abstractmethod
     def meta_train_test_step(self, train_data: TensorDataItem, test_data: TensorDataItem) -> float:
         pass
@@ -48,9 +46,6 @@ class MetaLearner(BaseLearner, ABC):
     @abstractmethod
     def tune_train_test_process(self, epoch: int,
                                 tune_loader: DatasetLoaderItem) -> tuple[list[NDArray], list[NDArray], list[str]]:
-        pass
-
-    def post_init(self):
         pass
 
     def pre_meta_train_test(self, epoch: int):
@@ -115,7 +110,11 @@ class MetaLearner(BaseLearner, ABC):
         start_time = time.time()
 
         # Setting network for training mode.
-        self.net.train()
+        if isinstance(self.net, nn.Module):
+            self.net.train()
+        else:
+            for net in self.net.values():
+                net.train()
 
         # List for batch losses.
         loss_list = list()

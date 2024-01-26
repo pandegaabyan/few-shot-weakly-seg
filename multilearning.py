@@ -245,6 +245,13 @@ def run_clean_guidednets_learning(all_config: AllConfig,
 
     net_merge = nn.AdaptiveAvgPool2d((1, 1)).cuda()
 
+    net = {
+        'image': net_image,
+        'mask': net_mask,
+        'merge': net_merge,
+        'head': net_head
+    }
+
     if use_original_way:
         del all_config['optimizer']['lr_bias'], all_config['optimizer']['betas']
         del all_config['optimizer']['weight_decay'], all_config['optimizer']['weight_decay_bias']
@@ -253,27 +260,30 @@ def run_clean_guidednets_learning(all_config: AllConfig,
 
         calc_loss = DiscCupLoss('mce')
 
-        net_parameters = list(net_image.parameters()) + list(net_head.parameters()) + list(net_merge.parameters())
-        if net_mask is not None:
-            net_parameters += net_mask.parameters()
+        net_parameters = []
+        for n in net.values():
+            net_parameters.extend(list(n.parameters()))
 
         adam_optimizer = optim.Adam(net_parameters, all_config['optimizer']['lr'])
         step_scheduler = optim.lr_scheduler.StepLR(adam_optimizer,
                                                    all_config['scheduler']['step_size'],
                                                    gamma=all_config['scheduler']['gamma'])
     else:
-        net_named_parameters = list(net_image.named_parameters()) + list(net_head.named_parameters()) \
-                               + list(net_merge.named_parameters())
-        if net_mask is not None:
-            net_named_parameters += net_mask.named_parameters()
+        net_named_parameters = []
+        for n in net.values():
+            net_named_parameters.extend(list(n.named_parameters()))
 
         adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(net_named_parameters,
                                                                                all_config)
 
-    learner = GuidedNetsLearner(net_image, net_mask, net_merge, net_head,
-                                all_config, meta_params, tune_param,
+    learner = GuidedNetsLearner(net,
+                                all_config,
+                                meta_params,
+                                tune_param,
                                 calc_disc_cup_iou,
-                                calc_loss=calc_loss, optimizer=adam_optimizer, scheduler=step_scheduler)
+                                calc_loss=calc_loss,
+                                optimizer=adam_optimizer,
+                                scheduler=step_scheduler)
 
     try:
         if tune_only:
