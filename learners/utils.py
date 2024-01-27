@@ -13,8 +13,10 @@ def check_rmtree(dir_name: str) -> bool:
     import shutil
 
     if os.path.exists(dir_name):
-        user_confirm = input(f"directory {dir_name} is not empty, clear it and continue? (Y/N)")
-        if user_confirm != 'Y':
+        user_confirm = input(
+            f"directory {dir_name} is not empty, clear it and continue? (Y/N)"
+        )
+        if user_confirm != "Y":
             return False
         shutil.rmtree(dir_name)
 
@@ -28,20 +30,20 @@ def cycle_iterable(iterable: Iterable):
 
 
 def get_name_from_function(func: callable) -> str:
-    return f'<function {func.__module__}.{func.__name__}>'
+    return f"<function {func.__module__}.{func.__name__}>"
 
 
 def get_name_from_instance(instance: object) -> str:
-    return str(instance.__class__).replace('\'', '').replace('class', 'object')
+    return str(instance.__class__).replace("'", "").replace("class", "object")
 
 
 def get_gpu_memory() -> tuple[float, int]:
     import re
     import subprocess
 
-    command = 'nvidia-smi'
+    command = "nvidia-smi"
     nvidia_smi_text = subprocess.check_output(command)
-    memories = re.findall(r'\b\d+MiB', str(nvidia_smi_text))
+    memories = re.findall(r"\b\d+MiB", str(nvidia_smi_text))
     used_memory, total_memory = memories[0], memories[1]
     used_memory = int(used_memory[:-3])
     total_memory = int(total_memory[:-3])
@@ -52,7 +54,7 @@ def get_gpu_memory() -> tuple[float, int]:
 def load_json(path: str) -> dict:
     import json
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         data = json.load(f)
     return data
 
@@ -60,18 +62,18 @@ def load_json(path: str) -> dict:
 def dump_json(path: str, data: dict):
     import json
 
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         json.dump(data, f, indent=4)
 
 
 def add_suffix_to_filename(filename: str, suffix: str) -> str:
-    return f'{suffix}.'.join(filename.rsplit('.', 1))
+    return f"{suffix}.".join(filename.rsplit(".", 1))
 
 
 def get_short_git_hash() -> str:
     import subprocess
 
-    short_hash = subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'])
+    short_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
     short_hash = str(short_hash, "utf-8").strip()
     return short_hash
 

@@ -2,13 +2,21 @@ from typing import TypedDict, Literal, Union
 
 from torch import Tensor
 
-DatasetModes = Literal["train", "test", "meta_train", "meta_test", "tune_train", "tune_test"]
+DatasetModes = Literal[
+    "train", "test", "meta_train", "meta_test", "tune_train", "tune_test"
+]
 
 SimpleDatasetModes = Literal["train", "test", "val"]
 
-SparsityModes = Union[Literal["point", "grid", "contour", "skeleton", "region"], Literal["dense", "random"], str]
+SparsityModes = Union[
+    Literal["point", "grid", "contour", "skeleton", "region"],
+    Literal["dense", "random"],
+    str,
+]
 
-SparsityValue = Union[float, tuple[float, float], int, tuple[int, int], Literal["random"]]
+SparsityValue = Union[
+    float, tuple[float, float], int, tuple[int, int], Literal["random"]
+]
 
 SparsityDict = dict[str, list[SparsityValue]]
 

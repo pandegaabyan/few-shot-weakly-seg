@@ -16,7 +16,9 @@ def get_rim_one_data_path() -> list[tuple[str, str]]:
     img_dir = "/images/"
     msk_dir = "/masks/"
     img_files = os.listdir(data_path + img_dir)
-    img_files_no_ext = [BaseDataset.filename_from_path(img_file) for img_file in img_files]
+    img_files_no_ext = [
+        BaseDataset.filename_from_path(img_file) for img_file in img_files
+    ]
     msk_files = os.listdir(data_path + msk_dir)
 
     all_data_path = []
@@ -24,10 +26,12 @@ def get_rim_one_data_path() -> list[tuple[str, str]]:
         msk_file_no_ext = BaseDataset.filename_from_path(msk_file)
         try:
             img_index = img_files_no_ext.index(msk_file_no_ext)
-            all_data_path.append((
-                data_path + img_dir + img_files[img_index],
-                data_path + msk_dir + msk_file,
-            ))
+            all_data_path.append(
+                (
+                    data_path + img_dir + img_files[img_index],
+                    data_path + msk_dir + msk_file,
+                )
+            )
         except ValueError:
             continue
 
@@ -39,7 +43,9 @@ def get_drishti_data_path() -> list[tuple[str, str]]:
     img_dir = "/images/"
     msk_dir = "/masks/"
     img_files = os.listdir(data_path + img_dir)
-    img_files_no_ext = [BaseDataset.filename_from_path(img_file) for img_file in img_files]
+    img_files_no_ext = [
+        BaseDataset.filename_from_path(img_file) for img_file in img_files
+    ]
     msk_files = os.listdir(data_path + msk_dir)
 
     all_data_path = []
@@ -47,10 +53,12 @@ def get_drishti_data_path() -> list[tuple[str, str]]:
         msk_file_no_ext = BaseDataset.filename_from_path(msk_file)
         try:
             img_index = img_files_no_ext.index(msk_file_no_ext)
-            all_data_path.append((
-                data_path + img_dir + img_files[img_index],
-                data_path + msk_dir + msk_file,
-            ))
+            all_data_path.append(
+                (
+                    data_path + img_dir + img_files[img_index],
+                    data_path + msk_dir + msk_file,
+                )
+            )
         except ValueError:
             continue
 
@@ -69,18 +77,26 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
     def set_additional_sparse_mode(self) -> list[SparsityModes]:
         return []
 
-    def get_additional_sparse_mask(self, sparsity_mode: SparsityModes, msk: NDArray, img: NDArray = None,
-                                   sparsity_value: SparsityValue = 'random', seed=0) -> NDArray:
-        if sparsity_mode == 'point_old':
+    def get_additional_sparse_mask(
+        self,
+        sparsity_mode: SparsityModes,
+        msk: NDArray,
+        img: NDArray = None,
+        sparsity_value: SparsityValue = "random",
+        seed=0,
+    ) -> NDArray:
+        if sparsity_mode == "point_old":
             return self.sparse_point_old(msk, self.num_classes, sparsity_value, seed)
-        elif sparsity_mode == 'grid_old':
+        elif sparsity_mode == "grid_old":
             return self.sparse_grid_old(msk, sparsity_value, seed)
         else:
             return msk
 
     @staticmethod
-    def sparse_point_old(msk: NDArray, num_classes: int, sparsity: SparsityValue = "random", seed=0) -> NDArray:
-        if sparsity != 'random':
+    def sparse_point_old(
+        msk: NDArray, num_classes: int, sparsity: SparsityValue = "random", seed=0
+    ) -> NDArray:
+        if sparsity != "random":
             np.random.seed(seed)
 
         # Linearizing mask.
@@ -100,7 +116,7 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
                 sparsity_num = round(sparsity)
             else:
                 sparsity_num = np.random.randint(low=1, high=len(perm))
-            msk_class[perm[:min(sparsity_num, len(perm))]] = c
+            msk_class[perm[: min(sparsity_num, len(perm))]] = c
 
             # Merging sparse masks.
             new_msk[msk_ravel == c] = msk_class
@@ -113,8 +129,10 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
         return new_msk
 
     @staticmethod
-    def sparse_grid_old(msk: NDArray, sparsity: SparsityValue = "random", seed=0) -> NDArray:
-        if sparsity != 'random':
+    def sparse_grid_old(
+        msk: NDArray, sparsity: SparsityValue = "random", seed=0
+    ) -> NDArray:
+        if sparsity != "random":
             np.random.seed(seed)
 
         # Copying mask and starting it with -1 for inserting sparsity.
@@ -128,11 +146,11 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
             spacing_value = np.random.randint(low=1, high=max_high)
         spacing = (spacing_value, spacing_value)
 
-        starting = (np.random.randint(spacing[0]),
-                    np.random.randint(spacing[1]))
+        starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
 
-        new_msk[starting[0]::spacing[0], starting[1]::spacing[1]] = \
-            msk[starting[0]::spacing[0], starting[1]::spacing[1]]
+        new_msk[starting[0] :: spacing[0], starting[1] :: spacing[1]] = msk[
+            starting[0] :: spacing[0], starting[1] :: spacing[1]
+        ]
 
         np.random.seed(None)
 

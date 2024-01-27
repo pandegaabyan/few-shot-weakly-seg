@@ -3,7 +3,9 @@ from numpy.typing import NDArray
 from sklearn import metrics
 
 
-def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict, str, str]:
+def calc_disc_cup_iou(
+    labels: list[NDArray], preds: list[NDArray]
+) -> tuple[dict, str, str]:
     labels_od = [np.not_equal(label, 0).astype(label.dtype) for label in labels]
     labels_oc = [np.equal(label, 2).astype(label.dtype) for label in labels]
     preds_od = [np.not_equal(pred, 0).astype(pred.dtype) for pred in preds]
@@ -19,10 +21,10 @@ def calc_disc_cup_iou(labels: list[NDArray], preds: list[NDArray]) -> tuple[dict
     iou_od = metrics.jaccard_score(labels_od_np, preds_od_np)
     iou_oc = metrics.jaccard_score(labels_oc_np, preds_oc_np)
 
-    score_text = 'Disc = %.2f | Cup = %.2f' % (iou_od * 100, iou_oc * 100)  # type: ignore
-    name = 'IoU score'
+    score_text = "Disc = %.2f | Cup = %.2f" % (iou_od * 100, iou_oc * 100)  # type: ignore
+    name = "IoU score"
 
-    return {'iou_od': iou_od, 'iou_oc': iou_oc}, score_text, name
+    return {"iou_od": iou_od, "iou_oc": iou_oc}, score_text, name
 
 
 def iou_to_dice(iou: float) -> float:

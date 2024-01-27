@@ -8,16 +8,16 @@ from data.types import SimpleDatasetModes, SimpleTensorDataItem
 
 
 class SimpleDataset(BaseDataset, ABC):
-
-    def __init__(self,
-                 mode: SimpleDatasetModes,
-                 num_classes: int,
-                 resize_to: tuple[int, int],
-                 num_shots: int = -1,
-                 split_seed: int | None = None,
-                 split_val_size: float = 0.2,
-                 split_test_size: float = 0.2):
-
+    def __init__(
+        self,
+        mode: SimpleDatasetModes,
+        num_classes: int,
+        resize_to: tuple[int, int],
+        num_shots: int = -1,
+        split_seed: int | None = None,
+        split_val_size: float = 0.2,
+        split_test_size: float = 0.2,
+    ):
         # Initializing variables.
         self.mode = mode
         self.num_shots = num_shots
@@ -30,20 +30,28 @@ class SimpleDataset(BaseDataset, ABC):
     def make_data_list(self) -> list[tuple[str, str]]:
         # Splitting data.
         val_test_size = self.split_val_size + self.split_test_size
-        tr, val_ts = self.split_train_test(self.get_all_data_path(), test_size=val_test_size,
-                                           random_state=self.split_seed, shuffle=False)
+        tr, val_ts = self.split_train_test(
+            self.get_all_data_path(),
+            test_size=val_test_size,
+            random_state=self.split_seed,
+            shuffle=False,
+        )
         if val_test_size == 0:
             val, ts = [], []
         else:
-            val, ts = self.split_train_test(val_ts, test_size=self.split_test_size / val_test_size,
-                                            random_state=self.split_seed, shuffle=False)
+            val, ts = self.split_train_test(
+                val_ts,
+                test_size=self.split_test_size / val_test_size,
+                random_state=self.split_seed,
+                shuffle=False,
+            )
 
         # Select split, based on the mode
-        if 'train' in self.mode:
+        if "train" in self.mode:
             data_list = tr
-        elif 'val' in self.mode:
+        elif "val" in self.mode:
             data_list = val
-        elif 'test' in self.mode:
+        elif "test" in self.mode:
             data_list = ts
         else:
             return []
@@ -55,7 +63,6 @@ class SimpleDataset(BaseDataset, ABC):
         return data_list
 
     def __getitem__(self, index: int) -> SimpleTensorDataItem:
-
         img, msk, img_filename = self.get_data(index)
 
         # Normalization.

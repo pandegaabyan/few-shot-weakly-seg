@@ -26,8 +26,12 @@ class LearnConfig(TypedDict):
     use_gpu: bool
     num_epochs: int  # Number of epochs.
     exp_name: str
-    tune_freq: NotRequired[int]  # Run tuning each tune_freq epochs, only for MetaLearner.
-    test_freq: NotRequired[int]  # Save predictions each save_pred_freq epochs, only for SimpleLearner.
+    tune_freq: NotRequired[
+        int
+    ]  # Run tuning each tune_freq epochs, only for MetaLearner.
+    test_freq: NotRequired[
+        int
+    ]  # Save predictions each save_pred_freq epochs, only for SimpleLearner.
 
 
 class LossConfig(TypedDict, total=False):

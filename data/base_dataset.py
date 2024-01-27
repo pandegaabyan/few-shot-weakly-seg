@@ -11,12 +11,7 @@ from torch.utils.data import Dataset
 
 
 class BaseDataset(Dataset, ABC):
-
-    def __init__(self,
-                 num_classes: int,
-                 resize_to: tuple[int, int]
-                 ):
-
+    def __init__(self, num_classes: int, resize_to: tuple[int, int]):
         # Initializing variables.
         self.num_classes = num_classes
         self.resize_to = resize_to
@@ -24,7 +19,7 @@ class BaseDataset(Dataset, ABC):
         # Creating list of paths.
         self.items = self.make_data_list()
         if len(self.items) == 0:
-            raise (RuntimeError('Found 0 items, please check the dataset'))
+            raise (RuntimeError("Found 0 items, please check the dataset"))
 
     # Function that create the list of pairs (img_path, mask_path)
     # Implement this function for your dataset structure
@@ -48,7 +43,9 @@ class BaseDataset(Dataset, ABC):
             normalized = (img - img.mean()) / img.std()
         else:
             for b in range(img.shape[2]):
-                normalized[:, :, b] = (img[:, :, b] - img[:, :, b].mean()) / img[:, :, b].std()
+                normalized[:, :, b] = (img[:, :, b] - img[:, :, b].mean()) / img[
+                    :, :, b
+                ].std()
         return normalized.astype(np.float32)
 
     @staticmethod
@@ -80,8 +77,13 @@ class BaseDataset(Dataset, ABC):
             order = 1
             anti_aliasing = True
 
-        resized = transform.resize(img, resize_to, order=order,
-                                   preserve_range=True, anti_aliasing=anti_aliasing)
+        resized = transform.resize(
+            img,
+            resize_to,
+            order=order,
+            preserve_range=True,
+            anti_aliasing=anti_aliasing,
+        )
         resized = resized.astype(img.dtype)
 
         return resized
@@ -97,16 +99,20 @@ class BaseDataset(Dataset, ABC):
         return filename
 
     @staticmethod
-    def split_train_test(data: list, test_size: float | int,
-                         random_state: int | None = None,
-                         shuffle: bool = False) -> tuple[list, list]:
+    def split_train_test(
+        data: list,
+        test_size: float | int,
+        random_state: int | None = None,
+        shuffle: bool = False,
+    ) -> tuple[list, list]:
         if test_size == 0:
             tr, ts = data, []
         elif test_size == 1:
             tr, ts = [], data
         else:
-            tr, ts = train_test_split(data, test_size=test_size,
-                                      random_state=random_state, shuffle=shuffle)
+            tr, ts = train_test_split(
+                data, test_size=test_size, random_state=random_state, shuffle=shuffle
+            )
         return tr, ts
 
     # Function to load images and masks
