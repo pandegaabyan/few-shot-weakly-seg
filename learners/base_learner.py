@@ -14,7 +14,7 @@ from config.constants import FILENAMES
 from learners.losses import CustomLoss
 from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 from learners.utils import check_mkdir, check_rmtree, get_gpu_memory, load_json, dump_json, \
-    get_name_from_function, get_name_from_instance
+    get_name_from_function, get_name_from_instance, get_simple_stack_list, get_short_git_hash
 
 
 class BaseLearner(ABC):
@@ -35,6 +35,7 @@ class BaseLearner(ABC):
 
         self.checkpoint = {}
         self.initial_gpu_percent = 0
+        self.initial_messages = []
 
         if calc_loss is not None:
             self.calc_loss = calc_loss
@@ -84,7 +85,8 @@ class BaseLearner(ABC):
             self.initialize_log()
             self.save_configuration(False)
 
-            self.print_and_log('Resume learning ...', end='\n')
+            self.log_initial_info()
+            self.print_and_log('Resume learning ...')
             curr_epoch = self.checkpoint['epoch'] + 1
 
         else:
@@ -98,7 +100,8 @@ class BaseLearner(ABC):
             self.initialize_log()
             self.save_configuration(True)
 
-            self.print_and_log('Start learning ...', end="\n")
+            self.log_initial_info()
+            self.print_and_log('Start learning ...')
             curr_epoch = 1
 
         if self.config['learn']["use_gpu"]:
@@ -109,7 +112,7 @@ class BaseLearner(ABC):
         for epoch in range(curr_epoch, self.config['learn']['num_epochs'] + 1):
             self.learn_process(epoch)
 
-        self.print_and_log('Finish learning ...')
+        self.print_and_log('Finish learning ...', end='\n')
         self.remove_log_handlers()
 
     def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
@@ -155,7 +158,7 @@ class BaseLearner(ABC):
     @staticmethod
     def print_and_log(message: str, start: str = '', end: str = ''):
         print(start + message + end)
-        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
+        logging.info(start.replace('\n', "") + message + end.replace('\n', ""))
 
     @staticmethod
     def log_error():
@@ -186,6 +189,22 @@ class BaseLearner(ABC):
         self.checkpoint.update(data)
         dump_json(os.path.join(self.ckpt_path, FILENAMES['checkpoint']), self.checkpoint)
 
+    def log_initial_info(self):
+        self.print_and_log('-' * 30)
+        self.print_and_log('Git hash: ' + get_short_git_hash())
+        stack_list = get_simple_stack_list(end=-3)
+        if 'ipykernel' in stack_list[-1]:
+            self.print_and_log('Call stack: (called in jupyter notebook)')
+        else:
+            for i, stack in enumerate(stack_list):
+                self.print_and_log(f'Call stack ({i}): {stack}')
+        for msg in self.initial_messages:
+            self.print_and_log('Note: ' + msg)
+        print('')
+
+    def set_initial_messages(self, messages: list[str]):
+        self.initial_messages = messages
+ 
     def get_optimization_data_dict(self) -> dict:
         optimizer_data = [
             {key: param_group[key] for key in filter(lambda x: x != 'params', param_group.keys())}

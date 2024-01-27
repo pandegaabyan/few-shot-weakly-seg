@@ -89,7 +89,8 @@ class MetaLearner(BaseLearner, ABC):
         self.initialize_log()
         self.save_configuration(False)
 
-        self.print_and_log(f'Start retuning on epochs: {epochs} ...', end='\n')
+        self.log_initial_info()
+        self.print_and_log(f'Start retuning on epochs: {epochs} ...')
         if self.config['learn']["use_gpu"]:
             self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
                                (gpu_total, gpu_percent))
@@ -103,7 +104,7 @@ class MetaLearner(BaseLearner, ABC):
                 continue
             self.run_sparse_tuning(epoch)
 
-        self.print_and_log('Finish retuning ...')
+        self.print_and_log('Finish retuning ...', end='\n')
         self.remove_log_handlers()
 
     def meta_train_test(self, epoch: int):

@@ -220,7 +220,8 @@ class SimpleLearner(BaseLearner):
         self.initialize_log()
         self.save_configuration(False)
 
-        self.print_and_log(f'Start retesting on epochs: {epochs} ...', end='\n')
+        self.log_initial_info()
+        self.print_and_log(f'Start retesting on epochs: {epochs} ...')
         if self.config['learn']["use_gpu"]:
             self.print_and_log('Using GPU with total memory %dMiB, %.2f%% is already used' %
                                (gpu_total, gpu_percent))
@@ -233,7 +234,7 @@ class SimpleLearner(BaseLearner):
                 continue
             self.test_process(epoch)
 
-        self.print_and_log('Finish retesting ...')
+        self.print_and_log('Finish retesting ...', end='\n')
         self.remove_log_handlers()
 
     def get_dataset_loader_dict(self) -> dict:
