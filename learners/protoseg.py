@@ -7,7 +7,7 @@ from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced
 from data.types import TensorDataItem
 from learners.losses import CustomLoss
 from learners.meta_learner import MetaLearner
-from learners.types import NeuralNetworks, CalcMetrics, Optimizer, Scheduler
+from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 
 
 class ProtoSegLearner(MetaLearner):

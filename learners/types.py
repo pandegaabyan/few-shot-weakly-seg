@@ -1,7 +1,7 @@
 from typing import Callable
 
 from numpy.typing import NDArray
-from torch import optim, nn
+from torch import nn, optim
 
 NeuralNetworks = nn.Module | dict[str, nn.Module]
 

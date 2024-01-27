@@ -5,12 +5,10 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import data as skdata
-from skimage import measure
-from skimage import morphology
-from skimage import segmentation
+from skimage import measure, morphology, segmentation
 
 from data.base_dataset import BaseDataset
-from data.types import SparsityModes, SparsityValue, DatasetModes, TensorDataItem
+from data.types import DatasetModes, SparsityModes, SparsityValue, TensorDataItem
 
 
 class FewSparseDataset(BaseDataset, ABC):

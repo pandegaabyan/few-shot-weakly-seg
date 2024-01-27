@@ -3,11 +3,11 @@ from config.config_type import (
     DataConfig,
     DataTuneConfig,
     LearnConfig,
-    WeaselConfig,
-    ProtoSegConfig,
     LossConfig,
     OptimizerConfig,
+    ProtoSegConfig,
     SchedulerConfig,
+    WeaselConfig,
 )
 
 data_config: DataConfig = {

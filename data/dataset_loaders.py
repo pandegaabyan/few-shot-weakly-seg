@@ -1,5 +1,5 @@
 import copy
-from typing import Type, Literal
+from typing import Literal, Type
 
 from torch.utils.data import DataLoader
 from typing_extensions import NotRequired, TypedDict
@@ -8,9 +8,9 @@ from config.config_type import DataConfig, DataTuneConfig
 from data.few_sparse_dataset import FewSparseDataset
 from data.types import (
     DatasetModes,
+    FewSparseDatasetKeywordArgs,
     SparsityModes,
     SparsityValue,
-    FewSparseDatasetKeywordArgs,
 )
 
 DatasetModesReduced = Literal["", "meta", "tune"]

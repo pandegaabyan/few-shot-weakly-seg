@@ -1,21 +1,21 @@
 import copy
 import gc
 import time
-from typing import Type, Iterator, Iterable
+from typing import Iterable, Iterator, Type
 
-from torch import cuda, optim, nn
+from torch import cuda, nn, optim
 
 from config.config_type import (
     AllConfig,
     DataConfig,
     DataTuneConfig,
+    GuidedNetsConfig,
     LearnConfig,
-    WeaselConfig,
-    ProtoSegConfig,
     LossConfig,
     OptimizerConfig,
+    ProtoSegConfig,
     SchedulerConfig,
-    GuidedNetsConfig,
+    WeaselConfig,
 )
 from data.dataset_loaders import DatasetLoaderParamReduced
 from data.simple_dataset import SimpleDataset
@@ -28,9 +28,9 @@ from learners.weasel import WeaselLearner
 from models.u_net import UNet
 from tasks.optic_disc_cup.datasets import (
     DrishtiDataset,
+    DrishtiSimpleDataset,
     RimOneDataset,
     RimOneSimpleDataset,
-    DrishtiSimpleDataset,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou

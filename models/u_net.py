@@ -1,10 +1,10 @@
+from collections import OrderedDict
+
 import torch
 import torch.nn.functional as F
 from torch import nn
 
 from torchmeta import modules
-
-from collections import OrderedDict
 
 
 def initialize_weights(*models):

@@ -17,9 +17,9 @@ from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
 from learners.types import CalcMetrics, Optimizer, Scheduler
 from learners.utils import (
+    add_suffix_to_filename,
     check_mkdir,
     dump_json,
-    add_suffix_to_filename,
     get_gpu_memory,
 )
 

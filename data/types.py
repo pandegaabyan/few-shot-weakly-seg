@@ -1,4 +1,4 @@
-from typing import TypedDict, Literal, Union
+from typing import Literal, TypedDict, Union
 
 from torch import Tensor
 

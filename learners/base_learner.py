@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from numpy.typing import NDArray
 from sklearn import metrics
-from torch import optim, nn
+from torch import nn, optim
 
 from config.config_type import AllConfig
 from config.constants import FILENAMES
@@ -16,13 +16,13 @@ from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 from learners.utils import (
     check_mkdir,
     check_rmtree,
-    get_gpu_memory,
-    load_json,
     dump_json,
+    get_gpu_memory,
     get_name_from_function,
     get_name_from_instance,
-    get_simple_stack_list,
     get_short_git_hash,
+    get_simple_stack_list,
+    load_json,
 )
 
 
