@@ -76,7 +76,7 @@ class FewSparseDataset(BaseDataset, ABC):
         dot_size = dot_size or default_dot_size
 
         small_msk = FewSparseDataset.resize_image(
-            msk, np.divide(list(msk.shape), dot_size).tolist(), True
+            msk, np.divide(msk.shape, dot_size).tolist(), True
         )
 
         # Linearizing mask.
@@ -149,7 +149,7 @@ class FewSparseDataset(BaseDataset, ABC):
         dot_size = dot_size or int(default_dot_size)
 
         small_msk = FewSparseDataset.resize_image(
-            msk, np.divide(list(msk.shape), dot_size).tolist(), True
+            msk, np.divide(msk.shape, dot_size).tolist(), True
         )
 
         # Copying mask and starting it with -1 for inserting sparsity.
@@ -277,7 +277,7 @@ class FewSparseDataset(BaseDataset, ABC):
             new_msk[c_msk] = c
 
         blobs = skdata.binary_blobs(
-            np.max(list(new_msk.shape)),
+            np.max(new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
             seed=bseed,
