@@ -2,6 +2,7 @@ import csv
 import logging
 import os
 from abc import ABC, abstractmethod
+from typing import Type
 
 import numpy as np
 import torch
@@ -9,7 +10,7 @@ from numpy.typing import NDArray
 from sklearn import metrics
 from torch import nn, optim
 
-from config.config_type import ConfigBase, ConfigClassUnion, ConfigUnion
+from config.config_type import ConfigBase, ConfigUnion
 from config.constants import DEFAULT_CONFIGS, FILENAMES
 from learners.losses import CustomLoss
 from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
@@ -142,7 +143,7 @@ class BaseLearner(ABC):
         self.print_and_log("Finish learning ...", end="\n")
         self.remove_log_handlers()
 
-    def check_and_clean_config(self, config: ConfigUnion, ref_type: ConfigClassUnion):
+    def check_and_clean_config(self, config: ConfigUnion, ref_type: Type[ConfigUnion]):
         ref_keys = ref_type.__annotations__.keys()
         for key in config.keys():
             if key not in ref_keys:

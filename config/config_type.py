@@ -1,4 +1,4 @@
-from typing import Type, Union
+from typing import Union
 
 from typing_extensions import NotRequired, TypedDict
 
@@ -76,21 +76,11 @@ class ConfigBase(TypedDict):
     scheduler: SchedulerConfig
 
 
-class ConfigSimpleLearner(TypedDict):
-    data: DataConfig
-    learn: LearnConfig
-    loss: LossConfig
-    optimizer: OptimizerConfig
-    scheduler: SchedulerConfig
+class ConfigSimpleLearner(ConfigBase):
     simple_learner: SimpleLearnerConfig
 
 
-class ConfigMetaLearner(TypedDict):
-    data: DataConfig
-    learn: LearnConfig
-    loss: LossConfig
-    optimizer: OptimizerConfig
-    scheduler: SchedulerConfig
+class ConfigMetaLearner(ConfigBase):
     meta_learner: MetaLearnerConfig
 
 
@@ -118,15 +108,4 @@ ConfigUnion = Union[
     ConfigProtoSeg,
     ConfigGuidedNets,
     ConfigAll,
-]
-
-
-ConfigClassUnion = Union[
-    Type[ConfigBase],
-    Type[ConfigSimpleLearner],
-    Type[ConfigMetaLearner],
-    Type[ConfigWeasel],
-    Type[ConfigProtoSeg],
-    Type[ConfigGuidedNets],
-    Type[ConfigAll],
 ]
