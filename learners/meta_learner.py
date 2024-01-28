@@ -52,7 +52,7 @@ class MetaLearner(BaseLearner, ABC):
         self.tune_loaders = get_tune_loaders(
             self.tune_param,
             config["data"],
-            config["data_tune"],
+            config["data_tune"],  # type: ignore
             pin_memory=config["learn"]["use_gpu"],
         )
 
@@ -252,7 +252,7 @@ class MetaLearner(BaseLearner, ABC):
 
     @staticmethod
     def dictify_loader_param(param: DatasetLoaderParamReduced) -> dict:
-        new_param: dict = param.copy()
+        new_param = dict(param.copy())
         new_param["dataset_class"] = str(param["dataset_class"]).replace("'", "")
         return new_param
 
@@ -280,7 +280,7 @@ class MetaLearner(BaseLearner, ABC):
                 dataset_path = add_suffix_to_filename(dataset_path, str(i))
                 opt_path = add_suffix_to_filename(opt_path, str(i))
 
-        dump_json(config_filepath, self.config)
+        dump_json(config_filepath, dict(self.config))
         dump_json(dataset_path, dataset_params)
         dump_json(opt_path, optimization_data)
         if is_new:

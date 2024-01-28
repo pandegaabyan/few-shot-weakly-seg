@@ -40,6 +40,9 @@ class SimpleLearner(BaseLearner):
     ):
         super().__init__(net, config, calc_metrics, calc_loss, optimizer, scheduler)
 
+        assert isinstance(net, nn.Module), "net should be nn.Module"
+        self.net = net
+
         self.dataset_class = dataset_class
         self.dataset_kwargs = dataset_kwargs
         if test_dataset_class is not None and test_dataset_kwargs is not None:
@@ -288,7 +291,7 @@ class SimpleLearner(BaseLearner):
                 dataset_path = add_suffix_to_filename(dataset_path, str(i))
                 opt_path = add_suffix_to_filename(opt_path, str(i))
 
-        dump_json(config_filepath, self.config)
+        dump_json(config_filepath, dict(self.config))
         dump_json(dataset_path, dataset_params)
         dump_json(opt_path, optimization_data)
         if is_new:

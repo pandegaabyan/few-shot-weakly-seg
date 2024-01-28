@@ -10,7 +10,7 @@ from sklearn import metrics
 from torch import nn, optim
 
 from config.config_type import AllConfig
-from config.constants import FILENAMES
+from config.constants import DEFAULT_CONFIGS, FILENAMES
 from learners.losses import CustomLoss
 from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
 from learners.utils import (
@@ -59,15 +59,31 @@ class BaseLearner(ABC):
         if optimizer is not None:
             self.optimizer = optimizer
         else:
+            if isinstance(net, nn.Module):
+                net_params = net.parameters()
+            else:
+                net_params = []
+                for n in net.values():
+                    net_params += n.parameters()
             self.optimizer = optim.Adam(
-                [{"params": net.parameters(), "lr": self.config["optimizer"]["lr"]}]
+                [
+                    {
+                        "params": net_params,
+                        "lr": self.config["optimizer"].get(
+                            "lr", DEFAULT_CONFIGS["optimizer_lr"]
+                        ),
+                    }
+                ]
             )
 
         if scheduler is not None:
             self.scheduler = scheduler
         else:
             self.scheduler = optim.lr_scheduler.StepLR(
-                self.optimizer, self.config["scheduler"]["step_size"]
+                self.optimizer,
+                self.config["scheduler"].get(
+                    "step_size", DEFAULT_CONFIGS["scheduler_step_size"]
+                ),
             )
 
     @staticmethod
@@ -132,10 +148,13 @@ class BaseLearner(ABC):
         self.remove_log_handlers()
 
     def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
-        new_config = {}
+        for key in ori_config.keys():
+            if key not in self.set_used_config():
+                del ori_config[key]
         for key in self.set_used_config():
-            new_config[key] = ori_config[key]  # type: ignore
-        return new_config
+            if key not in ori_config.keys():
+                raise ValueError(f"Missing {key} in config")
+        return ori_config
 
     def initialize_gpu_usage(self) -> tuple[float, int]:
         gpu_percent, gpu_total = 0, 0
@@ -292,6 +311,7 @@ class BaseLearner(ABC):
                 np.concatenate(preds, axis=0).ravel(),
                 average="macro",
             )
+            iou_mean = float(iou_mean)
             score = {"iou_mean": iou_mean}
             score_text = "%.2f" % (iou_mean * 100)
             name = "Mean IoU score"

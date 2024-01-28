@@ -93,7 +93,9 @@ class GuidedNetsLearner(MetaLearner):
                 net.zero_grad()
 
             embed_tr_list = []
-            for i, data in enumerate(tune_loader["train"]):
+            x_tr: Tensor = Tensor()
+            y_tr: Tensor = Tensor()
+            for data in tune_loader["train"]:
                 x_tr, _, y_tr, _ = data
                 if self.config["learn"]["use_gpu"]:
                     x_tr = x_tr.cuda()
@@ -102,6 +104,8 @@ class GuidedNetsLearner(MetaLearner):
                 embed_tr = self.get_embeddings(x_tr, y_tr)
                 embed_tr_list.append(embed_tr)
 
+            if len(embed_tr_list) == 0:
+                return labels, preds, names
             all_embed_tr = torch.vstack(embed_tr_list)
             prototypes = self.get_prototypes(
                 all_embed_tr, [1, 1, x_tr.shape[2], x_tr.shape[3]]
@@ -166,7 +170,7 @@ class GuidedNetsLearner(MetaLearner):
         self.net["merge"] = nn.AdaptiveAvgPool2d((1, 1)).cuda()
 
     def set_default_head_net(self):
-        embedding_size = self.config["guidednets"]["embedding_size"]
+        embedding_size = self.config["guidednets"]["embedding_size"]  # type: ignore
         self.net["head"] = nn.Sequential(
             nn.Conv2d(embedding_size * 2, embedding_size, kernel_size=3, padding=1),
             nn.ReLU(),

@@ -21,7 +21,7 @@ def calc_disc_cup_iou(
     iou_od = metrics.jaccard_score(labels_od_np, preds_od_np)
     iou_oc = metrics.jaccard_score(labels_oc_np, preds_oc_np)
 
-    score_text = "Disc = %.2f | Cup = %.2f" % (iou_od * 100, iou_oc * 100)  # type: ignore
+    score_text = "Disc = %.2f | Cup = %.2f" % (float(iou_od) * 100, float(iou_oc) * 100)
     name = "IoU score"
 
     return {"iou_od": iou_od, "iou_oc": iou_oc}, score_text, name

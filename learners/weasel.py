@@ -99,7 +99,7 @@ class WeaselLearner(MetaLearner):
         self.net.zero_grad()
 
         # Repeatedly cycling over batches.
-        tune_epochs = self.config["weasel"]["tune_epochs"]
+        tune_epochs = self.config["weasel"]["tune_epochs"]  # type: ignore
         for c in range(1, tune_epochs + 1):
             self.print_and_log("\tTuning epoch %d/%d" % (c, tune_epochs))
 
@@ -126,7 +126,7 @@ class WeaselLearner(MetaLearner):
                 tune_train_loss.backward()
                 self.optimizer.step()
 
-            if c % self.config["weasel"]["tune_test_freq"] == 0 or c == tune_epochs:
+            if c % self.config["weasel"]["tune_test_freq"] == 0 or c == tune_epochs:  # type: ignore
                 # Starting test.
 
                 labels, preds, names = [], [], []
@@ -182,13 +182,13 @@ class WeaselLearner(MetaLearner):
         grads = torch.autograd.grad(
             loss,
             self.net.meta_parameters(),  # type: ignore
-            create_graph=not self.config["weasel"]["use_first_order"],
+            create_graph=not self.config["weasel"]["use_first_order"],  # type: ignore
         )
 
         params = OrderedDict()
         for (name, param), grad in zip(self.net.meta_named_parameters(), grads):
             params[name] = (
-                param - self.config["weasel"]["update_param_step_size"] * grad
+                param - self.config["weasel"]["update_param_step_size"] * grad  # type: ignore
             )
 
         return params

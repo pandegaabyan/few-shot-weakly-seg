@@ -125,7 +125,7 @@ def get_meta_loaders(
         "test_batch_size": data_config["batch_size"],
     }
     for reduced_param in param_list:
-        full_param: DatasetLoaderParam = {**reduced_param, **complement_param}  # type: ignore
+        full_param: DatasetLoaderParam = {**reduced_param, **complement_param}
         new_param_list.append(full_param)
 
     return get_dataset_loaders(new_param_list)
@@ -154,7 +154,7 @@ def get_tune_loaders(
                     "train_batch_size": data_config["batch_size"],
                     "test_batch_size": 1,
                 }
-                full_param: DatasetLoaderParam = {**reduced_param, **complement_param}  # type: ignore
+                full_param: DatasetLoaderParam = {**reduced_param, **complement_param}
                 new_param_list.append(full_param)
 
     return get_dataset_loaders(new_param_list)

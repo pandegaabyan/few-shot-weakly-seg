@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Callable, Iterable
 
 
 def check_mkdir(dir_name: str):
@@ -29,7 +29,7 @@ def cycle_iterable(iterable: Iterable):
             yield x
 
 
-def get_name_from_function(func: callable) -> str:
+def get_name_from_function(func: Callable) -> str:
     return f"<function {func.__module__}.{func.__name__}>"
 
 
@@ -88,6 +88,8 @@ def get_simple_stack_list(start: int = 0, end: int | None = None) -> list[str]:
             filename = os.path.relpath(item.filename, os.getcwd())
         except ValueError:
             filename = item.filename
-        simple_stack = filename + ":" + str(item.lineno) + " " + item.line
+        simple_stack = (
+            filename + ":" + str(item.lineno or "") + " " + (item.line or "(None)")
+        )
         simple_stack_list.append(simple_stack)
     return simple_stack_list

@@ -29,8 +29,8 @@ class FewSparseDataset(BaseDataset, ABC):
         self.num_shots = num_shots
         self.split_seed = split_seed
         self.split_test_size = split_test_size
-        self.sparsity_mode = sparsity_mode
-        self.sparsity_value = sparsity_value
+        self.sparsity_mode: SparsityModes = sparsity_mode
+        self.sparsity_value: SparsityValue = sparsity_value
         self.sparsity_params = sparsity_params or {}
 
         self.sparsity_mode_default: list[SparsityModes] = [
@@ -76,7 +76,7 @@ class FewSparseDataset(BaseDataset, ABC):
         dot_size = dot_size or default_dot_size
 
         small_msk = FewSparseDataset.resize_image(
-            msk, np.divide(msk.shape, dot_size).tolist(), True
+            msk, np.divide(list(msk.shape), dot_size).tolist(), True
         )
 
         # Linearizing mask.
@@ -92,7 +92,7 @@ class FewSparseDataset(BaseDataset, ABC):
 
             # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            if type(sparsity) is float or type(sparsity) is int:
+            if isinstance(sparsity, float) or isinstance(sparsity, int):
                 sparsity_num = round(sparsity)
             elif type(sparsity) is tuple:
                 sparsity_num = round(
@@ -140,20 +140,23 @@ class FewSparseDataset(BaseDataset, ABC):
 
         default_dot_size = max(
             min(msk.shape) // 80,
-            sparsity // 5 if (type(sparsity) is float or type(sparsity) is int) else 0,
+            # sparsity // 5 if (isinstance(sparsity, float) or isinstance(sparsity, int)) else 0,
+            sparsity // 5
+            if (isinstance(sparsity, float) or isinstance(sparsity, int))
+            else 0,
             1,
         )
-        dot_size = dot_size or default_dot_size
+        dot_size = dot_size or int(default_dot_size)
 
         small_msk = FewSparseDataset.resize_image(
-            msk, np.divide(msk.shape, dot_size).tolist(), True
+            msk, np.divide(list(msk.shape), dot_size).tolist(), True
         )
 
         # Copying mask and starting it with -1 for inserting sparsity.
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        if type(sparsity) is float or type(sparsity) is int:
+        if isinstance(sparsity, float) or isinstance(sparsity, int):
             # Predetermined sparsity (x and y point spacing).
             spacing_value = int(sparsity / dot_size)
         elif type(sparsity) is tuple:
@@ -190,7 +193,7 @@ class FewSparseDataset(BaseDataset, ABC):
         if sparsity != "random":
             np.random.seed(seed)
 
-        if type(sparsity) is float or type(sparsity) is int:
+        if isinstance(sparsity, float) or isinstance(sparsity, int):
             sparsity_num = sparsity
         elif type(sparsity) is tuple:
             sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
@@ -252,7 +255,7 @@ class FewSparseDataset(BaseDataset, ABC):
             np.random.seed(seed)
             bseed = seed
 
-        if type(sparsity) is float or type(sparsity) is int:
+        if isinstance(sparsity, float) or isinstance(sparsity, int):
             sparsity_num = sparsity
         elif type(sparsity) is tuple:
             sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
@@ -274,7 +277,7 @@ class FewSparseDataset(BaseDataset, ABC):
             new_msk[c_msk] = c
 
         blobs = skdata.binary_blobs(
-            np.max(new_msk.shape),
+            np.max(list(new_msk.shape)),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
             seed=bseed,
@@ -301,7 +304,7 @@ class FewSparseDataset(BaseDataset, ABC):
         if sparsity != "random":
             np.random.seed(seed)
 
-        if type(sparsity) is float or type(sparsity) is int:
+        if isinstance(sparsity, float) or isinstance(sparsity, int):
             sparsity_num = sparsity
         elif type(sparsity) is tuple:
             sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
@@ -439,8 +442,12 @@ class FewSparseDataset(BaseDataset, ABC):
         img, msk, img_filename = self.get_data(index)
 
         sparse_msk = self.get_sparse_mask(
-            self.sparsity_mode, msk, img, self.sparsity_value, index
-        )  # type: ignore
+            self.sparsity_mode,
+            msk,
+            img,
+            self.sparsity_value,
+            index,
+        )
 
         # Returning to iterator.
         return img, msk, sparse_msk, img_filename

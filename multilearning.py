@@ -17,6 +17,7 @@ from config.config_type import (
     SchedulerConfig,
     WeaselConfig,
 )
+from config.constants import DEFAULT_CONFIGS
 from data.dataset_loaders import DatasetLoaderParamReduced
 from data.simple_dataset import SimpleDataset
 from data.types import SimpleDatasetKeywordArgs
@@ -147,24 +148,26 @@ def get_adam_optimizer_and_step_scheduler(
                 "params": [
                     param for name, param in net_named_params if name[-4:] == "bias"
                 ],
-                "lr": all_config["optimizer"]["lr_bias"],
-                "weight_decay": all_config["optimizer"]["weight_decay_bias"],
+                "lr": all_config["optimizer"].get("lr_bias"),
+                "weight_decay": all_config["optimizer"].get("weight_decay_bias"),
             },
             {
                 "params": [
                     param for name, param in net_named_params if name[-4:] != "bias"
                 ],
-                "lr": all_config["optimizer"]["lr"],
-                "weight_decay": all_config["optimizer"]["weight_decay"],
+                "lr": all_config["optimizer"].get("lr"),
+                "weight_decay": all_config["optimizer"].get("weight_decay"),
             },
         ],
-        betas=all_config["optimizer"]["betas"],
+        betas=all_config["optimizer"].get("betas", DEFAULT_CONFIGS["optimizer_betas"]),
     )
 
     step_scheduler = optim.lr_scheduler.StepLR(
         adam_optimizer,
-        step_size=all_config["scheduler"]["step_size"],
-        gamma=all_config["scheduler"]["gamma"],
+        step_size=all_config["scheduler"].get(
+            "step_size", DEFAULT_CONFIGS["scheduler_step_size"]
+        ),
+        gamma=all_config["scheduler"].get("gamma", DEFAULT_CONFIGS["scheduler_gamma"]),
     )
 
     return adam_optimizer, step_scheduler
@@ -219,7 +222,8 @@ def run_clean_protoseg_learning(
     tune_epochs: list[int] | None = None,
 ):
     net = UNet(
-        all_config["data"]["num_channels"], all_config["protoseg"]["embedding_size"]
+        all_config["data"]["num_channels"],
+        all_config["protoseg"]["embedding_size"],  # type: ignore
     )
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(
@@ -261,7 +265,7 @@ def run_clean_guidednets_learning(
     tune_epochs: list[int] | None = None,
     use_original_way: bool = False,
 ):
-    embedding_size = all_config["guidednets"]["embedding_size"]
+    embedding_size = all_config["guidednets"]["embedding_size"]  # type: ignore
 
     net_image = UNet(
         all_config["data"]["num_channels"], embedding_size, prototype=True
@@ -297,7 +301,10 @@ def run_clean_guidednets_learning(
         for n in net.values():
             net_parameters.extend(list(n.parameters()))
 
-        adam_optimizer = optim.Adam(net_parameters, all_config["optimizer"]["lr"])
+        adam_optimizer = optim.Adam(
+            net_parameters,
+            all_config["optimizer"].get("lr", DEFAULT_CONFIGS["optimizer_lr"]),
+        )
         step_scheduler = optim.lr_scheduler.StepLR(
             adam_optimizer,
             all_config["scheduler"]["step_size"],
@@ -462,7 +469,7 @@ def main():
         new_config["learn"][
             "exp_name"
         ] = f'v3 RO-DR L WS {config_item["sparsity_mode"]}-var'
-        new_config["data_tune"]["sparsity_dict"] = {
+        new_config["data_tune"]["sparsity_dict"] = {  # type: ignore
             config_item["sparsity_mode"]: [config_item["sparsity_value_tune"]]
         }
 

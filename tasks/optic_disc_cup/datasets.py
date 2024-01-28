@@ -81,7 +81,7 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
         self,
         sparsity_mode: SparsityModes,
         msk: NDArray,
-        img: NDArray = None,
+        img: NDArray | None = None,
         sparsity_value: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
@@ -112,7 +112,7 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
 
             # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            if type(sparsity) is float or type(sparsity) is int:
+            if isinstance(sparsity, float) or isinstance(sparsity, int):
                 sparsity_num = round(sparsity)
             else:
                 sparsity_num = np.random.randint(low=1, high=len(perm))
@@ -139,7 +139,7 @@ class OpticDiscCupDataset(FewSparseDataset, ABC):
         new_msk = np.zeros_like(msk)
         new_msk[:, :] = -1
 
-        if type(sparsity) is float or type(sparsity) is int:
+        if isinstance(sparsity, float) or isinstance(sparsity, int):
             spacing_value = int(sparsity)
         else:
             max_high = int(np.max(msk.shape) / 2)

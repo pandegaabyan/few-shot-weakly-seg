@@ -13,9 +13,6 @@ class CustomLoss(nn.Module):
         self.iou_smooth = 1
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
-        if self.loss_type == "ce":
-            return self.ce_loss(inputs, targets, ignore_index=self.ignored_index)
-
         if self.loss_type == "bce":
             return self.bce_loss(inputs, targets, ignore_index=self.ignored_index)
 
@@ -29,6 +26,8 @@ class CustomLoss(nn.Module):
 
         if self.loss_type == "iou":
             return self.iou_loss(inputs, targets, smooth=self.iou_smooth)
+
+        return self.ce_loss(inputs, targets, ignore_index=self.ignored_index)
 
     def params(self) -> dict:
         return {"loss_type": self.loss_type, "ignored_index": self.ignored_index}
