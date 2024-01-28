@@ -1,3 +1,5 @@
+from typing import Type, Union
+
 from typing_extensions import NotRequired, TypedDict
 
 from data.types import SparsityDict
@@ -11,27 +13,11 @@ class DataConfig(TypedDict):
     resize_to: tuple[int, int]
 
 
-class DataTuneConfig(TypedDict):
-    shot_list: list[int]  # Number of shots (i.e, total annotated samples)
-    sparsity_dict: SparsityDict  # Sparsity of the annotations
-    #   Point: number of labeled pixels in point annotation
-    #   Grid: spacing between selected pixels in grid annotation
-    #   Contour: density of the contours (1, is the complete contours)
-    #   Skeleton: density of the skeletons (1, is the complete skeletons)
-    #   Region: percentage of regions labeled (1, all \pure\ regions are labeled)
-
-
 class LearnConfig(TypedDict):
     should_resume: bool
     use_gpu: bool
     num_epochs: int  # Number of epochs.
     exp_name: str
-    tune_freq: NotRequired[
-        int
-    ]  # Run tuning each tune_freq epochs, only for MetaLearner.
-    test_freq: NotRequired[
-        int
-    ]  # Save predictions each save_pred_freq epochs, only for SimpleLearner.
 
 
 class LossConfig(TypedDict, total=False):
@@ -52,6 +38,21 @@ class SchedulerConfig(TypedDict, total=False):
     gamma: float
 
 
+class SimpleLearnerConfig(TypedDict):
+    test_freq: NotRequired[int]
+
+
+class MetaLearnerConfig(TypedDict):
+    tune_freq: NotRequired[int]
+    shot_list: list[int]  # Number of shots (i.e, total annotated samples)
+    sparsity_dict: SparsityDict  # Sparsity of the annotations
+    #   Point: number of labeled pixels in point annotation
+    #   Grid: spacing between selected pixels in grid annotation
+    #   Contour: density of the contours (1, is the complete contours)
+    #   Skeleton: density of the skeletons (1, is the complete skeletons)
+    #   Region: percentage of regions labeled (1, all \pure\ regions are labeled)
+
+
 class WeaselConfig(TypedDict):
     use_first_order: bool  # First order approximation of MAML.
     update_param_step_size: float  # MAML inner loop step size.
@@ -67,13 +68,65 @@ class GuidedNetsConfig(TypedDict):
     embedding_size: int
 
 
-class AllConfig(TypedDict):
+class ConfigBase(TypedDict):
     data: DataConfig
     learn: LearnConfig
     loss: LossConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
-    data_tune: NotRequired[DataTuneConfig]
-    weasel: NotRequired[WeaselConfig]
-    protoseg: NotRequired[ProtoSegConfig]
-    guidednets: NotRequired[GuidedNetsConfig]
+
+
+class ConfigSimpleLearner(TypedDict):
+    data: DataConfig
+    learn: LearnConfig
+    loss: LossConfig
+    optimizer: OptimizerConfig
+    scheduler: SchedulerConfig
+    simple_learner: SimpleLearnerConfig
+
+
+class ConfigMetaLearner(TypedDict):
+    data: DataConfig
+    learn: LearnConfig
+    loss: LossConfig
+    optimizer: OptimizerConfig
+    scheduler: SchedulerConfig
+    meta_learner: MetaLearnerConfig
+
+
+class ConfigWeasel(ConfigMetaLearner):
+    weasel: WeaselConfig
+
+
+class ConfigProtoSeg(ConfigMetaLearner):
+    protoseg: ProtoSegConfig
+
+
+class ConfigGuidedNets(ConfigMetaLearner):
+    guidednets: GuidedNetsConfig
+
+
+class ConfigAll(ConfigSimpleLearner, ConfigWeasel, ConfigProtoSeg, ConfigGuidedNets):
+    ...
+
+
+ConfigUnion = Union[
+    ConfigBase,
+    ConfigSimpleLearner,
+    ConfigMetaLearner,
+    ConfigWeasel,
+    ConfigProtoSeg,
+    ConfigGuidedNets,
+    ConfigAll,
+]
+
+
+ConfigClassUnion = Union[
+    Type[ConfigBase],
+    Type[ConfigSimpleLearner],
+    Type[ConfigMetaLearner],
+    Type[ConfigWeasel],
+    Type[ConfigProtoSeg],
+    Type[ConfigGuidedNets],
+    Type[ConfigAll],
+]

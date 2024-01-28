@@ -4,11 +4,12 @@ from typing import Literal, Type
 from torch.utils.data import DataLoader
 from typing_extensions import NotRequired, TypedDict
 
-from config.config_type import DataConfig, DataTuneConfig
+from config.config_type import DataConfig
 from data.few_sparse_dataset import FewSparseDataset
 from data.types import (
     DatasetModes,
     FewSparseDatasetKeywordArgs,
+    SparsityDict,
     SparsityModes,
     SparsityValue,
 )
@@ -134,12 +135,13 @@ def get_meta_loaders(
 def get_tune_loaders(
     param: DatasetLoaderParamReduced,
     data_config: DataConfig,
-    data_tune_config: DataTuneConfig,
+    shot_list: list[int],
+    sparsity_dict: SparsityDict,
     pin_memory: bool = False,
 ) -> list[DatasetLoaderItem]:
     new_param_list: list[DatasetLoaderParam] = []
-    for shot in data_tune_config["shot_list"]:
-        for sparsity_mode, sparsity_values in data_tune_config["sparsity_dict"].items():
+    for shot in shot_list:
+        for sparsity_mode, sparsity_values in sparsity_dict.items():
             for sparsity_value in sparsity_values:
                 reduced_param = copy.deepcopy(param)
                 reduced_param["dataset_kwargs"]["num_shots"] = shot

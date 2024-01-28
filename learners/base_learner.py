@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from sklearn import metrics
 from torch import nn, optim
 
-from config.config_type import AllConfig
+from config.config_type import ConfigBase, ConfigClassUnion, ConfigUnion
 from config.constants import DEFAULT_CONFIGS, FILENAMES
 from learners.losses import CustomLoss
 from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
@@ -30,7 +30,7 @@ class BaseLearner(ABC):
     def __init__(
         self,
         net: NeuralNetworks,
-        config: AllConfig,
+        config: ConfigBase,
         calc_metrics: CalcMetrics | None = None,
         calc_loss: CustomLoss | None = None,
         optimizer: Optimizer | None = None,
@@ -38,7 +38,7 @@ class BaseLearner(ABC):
     ):
         self.net = net
         self.calc_metrics = calc_metrics
-        self.config = self.check_and_clean_config(config)
+        self.config = config
 
         self.output_path = os.path.join(
             FILENAMES["output_folder"], self.config["learn"]["exp_name"]
@@ -85,11 +85,6 @@ class BaseLearner(ABC):
                     "step_size", DEFAULT_CONFIGS["scheduler_step_size"]
                 ),
             )
-
-    @staticmethod
-    @abstractmethod
-    def set_used_config() -> list[str]:
-        pass
 
     @abstractmethod
     def save_configuration(self, is_new: bool):
@@ -147,14 +142,14 @@ class BaseLearner(ABC):
         self.print_and_log("Finish learning ...", end="\n")
         self.remove_log_handlers()
 
-    def check_and_clean_config(self, ori_config: AllConfig) -> AllConfig:
-        for key in ori_config.keys():
-            if key not in self.set_used_config():
-                del ori_config[key]
-        for key in self.set_used_config():
-            if key not in ori_config.keys():
+    def check_and_clean_config(self, config: ConfigUnion, ref_type: ConfigClassUnion):
+        ref_keys = ref_type.__annotations__.keys()
+        for key in config.keys():
+            if key not in ref_keys:
+                del config[key]
+        for key in ref_keys:
+            if key not in config.keys():
                 raise ValueError(f"Missing {key} in config")
-        return ori_config
 
     def initialize_gpu_usage(self) -> tuple[float, int]:
         gpu_percent, gpu_total = 0, 0

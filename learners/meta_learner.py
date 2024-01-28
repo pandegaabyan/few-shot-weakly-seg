@@ -8,7 +8,7 @@ from skimage import io
 from torch import nn
 from torch.utils.data import DataLoader
 
-from config.config_type import AllConfig
+from config.config_type import ConfigMetaLearner
 from config.constants import FILENAMES
 from data.dataset_loaders import (
     DatasetLoaderItem,
@@ -33,7 +33,7 @@ class MetaLearner(BaseLearner, ABC):
     def __init__(
         self,
         net: NeuralNetworks,
-        config: AllConfig,
+        config: ConfigMetaLearner,
         meta_params: list[DatasetLoaderParamReduced],
         tune_param: DatasetLoaderParamReduced,
         calc_metrics: CalcMetrics | None = None,
@@ -43,6 +43,7 @@ class MetaLearner(BaseLearner, ABC):
     ):
         super().__init__(net, config, calc_metrics, calc_loss, optimizer, scheduler)
 
+        self.config = config
         self.meta_params = meta_params
         self.tune_param = tune_param
 
@@ -52,7 +53,8 @@ class MetaLearner(BaseLearner, ABC):
         self.tune_loaders = get_tune_loaders(
             self.tune_param,
             config["data"],
-            config["data_tune"],  # type: ignore
+            config["meta_learner"]["shot_list"],
+            config["meta_learner"]["sparsity_dict"],
             pin_memory=config["learn"]["use_gpu"],
         )
 
@@ -71,17 +73,13 @@ class MetaLearner(BaseLearner, ABC):
     def pre_meta_train_test(self, epoch: int):
         pass
 
-    @staticmethod
-    def set_used_config() -> list[str]:
-        return ["data", "data_tune", "learn", "loss", "optimizer", "scheduler"]
-
     def learn_process(self, epoch: int):
         self.pre_meta_train_test(epoch)
         self.meta_train_test(epoch)
         self.save_net_and_optimizer()
         self.update_checkpoint({"epoch": epoch})
 
-        tune_freq = self.config["learn"].get("tune_freq")
+        tune_freq = self.config["meta_learner"].get("tune_freq")
         if (
             tune_freq is not None
             and epoch % tune_freq == 0
@@ -102,7 +100,7 @@ class MetaLearner(BaseLearner, ABC):
 
         if epochs is None:
             num_epochs = self.config["learn"]["num_epochs"]
-            tune_freq = self.config["learn"].get("tune_freq")
+            tune_freq = self.config["meta_learner"].get("tune_freq")
             if tune_freq is None:
                 print("No epochs argument and no tune_freq in config")
                 return

@@ -2,7 +2,7 @@ import torch
 from numpy.typing import NDArray
 from torch import nn
 
-from config.config_type import AllConfig
+from config.config_type import ConfigProtoSeg
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced
 from data.types import TensorDataItem
 from learners.losses import CustomLoss
@@ -14,7 +14,7 @@ class ProtoSegLearner(MetaLearner):
     def __init__(
         self,
         net: NeuralNetworks,
-        config: AllConfig,
+        config: ConfigProtoSeg,
         meta_params: list[DatasetLoaderParamReduced],
         tune_param: DatasetLoaderParamReduced,
         calc_metrics: CalcMetrics | None = None,
@@ -32,11 +32,12 @@ class ProtoSegLearner(MetaLearner):
             optimizer,
             scheduler,
         )
+
         assert isinstance(net, nn.Module), "net should be nn.Module"
         self.net = net
 
-    def set_used_config(self) -> list[str]:
-        return super().set_used_config() + ["protoseg"]
+        self.check_and_clean_config(config, ConfigProtoSeg)
+        self.config = config
 
     def meta_train_test_step(
         self, train_data: TensorDataItem, test_data: TensorDataItem

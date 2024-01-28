@@ -2,7 +2,7 @@ import torch
 from numpy.typing import NDArray
 from torch import Tensor, nn
 
-from config.config_type import AllConfig
+from config.config_type import ConfigGuidedNets
 from data.dataset_loaders import DatasetLoaderItem, DatasetLoaderParamReduced
 from data.types import TensorDataItem
 from learners.losses import CustomLoss
@@ -14,7 +14,7 @@ class GuidedNetsLearner(MetaLearner):
     def __init__(
         self,
         net: NeuralNetworks,
-        config: AllConfig,
+        config: ConfigGuidedNets,
         meta_params: list[DatasetLoaderParamReduced],
         tune_param: DatasetLoaderParamReduced,
         calc_metrics: CalcMetrics | None = None,
@@ -35,6 +35,9 @@ class GuidedNetsLearner(MetaLearner):
         assert isinstance(net, dict), "net should be dict of nn.Module"
         self.net = net
 
+        self.check_and_clean_config(config, ConfigGuidedNets)
+        self.config = config
+
         if self.net.get("image") is None or not isinstance(
             self.net["image"], nn.Module
         ):
@@ -45,9 +48,6 @@ class GuidedNetsLearner(MetaLearner):
             self.set_default_merge_net()
         if self.net.get("head") is None:
             self.set_default_head_net()
-
-    def set_used_config(self) -> list[str]:
-        return super().set_used_config() + ["guidednets"]
 
     def meta_train_test_step(
         self, train_data: TensorDataItem, test_data: TensorDataItem
@@ -170,7 +170,7 @@ class GuidedNetsLearner(MetaLearner):
         self.net["merge"] = nn.AdaptiveAvgPool2d((1, 1)).cuda()
 
     def set_default_head_net(self):
-        embedding_size = self.config["guidednets"]["embedding_size"]  # type: ignore
+        embedding_size = self.config["guidednets"]["embedding_size"]
         self.net["head"] = nn.Sequential(
             nn.Conv2d(embedding_size * 2, embedding_size, kernel_size=3, padding=1),
             nn.ReLU(),

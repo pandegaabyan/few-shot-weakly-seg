@@ -64,8 +64,8 @@ class CustomLoss(nn.Module):
     def set_mce_weights_from_target(
         self, targets: Tensor, num_classes: int, use_gpu: bool = False
     ):
-        weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])  # type: ignore
-        if torch.any(weights == 0):  # type: ignore
+        weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])
+        if torch.any(weights == 0):
             weights = torch.Tensor([1 for _ in range(num_classes)])
         else:
             weights = weights / weights.max()

@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from skimage import io
 from torch import nn
 
-from config.config_type import AllConfig
+from config.config_type import ConfigSimpleLearner
 from config.constants import FILENAMES
 from data.simple_dataset import SimpleDataset
 from data.simple_dataset_loaders import get_simple_dataset_loader
@@ -28,7 +28,7 @@ class SimpleLearner(BaseLearner):
     def __init__(
         self,
         net: nn.Module,
-        config: AllConfig,
+        config: ConfigSimpleLearner,
         dataset_class: Type[SimpleDataset],
         dataset_kwargs: SimpleDatasetKeywordArgs,
         test_dataset_class: Type[SimpleDataset] | None = None,
@@ -42,6 +42,9 @@ class SimpleLearner(BaseLearner):
 
         assert isinstance(net, nn.Module), "net should be nn.Module"
         self.net = net
+
+        self.check_and_clean_config(config, ConfigSimpleLearner)
+        self.config = config
 
         self.dataset_class = dataset_class
         self.dataset_kwargs = dataset_kwargs
@@ -61,10 +64,6 @@ class SimpleLearner(BaseLearner):
             pin_memory=self.config["learn"]["use_gpu"],
         )
 
-    @staticmethod
-    def set_used_config() -> list[str]:
-        return ["data", "learn", "loss", "optimizer", "scheduler"]
-
     def learn_process(self, epoch: int):
         self.train_val_process(epoch)
 
@@ -73,7 +72,7 @@ class SimpleLearner(BaseLearner):
         self.scheduler.step()
 
         num_epochs = self.config["learn"]["num_epochs"]
-        test_freq = self.config["learn"].get("test_freq")
+        test_freq = self.config["simple_learner"].get("test_freq")
         if test_freq is not None and epoch % test_freq == 0 or epoch == num_epochs:
             self.save_net_and_optimizer(epoch)
             self.test_process(epoch)
@@ -236,7 +235,7 @@ class SimpleLearner(BaseLearner):
 
         if epochs is None:
             num_epochs = self.config["learn"]["num_epochs"]
-            test_freq = self.config["learn"].get("test_freq")
+            test_freq = self.config["simple_learner"].get("test_freq")
             if test_freq is None:
                 print("No epochs argument and no test_freq in config")
                 return

@@ -6,15 +6,21 @@ from typing import Iterable, Iterator, Type
 from torch import cuda, nn, optim
 
 from config.config_type import (
-    AllConfig,
+    ConfigAll,
+    ConfigBase,
+    ConfigGuidedNets,
+    ConfigProtoSeg,
+    ConfigSimpleLearner,
+    ConfigWeasel,
     DataConfig,
-    DataTuneConfig,
     GuidedNetsConfig,
     LearnConfig,
     LossConfig,
+    MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
     SchedulerConfig,
+    SimpleLearnerConfig,
     WeaselConfig,
 )
 from config.constants import DEFAULT_CONFIGS
@@ -37,7 +43,7 @@ from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
 
 
-def get_base_config() -> AllConfig:
+def get_config_all() -> ConfigAll:
     data_config: DataConfig = {
         "num_classes": 3,
         "num_channels": 3,
@@ -45,7 +51,26 @@ def get_base_config() -> AllConfig:
         "batch_size": 1,
         "resize_to": (256, 256),
     }
-    data_tune_config: DataTuneConfig = {
+    learn_config: LearnConfig = {
+        "should_resume": False,
+        "use_gpu": True,
+        "num_epochs": 200,
+        "exp_name": "",
+    }
+    loss_config: LossConfig = {"type": "ce", "ignored_index": -1}
+    optimizer_config: OptimizerConfig = {
+        "lr": 1e-3,
+        "lr_bias": 2e-3,
+        "weight_decay": 5e-5,
+        "weight_decay_bias": 0,
+        "betas": (0.9, 0.99),
+    }
+    scheduler_config: SchedulerConfig = {"step_size": 150, "gamma": 0.2}
+    simple_learner_config: SimpleLearnerConfig = {
+        "test_freq": 100,
+    }
+    meta_learner_config: MetaLearnerConfig = {
+        "tune_freq": 40,
         "shot_list": [10],
         "sparsity_dict": {
             "point": [10],
@@ -57,23 +82,6 @@ def get_base_config() -> AllConfig:
             "grid_old": [25],
         },
     }
-    learn_config: LearnConfig = {
-        "should_resume": False,
-        "use_gpu": True,
-        "num_epochs": 200,
-        "exp_name": "",
-        "tune_freq": 40,
-        "test_freq": 100,
-    }
-    loss_config: LossConfig = {"type": "ce", "ignored_index": -1}
-    optimizer_config: OptimizerConfig = {
-        "lr": 1e-3,
-        "lr_bias": 2 * 1e-3,
-        "weight_decay": 5e-5,
-        "weight_decay_bias": 0,
-        "betas": (0.9, 0.99),
-    }
-    scheduler_config: SchedulerConfig = {"step_size": 150, "gamma": 0.2}
     weasel_config: WeaselConfig = {
         "use_first_order": False,
         "update_param_step_size": 0.3,
@@ -82,18 +90,19 @@ def get_base_config() -> AllConfig:
     }
     protoseg_config: ProtoSegConfig = {"embedding_size": 8}
     guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
-    all_config: AllConfig = {
+    config_all: ConfigAll = {
         "data": data_config,
-        "data_tune": data_tune_config,
         "learn": learn_config,
         "loss": loss_config,
         "optimizer": optimizer_config,
         "scheduler": scheduler_config,
+        "meta_learner": meta_learner_config,
+        "simple_learner": simple_learner_config,
         "weasel": weasel_config,
         "protoseg": protoseg_config,
         "guidednets": guidednets_config,
     }
-    return all_config
+    return config_all
 
 
 def get_meta_loader_params_list() -> list[DatasetLoaderParamReduced]:
@@ -140,7 +149,7 @@ def get_tune_loader_params() -> DatasetLoaderParamReduced:
 
 
 def get_adam_optimizer_and_step_scheduler(
-    net_named_params: Iterator | Iterable, all_config: AllConfig
+    net_named_params: Iterator | Iterable, config: ConfigBase
 ) -> tuple[optim.Optimizer, optim.lr_scheduler.LRScheduler]:
     adam_optimizer = optim.Adam(
         [
@@ -148,48 +157,48 @@ def get_adam_optimizer_and_step_scheduler(
                 "params": [
                     param for name, param in net_named_params if name[-4:] == "bias"
                 ],
-                "lr": all_config["optimizer"].get("lr_bias"),
-                "weight_decay": all_config["optimizer"].get("weight_decay_bias"),
+                "lr": config["optimizer"].get("lr_bias"),
+                "weight_decay": config["optimizer"].get("weight_decay_bias"),
             },
             {
                 "params": [
                     param for name, param in net_named_params if name[-4:] != "bias"
                 ],
-                "lr": all_config["optimizer"].get("lr"),
-                "weight_decay": all_config["optimizer"].get("weight_decay"),
+                "lr": config["optimizer"].get("lr"),
+                "weight_decay": config["optimizer"].get("weight_decay"),
             },
         ],
-        betas=all_config["optimizer"].get("betas", DEFAULT_CONFIGS["optimizer_betas"]),
+        betas=config["optimizer"].get("betas", DEFAULT_CONFIGS["optimizer_betas"]),
     )
 
     step_scheduler = optim.lr_scheduler.StepLR(
         adam_optimizer,
-        step_size=all_config["scheduler"].get(
+        step_size=config["scheduler"].get(
             "step_size", DEFAULT_CONFIGS["scheduler_step_size"]
         ),
-        gamma=all_config["scheduler"].get("gamma", DEFAULT_CONFIGS["scheduler_gamma"]),
+        gamma=config["scheduler"].get("gamma", DEFAULT_CONFIGS["scheduler_gamma"]),
     )
 
     return adam_optimizer, step_scheduler
 
 
 def run_clean_weasel_learning(
-    all_config: AllConfig,
+    config: ConfigWeasel,
     meta_params: list[DatasetLoaderParamReduced],
     tune_param: DatasetLoaderParamReduced,
     calc_loss: CustomLoss | None = None,
     tune_only: bool = False,
     tune_epochs: list[int] | None = None,
 ):
-    net = UNet(all_config["data"]["num_channels"], all_config["data"]["num_classes"])
+    net = UNet(config["data"]["num_channels"], config["data"]["num_classes"])
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(
-        net.named_parameters(), all_config
+        net.named_parameters(), config
     )
 
     learner = WeaselLearner(
         net,
-        all_config,
+        config,
         meta_params,
         tune_param,
         calc_disc_cup_iou,
@@ -214,7 +223,7 @@ def run_clean_weasel_learning(
 
 
 def run_clean_protoseg_learning(
-    all_config: AllConfig,
+    config: ConfigProtoSeg,
     meta_params: list[DatasetLoaderParamReduced],
     tune_param: DatasetLoaderParamReduced,
     calc_loss: CustomLoss | None = None,
@@ -222,17 +231,17 @@ def run_clean_protoseg_learning(
     tune_epochs: list[int] | None = None,
 ):
     net = UNet(
-        all_config["data"]["num_channels"],
-        all_config["protoseg"]["embedding_size"],  # type: ignore
+        config["data"]["num_channels"],
+        config["protoseg"]["embedding_size"],
     )
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(
-        net.named_parameters(), all_config
+        net.named_parameters(), config
     )
 
     learner = ProtoSegLearner(
         net,
-        all_config,
+        config,
         meta_params,
         tune_param,
         calc_disc_cup_iou,
@@ -257,7 +266,7 @@ def run_clean_protoseg_learning(
 
 
 def run_clean_guidednets_learning(
-    all_config: AllConfig,
+    config: ConfigGuidedNets,
     meta_params: list[DatasetLoaderParamReduced],
     tune_param: DatasetLoaderParamReduced,
     calc_loss: CustomLoss | None = None,
@@ -265,10 +274,10 @@ def run_clean_guidednets_learning(
     tune_epochs: list[int] | None = None,
     use_original_way: bool = False,
 ):
-    embedding_size = all_config["guidednets"]["embedding_size"]  # type: ignore
+    embedding_size = config["guidednets"]["embedding_size"]
 
     net_image = UNet(
-        all_config["data"]["num_channels"], embedding_size, prototype=True
+        config["data"]["num_channels"], embedding_size, prototype=True
     ).cuda()
 
     net_mask = UNet(1, embedding_size, prototype=True).cuda()
@@ -277,7 +286,7 @@ def run_clean_guidednets_learning(
     net_head = nn.Sequential(
         nn.Conv2d(embedding_size * 2, embedding_size, kernel_size=3, padding=1),
         nn.ReLU(),
-        nn.Conv2d(embedding_size, all_config["data"]["num_classes"], kernel_size=1),
+        nn.Conv2d(embedding_size, config["data"]["num_classes"], kernel_size=1),
     ).cuda()
     nn.init.ones_(net_head[0].weight)
     nn.init.ones_(net_head[-1].weight)
@@ -287,13 +296,13 @@ def run_clean_guidednets_learning(
     net = {"image": net_image, "mask": net_mask, "merge": net_merge, "head": net_head}
 
     if use_original_way:
-        del all_config["optimizer"]["lr_bias"], all_config["optimizer"]["betas"]
+        del config["optimizer"]["lr_bias"], config["optimizer"]["betas"]
         del (
-            all_config["optimizer"]["weight_decay"],
-            all_config["optimizer"]["weight_decay_bias"],
+            config["optimizer"]["weight_decay"],
+            config["optimizer"]["weight_decay_bias"],
         )
-        all_config["scheduler"]["step_size"] = 50
-        all_config["scheduler"]["gamma"] = 0.5
+        config["scheduler"]["step_size"] = 50
+        config["scheduler"]["gamma"] = 0.5
 
         calc_loss = DiscCupLoss("mce")
 
@@ -303,12 +312,12 @@ def run_clean_guidednets_learning(
 
         adam_optimizer = optim.Adam(
             net_parameters,
-            all_config["optimizer"].get("lr", DEFAULT_CONFIGS["optimizer_lr"]),
+            config["optimizer"].get("lr", DEFAULT_CONFIGS["optimizer_lr"]),
         )
         step_scheduler = optim.lr_scheduler.StepLR(
             adam_optimizer,
-            all_config["scheduler"]["step_size"],
-            gamma=all_config["scheduler"]["gamma"],
+            config["scheduler"]["step_size"],
+            gamma=config["scheduler"]["gamma"],
         )
     else:
         net_named_parameters = []
@@ -316,12 +325,12 @@ def run_clean_guidednets_learning(
             net_named_parameters.extend(list(n.named_parameters()))
 
         adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(
-            net_named_parameters, all_config
+            net_named_parameters, config
         )
 
     learner = GuidedNetsLearner(
         net,
-        all_config,
+        config,
         meta_params,
         tune_param,
         calc_disc_cup_iou,
@@ -354,7 +363,7 @@ def run_clean_guidednets_learning(
 
 
 def run_clean_simple_learning(
-    all_config: AllConfig,
+    config: ConfigSimpleLearner,
     dataset_class: Type[SimpleDataset],
     dataset_kwargs: SimpleDatasetKeywordArgs,
     test_dataset_class: Type[SimpleDataset] | None = None,
@@ -363,15 +372,15 @@ def run_clean_simple_learning(
     test_only: bool = False,
     test_epochs: list[int] | None = None,
 ):
-    net = UNet(all_config["data"]["num_channels"], all_config["data"]["num_classes"])
+    net = UNet(config["data"]["num_channels"], config["data"]["num_classes"])
 
     adam_optimizer, step_scheduler = get_adam_optimizer_and_step_scheduler(
-        net.named_parameters(), all_config
+        net.named_parameters(), config
     )
 
     learner = SimpleLearner(
         net,
-        all_config,
+        config,
         dataset_class,
         dataset_kwargs,
         test_dataset_class=test_dataset_class,
@@ -397,15 +406,15 @@ def run_clean_simple_learning(
 
 
 def main():
-    all_config = get_base_config()
-    all_config["data"]["num_workers"] = 3
-    # all_config['learn']['should_resume'] = True
-    # all_config['data']['batch_size'] = 32
-    # all_config['data']['batch_size'] = 13
+    config_all = get_config_all()
+    config_all["data"]["num_workers"] = 3
+    # config_all['learn']['should_resume'] = True
+    # config_all['data']['batch_size'] = 32
+    # config_all['data']['batch_size'] = 13
 
-    all_config["learn"]["exp_name"] = "v3 RO-DR L SL"
+    config_all["learn"]["exp_name"] = "v3 RO-DR L SL"
     run_clean_simple_learning(
-        all_config,
+        config_all,
         RimOneSimpleDataset,
         {"split_seed": 0, "split_val_size": 0.2, "split_test_size": 0.2},
         test_dataset_class=DrishtiSimpleDataset,
@@ -419,21 +428,21 @@ def main():
     meta_loader_params_list = get_meta_loader_params_list()
     tune_loader_params = get_tune_loader_params()
 
-    all_config["learn"]["exp_name"] = "v3 RO-DR L WS"
-    run_clean_weasel_learning(all_config, meta_loader_params_list, tune_loader_params)
+    config_all["learn"]["exp_name"] = "v3 RO-DR L WS"
+    run_clean_weasel_learning(config_all, meta_loader_params_list, tune_loader_params)
 
-    all_config["learn"]["exp_name"] = "v3 RO-DR L PS"
+    config_all["learn"]["exp_name"] = "v3 RO-DR L PS"
     run_clean_protoseg_learning(
-        all_config,
+        config_all,
         meta_loader_params_list,
         tune_loader_params,
         tune_only=True,
         tune_epochs=[40, 200],
     )
 
-    all_config["learn"]["exp_name"] = "v3 RO-DR L GN"
+    config_all["learn"]["exp_name"] = "v3 RO-DR L GN"
     run_clean_guidednets_learning(
-        all_config, meta_loader_params_list, tune_loader_params
+        config_all, meta_loader_params_list, tune_loader_params
     )
 
     config_items = [
@@ -465,11 +474,11 @@ def main():
     ]
 
     for config_item in config_items:
-        new_config = copy.deepcopy(all_config)
+        new_config = copy.deepcopy(config_all)
         new_config["learn"][
             "exp_name"
         ] = f'v3 RO-DR L WS {config_item["sparsity_mode"]}-var'
-        new_config["data_tune"]["sparsity_dict"] = {  # type: ignore
+        new_config["meta_learner"]["sparsity_dict"] = {
             config_item["sparsity_mode"]: [config_item["sparsity_value_tune"]]
         }
 

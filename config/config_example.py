@@ -1,5 +1,5 @@
 from config.config_type import (
-    AllConfig,
+    ConfigAll,
     DataConfig,
     DataTuneConfig,
     LearnConfig,
@@ -58,7 +58,7 @@ weasel_config: WeaselConfig = {
 
 protoseg_config: ProtoSegConfig = {"embedding_size": 4}
 
-all_config: AllConfig = {
+config_all: ConfigAll = {
     "data": data_config,
     "data_tune": data_tune_config,
     "learn": train_config,
