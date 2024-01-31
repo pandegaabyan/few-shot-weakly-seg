@@ -64,8 +64,8 @@ class GuidedNetsLearner(MetaLearner):
             net.zero_grad()
 
         embeddings = self.get_embeddings(x_tr, y_tr)
-        prototypes = self.get_prototypes(embeddings, list(x_ts.shape))
-        p_ts = self.get_predictions(x_ts, prototypes)
+        guidances = self.get_guidances(embeddings, list(x_ts.shape))
+        p_ts = self.get_predictions(x_ts, guidances)
 
         if self.calc_loss.loss_type == "mce":
             self.calc_loss.set_mce_weights_from_target(
@@ -107,7 +107,7 @@ class GuidedNetsLearner(MetaLearner):
             if len(embed_tr_list) == 0:
                 return labels, preds, names
             all_embed_tr = torch.vstack(embed_tr_list)
-            prototypes = self.get_prototypes(
+            guidances = self.get_guidances(
                 all_embed_tr, [1, 1, x_tr.shape[2], x_tr.shape[3]]
             )
 
@@ -118,7 +118,7 @@ class GuidedNetsLearner(MetaLearner):
                     x_ts = x_ts.cuda()
                     y_ts = y_ts.cuda()
 
-                p_ts = self.get_predictions(x_ts, prototypes)
+                p_ts = self.get_predictions(x_ts, guidances)
 
                 labels.append(y_ts.cpu().numpy().squeeze())
                 preds.append(p_ts.argmax(1).cpu().numpy().squeeze())
@@ -152,14 +152,14 @@ class GuidedNetsLearner(MetaLearner):
         return merged_embeddings
 
     @staticmethod
-    def get_prototypes(embeddings: Tensor, ref_shape: list[int]) -> Tensor:
-        proto = torch.mean(embeddings, dim=0, keepdim=True)
-        proto = torch.tile(proto, (ref_shape[0], 1, ref_shape[2], ref_shape[3]))
-        return proto
+    def get_guidances(embeddings: Tensor, ref_shape: list[int]) -> Tensor:
+        guidances = torch.mean(embeddings, dim=0, keepdim=True)
+        guidances = torch.tile(guidances, (ref_shape[0], 1, ref_shape[2], ref_shape[3]))
+        return guidances
 
-    def get_predictions(self, image: Tensor, prototypes: Tensor) -> Tensor:
+    def get_predictions(self, image: Tensor, guidances: Tensor) -> Tensor:
         image_embedding = self.net["image"](image)
-        mask_embedding = torch.cat([prototypes, image_embedding], dim=1)
+        mask_embedding = torch.cat([guidances, image_embedding], dim=1)
         mask = self.net["head"](mask_embedding)
         return mask
 

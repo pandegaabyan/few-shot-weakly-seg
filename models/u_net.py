@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import torch
-import torch.nn.functional as F
+import torch.nn.functional as functional
 from torch import nn
 
 from torchmeta import modules
@@ -54,7 +54,7 @@ class MetaConvTranspose2d(nn.ConvTranspose2d, modules.MetaModule):
             list(self.dilation),
         )
 
-        return F.conv_transpose2d(
+        return functional.conv_transpose2d(
             input,
             weights,
             bias,
@@ -160,31 +160,41 @@ class UNet(modules.MetaModule):
 
         dec3 = self.dec3(
             torch.cat(
-                [center, F.interpolate(enc3, center.size()[2:], mode="bilinear")], 1
+                [
+                    center,
+                    functional.interpolate(enc3, center.size()[2:], mode="bilinear"),
+                ],
+                1,
             ),
             self.get_subdict(params, "dec3"),
         )
         dec2 = self.dec2(
-            torch.cat([dec3, F.interpolate(enc2, dec3.size()[2:], mode="bilinear")], 1),
+            torch.cat(
+                [dec3, functional.interpolate(enc2, dec3.size()[2:], mode="bilinear")],
+                1,
+            ),
             self.get_subdict(params, "dec2"),
         )
         dec1 = self.dec1(
-            torch.cat([dec2, F.interpolate(enc1, dec2.size()[2:], mode="bilinear")], 1),
+            torch.cat(
+                [dec2, functional.interpolate(enc1, dec2.size()[2:], mode="bilinear")],
+                1,
+            ),
             self.get_subdict(params, "dec1"),
         )
 
         if self.prototype:
-            return F.interpolate(dec1, x.size()[2:], mode="bilinear")
+            return functional.interpolate(dec1, x.size()[2:], mode="bilinear")
 
         else:
             final = self.final(dec1, self.get_subdict(params, "final"))
 
             if feat:
                 return (
-                    F.interpolate(final, x.size()[2:], mode="bilinear"),
+                    functional.interpolate(final, x.size()[2:], mode="bilinear"),
                     dec1,
-                    F.interpolate(dec2, x.size()[2:], mode="bilinear"),
-                    F.interpolate(dec3, x.size()[2:], mode="bilinear"),
+                    functional.interpolate(dec2, x.size()[2:], mode="bilinear"),
+                    functional.interpolate(dec3, x.size()[2:], mode="bilinear"),
                 )
             else:
-                return F.interpolate(final, x.size()[2:], mode="bilinear")
+                return functional.interpolate(final, x.size()[2:], mode="bilinear")
