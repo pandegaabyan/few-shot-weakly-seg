@@ -158,7 +158,6 @@ def make_config(
                 "save_test_preds": 20,
             }
 
-    wandb_tags = config_base.get("wandb", {}).get("tags", [])
     save_train_preds = config_base.get("wandb", {}).get("save_train_preds", 0)
     save_val_preds = config_base.get("wandb", {}).get("save_val_preds", 0)
     save_test_preds = config_base.get("wandb", {}).get("save_test_preds", 0)
@@ -166,7 +165,6 @@ def make_config(
         config_base["learn"]["dummy"] = True
         config_base["data"]["num_workers"] = 0
         config_base["callbacks"]["ckpt_top_k"] = 3
-        wandb_tags.append("dummy")
         save_train_preds //= 5
         save_val_preds //= 5
         save_test_preds //= 5
@@ -177,7 +175,6 @@ def make_config(
         config_base["wandb"] = {  # type: ignore
             **config_base.get("wandb", {}),
             **{
-                "tags": wandb_tags,
                 "save_train_preds": save_train_preds,
                 "save_val_preds": save_val_preds,
                 "save_test_preds": save_test_preds,

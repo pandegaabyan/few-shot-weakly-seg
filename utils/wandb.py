@@ -18,7 +18,7 @@ def wandb_login():
 def wandb_get_runs(
     start_time: float | str | None = None,
     end_time: float | str | None = None,
-    dummy_only: bool = True,
+    dummy: bool = True,
 ):
     filter_dict = {}
     if start_time is not None:
@@ -33,20 +33,19 @@ def wandb_get_runs(
         elif isinstance(end_time, str):
             end_time = convert_local_iso_to_utc_iso(end_time)
         filter_dict.update({"created_at": {"$lte": end_time}})
-    if dummy_only:
-        filter_dict.update({"tags": {"$in": ["dummy"]}})
-    wandb_path = WANDB_SETTINGS["entity"] + "/" + WANDB_SETTINGS["project"]
+    wandb_path = (
+        WANDB_SETTINGS["entity"]
+        + "/"
+        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+    )
     return wandb.Api().runs(wandb_path, filters=filter_dict)
 
 
-def wandb_log_dataset_ref(
-    dataset_path: str,
-    dataset_name: str,
-):
+def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):
     wandb_login()
     wandb.init(
         tags=["helper"],
-        project=WANDB_SETTINGS["project"],
+        project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
         name=f"log dataset {dataset_name}",
     )
     dataset_artifact = wandb.Artifact(dataset_name, type="dataset")

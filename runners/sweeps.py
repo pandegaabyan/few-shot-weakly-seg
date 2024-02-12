@@ -23,7 +23,10 @@ def initialize_sweep(config: ConfigUnion, sweep_config: dict, dummy: bool = Fals
 
     clean_sweep_config = sweep_config.copy()
     clean_sweep_config.pop("count")
-    sweep_id = wandb.sweep(clean_sweep_config, project=WANDB_SETTINGS["project"])
+    sweep_id = wandb.sweep(
+        clean_sweep_config,
+        project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
+    )
     sweep_config["sweep_id"] = sweep_id
 
     sweep_config_path = os.path.join(
@@ -35,11 +38,8 @@ def initialize_sweep(config: ConfigUnion, sweep_config: dict, dummy: bool = Fals
     check_mkdir(os.path.split(sweep_config_path)[0])
     dump_json(sweep_config_path, sweep_config)
 
-    wandb_tags = ["helper"]
-    if dummy:
-        wandb_tags.append("dummy")
     wandb.init(
-        tags=wandb_tags,
+        tags=["helper"],
         group=config["learn"]["exp_name"],
         name=f"init sweep {sweep_id}",
         job_type="sweep",

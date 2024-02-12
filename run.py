@@ -103,7 +103,7 @@ def run_basic(
             config=dict(config),
             id=run_id,
             tags=config.get("wandb", {}).get("tags"),
-            project=WANDB_SETTINGS["project"],
+            project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
             group=exp_name,
             name=run_name,
             job_type=config.get("wandb", {}).get("job_type"),
@@ -175,7 +175,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
     wandb.agent(
         sweep_config["sweep_id"],
         function=train,
-        project=WANDB_SETTINGS["project"],
+        project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
         count=sweep_config.get("count"),
     )
 

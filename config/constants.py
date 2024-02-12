@@ -55,13 +55,14 @@ FILENAMES: FilenamesDict = {
 class WandbSettingsDict(TypedDict):
     entity: str
     project: str
+    dummy_project: str
     dir: str
 
 
 WANDB_SETTINGS: WandbSettingsDict = {
     "entity": "pandegaaz",
     "project": "few-shot-weakly-seg",
-    # "project": "few-shot-weakly-seg-dummy",
+    "dummy_project": "few-shot-weakly-seg-dummy",
     "dir": "wandb",
 }
 

@@ -188,7 +188,12 @@ class BaseLearner(
         wandb_config = self.config.get("wandb")
         assert wandb_config is not None
 
-        parent_path = WANDB_SETTINGS["entity"] + "/" + WANDB_SETTINGS["project"]
+        dummy = self.config["learn"].get("dummy")
+        parent_path = (
+            WANDB_SETTINGS["entity"]
+            + "/"
+            + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+        )
         datasets: list[tuple[str, list[DatasetClass]]] = [
             ("train_dataset", self.train_datasets),
             ("val_dataset", self.val_datasets),

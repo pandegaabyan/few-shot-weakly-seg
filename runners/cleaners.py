@@ -20,16 +20,19 @@ def clean_logging_data(
     else:
         start_time = after
 
+    local_run_paths = []
     if target in ["local", "both"]:
         local_run_paths = get_run_paths(start_time=start_time, dummy_only=dummy_only)
-    else:
-        local_run_paths = []
 
+    wandb_runs = []
+    wandb_runs_dummy = []
     if target in ["wandb", "both"]:
-        wandb_runs = wandb_get_runs(start_time=start_time, dummy_only=dummy_only)
-    else:
-        wandb_runs = []
-    wandb_run_paths = [(run.group or "") + "/" + run.name for run in wandb_runs]
+        wandb_runs_dummy = wandb_get_runs(start_time=start_time, dummy=True)
+        if not dummy_only:
+            wandb_runs = wandb_get_runs(start_time=start_time, dummy=False)
+    wandb_run_paths = [
+        (run.group or "") + "/" + run.name for run in wandb_runs + wandb_runs_dummy
+    ]
 
     combined_run_paths = set(local_run_paths + wandb_run_paths)
     annotated_run_paths = []
@@ -63,6 +66,8 @@ def clean_logging_data(
                 check_rmtree(run_path, True)
 
     for run in wandb_runs:
+        run.delete(delete_artifacts=True)
+    for run in wandb_runs_dummy:
         run.delete(delete_artifacts=True)
 
 
