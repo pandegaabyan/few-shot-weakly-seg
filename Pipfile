@@ -1,0 +1,33 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+typing-extensions = "*"
+python-dotenv = "*"
+tqdm = "*"
+deepdiff = "*"
+numpy = "*"
+pandas = "*"
+matplotlib = "*"
+scipy = "*"
+scikit-learn = "*"
+scikit-image = "*"
+rich = "*"
+torch = "*"
+pytorch-lightning = "*"
+tensorboard = "*"
+onnx = "*"
+torchmetrics = "*"
+wandb = "*"
+lets-plot = "*"
+torchvision = "*"
+torchaudio = "*"
+click = "*"
+ipykernel = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.10"
