@@ -1,39 +1,62 @@
 import os
+import random
 from abc import ABC, abstractmethod
 
 import numpy as np
 import torch
 from numpy.typing import NDArray
 from skimage import transform
-from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import Dataset
 
+from data.typings import DataPathList, DatasetModes, T
+
 
 class BaseDataset(Dataset, ABC):
-    def __init__(self, num_classes: int, resize_to: tuple[int, int]):
+    def __init__(
+        self,
+        mode: DatasetModes,
+        num_classes: int,
+        resize_to: tuple[int, int],
+        max_items: int | None = None,
+        seed: int | None = None,
+        split_val_size: float = 0,
+        split_val_fold: int = 0,
+        split_test_size: float = 0,
+        split_test_fold: int = 0,
+        dataset_name: str | None = None,
+    ):
         # Initializing variables.
+        self.mode = mode
         self.num_classes = num_classes
         self.resize_to = resize_to
+        self.max_items = max_items
+        self.seed = seed
+        self.split_val_size = split_val_size
+        self.split_val_fold = split_val_fold
+        self.split_test_size = split_test_size
+        self.split_test_fold = split_test_fold
+        self.dataset_name = dataset_name or self.__class__.__name__
+        self.class_labels = self.set_class_labels()
 
         # Creating list of paths.
-        self.items = self.make_data_list()
+        self.items = self.make_items()
         if len(self.items) == 0:
-            raise (RuntimeError("Found 0 items, please check the dataset"))
+            raise (RuntimeError("Get 0 items, please check"))
 
     # Function that create the list of pairs (img_path, mask_path)
     # Implement this function for your dataset structure
     @abstractmethod
-    def get_all_data_path(self) -> list[tuple[str, str]]:
-        pass
-
-    @abstractmethod
-    def make_data_list(self) -> list[tuple[str, str]]:
+    def get_all_data_path(self) -> DataPathList:
         pass
 
     @abstractmethod
     def read_image_mask(self, img_path: str, msk_path: str) -> tuple[NDArray, NDArray]:
         # image should have shape (H, W, C) and dtype uint8 while mask should have shape (H, W) and dtype int8
+        pass
+
+    @abstractmethod
+    def set_class_labels(self) -> dict[int, str]:
         pass
 
     @staticmethod
@@ -89,6 +112,18 @@ class BaseDataset(Dataset, ABC):
         return resized
 
     @staticmethod
+    def prepare_image_as_tensor(img: NDArray) -> Tensor:
+        new_img = BaseDataset.norm(img)
+        new_img = BaseDataset.ensure_channels(new_img)
+        new_img = torch.from_numpy(new_img)
+        return new_img
+
+    @staticmethod
+    def prepare_mask_as_tensor(msk: NDArray) -> Tensor:
+        new_msk = torch.from_numpy(msk).type(torch.int64)
+        return new_msk
+
+    @staticmethod
     def filename_from_path(path: str) -> str:
         # Splitting path.
         filename = os.path.split(path)[-1]
@@ -98,22 +133,85 @@ class BaseDataset(Dataset, ABC):
 
         return filename
 
+    # def make_items(self) -> DataPathList:
+    #     items = super().make_items()
+    #     if (
+    #         not self.extend_dataset_to_max
+    #         or self.max_items is None
+    #         or len(items) >= self.max_items
+    #     ):
+    #         return items
+    #     multiplied_items = items * int(np.ceil(self.max_items / len(items)))
+    #     random.seed(self.seed)
+    #     items = random.sample(multiplied_items, self.max_items)
+    #     random.seed(None)
+    #     return items
+
+    @staticmethod
+    def extend_data(data: list[T], num_items: int, seed: int | None = None) -> list[T]:
+        if len(data) >= num_items:
+            return data[:num_items]
+        random.seed(seed)
+        extended_data = []
+        new_data = data.copy()
+        for i in range(num_items // len(data)):
+            if i != 0:
+                random.shuffle(new_data)
+            extended_data.extend(new_data)
+        new_data = random.sample(data, num_items - len(extended_data))
+        extended_data.extend(new_data)
+        random.seed(None)
+        return extended_data
+
     @staticmethod
     def split_train_test(
-        data: list,
-        test_size: float | int,
+        data: list[T],
+        test_size: int,
         random_state: int | None = None,
         shuffle: bool = False,
-    ) -> tuple[list, list]:
-        if test_size == 0:
-            tr, ts = data, []
-        elif test_size == 1:
-            tr, ts = [], data
-        else:
-            tr, ts = train_test_split(
-                data, test_size=test_size, random_state=random_state, shuffle=shuffle
-            )
+        fold: int = 0,
+    ) -> tuple[list[T], list[T]]:
+        if shuffle:
+            random.seed(random_state)
+            random.shuffle(data)
+            random.seed(None)
+        if (fold + 1) * test_size > len(data):
+            raise ValueError("Fold value is too large")
+        ts = data[fold * test_size : (fold + 1) * test_size]
+        tr = data[: fold * test_size] + data[(fold + 1) * test_size :]
         return tr, ts
+
+    def make_items(self) -> DataPathList:
+        all_data = self.get_all_data_path()
+        test_size = round(self.split_test_size * len(all_data))
+        val_size = round(self.split_val_size * len(all_data))
+
+        tr_val, ts = self.split_train_test(
+            all_data,
+            test_size=test_size,
+            random_state=self.seed,
+            shuffle=True,
+            fold=self.split_test_fold,
+        )
+        if self.mode == "test":
+            return ts[: self.max_items]
+
+        if self.split_test_size == 1:
+            return []
+
+        tr, val = self.split_train_test(
+            tr_val,
+            test_size=val_size,
+            random_state=self.seed,
+            shuffle=True,
+            fold=self.split_val_fold,
+        )
+        if self.mode == "train":
+            return tr[: self.max_items]
+        if self.mode == "val":
+            return val[: self.max_items]
+
+        return []
 
     # Function to load images and masks
     # Implement this function based on your data

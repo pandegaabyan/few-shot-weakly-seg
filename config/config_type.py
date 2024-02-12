@@ -1,23 +1,24 @@
-from typing import Union
+from typing import Literal, Union
 
 from typing_extensions import NotRequired, TypedDict
-
-from data.types import SparsityDict
 
 
 class DataConfig(TypedDict):
     num_classes: int
     num_channels: int
-    num_workers: int  # Number of workers on data loader.
+    num_workers: int
     batch_size: int
     resize_to: tuple[int, int]
 
 
 class LearnConfig(TypedDict):
-    should_resume: bool
-    use_gpu: bool
-    num_epochs: int  # Number of epochs.
+    num_epochs: int
     exp_name: str
+    run_name: str
+    dummy: NotRequired[bool]
+    val_freq: NotRequired[int]
+    tensorboard_graph: NotRequired[bool]
+    ref_ckpt_path: NotRequired[str | None]
 
 
 class LossConfig(TypedDict, total=False):
@@ -26,11 +27,11 @@ class LossConfig(TypedDict, total=False):
 
 
 class OptimizerConfig(TypedDict, total=False):
-    lr: float  # Learning rate.
+    lr: float
     lr_bias: float
-    weight_decay: float  # L2 penalty.
+    weight_decay: float
     weight_decay_bias: float
-    betas: tuple[float, float]  # Momentum.
+    betas: tuple[float, float]
 
 
 class SchedulerConfig(TypedDict, total=False):
@@ -38,26 +39,39 @@ class SchedulerConfig(TypedDict, total=False):
     gamma: float
 
 
+class CallbacksConfig(TypedDict, total=False):
+    progress_leave: bool
+    ckpt_monitor: str
+    ckpt_mode: Literal["min", "max"]
+    ckpt_top_k: int
+
+
+class WandbConfig(TypedDict):
+    run_id: str
+    tags: list[str]
+    job_type: str | None
+    log_model: bool
+    watch_model: bool
+    push_table_freq: int | None
+    sweep_metric: NotRequired[tuple[str, Literal["maximize", "minimize"]]] | None
+    save_train_preds: NotRequired[int]
+    save_val_preds: NotRequired[int]
+    save_test_preds: NotRequired[int]
+
+
 class SimpleLearnerConfig(TypedDict):
-    test_freq: NotRequired[int]
+    ...
 
 
 class MetaLearnerConfig(TypedDict):
-    tune_freq: NotRequired[int]
-    shot_list: list[int]  # Number of shots (i.e, total annotated samples)
-    sparsity_dict: SparsityDict  # Sparsity of the annotations
-    #   Point: number of labeled pixels in point annotation
-    #   Grid: spacing between selected pixels in grid annotation
-    #   Contour: density of the contours (1, is the complete contours)
-    #   Skeleton: density of the skeletons (1, is the complete skeletons)
-    #   Region: percentage of regions labeled (1, all \pure\ regions are labeled)
+    ...
 
 
 class WeaselConfig(TypedDict):
-    use_first_order: bool  # First order approximation of MAML.
-    update_param_step_size: float  # MAML inner loop step size.
-    tune_epochs: int  # Number of epochs on the tuning phase.
-    tune_test_freq: int  # Test each tune_test_freq epochs on the tuning phase.
+    use_first_order: bool
+    update_param_step_size: float
+    tune_epochs: int
+    tune_val_freq: int
 
 
 class ProtoSegConfig(TypedDict):
@@ -74,6 +88,8 @@ class ConfigBase(TypedDict):
     loss: LossConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
+    callbacks: CallbacksConfig
+    wandb: NotRequired[WandbConfig]
 
 
 class ConfigSimpleLearner(ConfigBase):
@@ -96,10 +112,6 @@ class ConfigGuidedNets(ConfigMetaLearner):
     guidednets: GuidedNetsConfig
 
 
-class ConfigAll(ConfigSimpleLearner, ConfigWeasel, ConfigProtoSeg, ConfigGuidedNets):
-    ...
-
-
 ConfigUnion = Union[
     ConfigBase,
     ConfigSimpleLearner,
@@ -107,5 +119,4 @@ ConfigUnion = Union[
     ConfigWeasel,
     ConfigProtoSeg,
     ConfigGuidedNets,
-    ConfigAll,
 ]

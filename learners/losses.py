@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch import Tensor
+from torch import Tensor, device
 from torch.nn import functional
 
 
@@ -30,7 +30,15 @@ class CustomLoss(nn.Module):
         return self.ce_loss(inputs, targets, ignore_index=self.ignored_index)
 
     def params(self) -> dict:
-        return {"loss_type": self.loss_type, "ignored_index": self.ignored_index}
+        mce_weights = (
+            self.mce_weights.tolist() if self.mce_weights is not None else None
+        )
+        return {
+            "loss_type": self.loss_type,
+            "ignored_index": self.ignored_index,
+            "mce_weights": mce_weights,
+            "iou_smooth": self.iou_smooth,
+        }
 
     @staticmethod
     def ce_loss(inputs: Tensor, targets: Tensor, ignore_index: int = -1):
@@ -62,15 +70,14 @@ class CustomLoss(nn.Module):
         return 1 - iou
 
     def set_mce_weights_from_target(
-        self, targets: Tensor, num_classes: int, use_gpu: bool = False
+        self, targets: Tensor, num_classes: int, device: device
     ):
         weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])
         if torch.any(weights == 0):
             weights = torch.Tensor([1 for _ in range(num_classes)])
         else:
             weights = weights / weights.max()
-        if use_gpu:
-            weights = weights.cuda()
+        weights = weights.to(device=device)
         self.mce_weights = weights
 
     def set_iou_smooth(self, smooth: int = 1):

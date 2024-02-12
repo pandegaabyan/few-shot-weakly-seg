@@ -8,7 +8,17 @@ from skimage import data as skdata
 from skimage import measure, morphology, segmentation
 
 from data.base_dataset import BaseDataset
-from data.types import DatasetModes, SparsityModes, SparsityValue, TensorDataItem
+from data.typings import (
+    DatasetModes,
+    FewSparseDataTuple,
+    QueryDataTuple,
+    ShotOptions,
+    SparsityMode,
+    SparsityOptions,
+    SparsityTuple,
+    SparsityValue,
+    SupportDataTuple,
+)
 
 
 class FewSparseDataset(BaseDataset, ABC):
@@ -17,43 +27,79 @@ class FewSparseDataset(BaseDataset, ABC):
         mode: DatasetModes,
         num_classes: int,
         resize_to: tuple[int, int],
-        num_shots: int = -1,
-        split_seed: int | None = None,
-        split_test_size: float = 0.2,
-        sparsity_mode: SparsityModes = "dense",
-        sparsity_value: SparsityValue = "random",
+        max_items: int | None = None,
+        seed: int | None = None,
+        split_val_size: float = 0,
+        split_test_size: float = 0,
+        dataset_name: str | None = None,
+        shot_options: ShotOptions = "all",
+        sparsity_options: SparsityOptions = [("random", "random")],
         sparsity_params: dict | None = None,
+        shot_sparsity_permutation: bool = False,
+        homogen_support_batch: bool = False,
+        query_batch_size: int = 1,
+        split_query_size: float = 0,
+        split_query_fold: int = 0,
+        num_iterations: int | float = 1.0,
     ):
-        # Initializing variables.
-        self.mode = mode
-        self.num_shots = num_shots
-        self.split_seed = split_seed
-        self.split_test_size = split_test_size
-        self.sparsity_mode: SparsityModes = sparsity_mode
-        self.sparsity_value: SparsityValue = sparsity_value
-        self.sparsity_params = sparsity_params or {}
+        super().__init__(
+            mode,
+            num_classes,
+            resize_to,
+            max_items,
+            seed,
+            split_val_size,
+            0,
+            split_test_size,
+            0,
+            dataset_name,
+        )
 
-        self.sparsity_mode_default: list[SparsityModes] = [
+        # Initializing variables.
+        self.shot_options: ShotOptions = shot_options
+        self.sparsity_options: SparsityOptions = sparsity_options
+        self.sparsity_params = sparsity_params or {}
+        self.shot_sparsity_permutation = shot_sparsity_permutation
+        self.homogen_support_batch = homogen_support_batch or shot_sparsity_permutation
+        self.query_batch_size = query_batch_size
+        self.split_query_size = split_query_size
+        self.split_query_fold = split_query_fold
+
+        if self.shot_sparsity_permutation:
+            (
+                self.num_iterations,
+                self.support_batches,
+                self.support_sparsities,
+            ) = self.permute_shot_sparsity_for_support()
+        else:
+            if isinstance(num_iterations, float):
+                num_iterations = (
+                    round(num_iterations * len(self.items) * split_query_size)
+                    // query_batch_size
+                )
+            self.num_iterations = num_iterations
+            self.support_batches = self.make_support_batches()
+            self.support_sparsities = []
+
+        self.support_indices, self.query_indices = self.make_support_query_indices()
+
+        self.sparsity_mode_default: list[SparsityMode] = [
             "point",
             "grid",
             "contour",
             "skeleton",
             "region",
         ]
-        self.sparsity_mode_additional: list[
-            SparsityModes
-        ] = self.set_additional_sparse_mode()
-
-        super().__init__(num_classes, resize_to)
+        self.sparsity_mode_additional = self.set_additional_sparse_mode()
 
     @abstractmethod
-    def set_additional_sparse_mode(self) -> list[SparsityModes]:
+    def set_additional_sparse_mode(self) -> list[SparsityMode]:
         pass
 
     @abstractmethod
     def get_additional_sparse_mask(
         self,
-        sparsity_mode: SparsityModes,
+        sparsity_mode: SparsityMode,
         msk: NDArray,
         img: NDArray | None = None,
         sparsity_value: SparsityValue = "random",
@@ -92,14 +138,10 @@ class FewSparseDataset(BaseDataset, ABC):
 
             # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            if isinstance(sparsity, float) or isinstance(sparsity, int):
-                sparsity_num = round(sparsity)
-            elif type(sparsity) is tuple:
-                sparsity_num = round(
-                    np.random.uniform(low=sparsity[0], high=sparsity[1])
-                )
-            else:
+            if sparsity == "random":
                 sparsity_num = np.random.randint(low=1, high=len(perm))
+            else:
+                sparsity_num = round(sparsity)
             msk_class[perm[: min(sparsity_num, len(perm))]] = c
 
             # Merging sparse masks.
@@ -156,17 +198,13 @@ class FewSparseDataset(BaseDataset, ABC):
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        if isinstance(sparsity, float) or isinstance(sparsity, int):
-            # Predetermined sparsity (x and y point spacing).
-            spacing_value = int(sparsity / dot_size)
-        elif type(sparsity) is tuple:
-            spacing_value = round(
-                np.random.uniform(low=sparsity[0], high=sparsity[1]) / dot_size
-            )
-        else:
+        if sparsity == "random":
             # Random sparsity (x and y point spacing).
             max_high = int(np.max(small_msk.shape) / 2)
             spacing_value = np.random.randint(low=1, high=max_high)
+        else:
+            # Predetermined sparsity (x and y point spacing).
+            spacing_value = int(sparsity / dot_size)
         spacing = (spacing_value, spacing_value)
 
         starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
@@ -193,12 +231,7 @@ class FewSparseDataset(BaseDataset, ABC):
         if sparsity != "random":
             np.random.seed(seed)
 
-        if isinstance(sparsity, float) or isinstance(sparsity, int):
-            sparsity_num = sparsity
-        elif type(sparsity) is tuple:
-            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
-        else:
-            sparsity_num = np.random.uniform()
+        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
 
@@ -255,12 +288,7 @@ class FewSparseDataset(BaseDataset, ABC):
             np.random.seed(seed)
             bseed = seed
 
-        if isinstance(sparsity, float) or isinstance(sparsity, int):
-            sparsity_num = sparsity
-        elif type(sparsity) is tuple:
-            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
-        else:
-            sparsity_num = np.random.uniform()
+        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
@@ -304,12 +332,7 @@ class FewSparseDataset(BaseDataset, ABC):
         if sparsity != "random":
             np.random.seed(seed)
 
-        if isinstance(sparsity, float) or isinstance(sparsity, int):
-            sparsity_num = sparsity
-        elif type(sparsity) is tuple:
-            sparsity_num = np.random.uniform(low=sparsity[0], high=sparsity[1])
-        else:
-            sparsity_num = np.random.uniform()
+        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         # Copying mask and starting it with -1 for inserting sparsity.
         new_msk = np.zeros_like(msk)
@@ -344,37 +367,92 @@ class FewSparseDataset(BaseDataset, ABC):
 
         return new_msk
 
-    def make_data_list(self) -> list[tuple[str, str]]:
-        # Splitting data.
-        tr, ts = self.split_train_test(
-            self.get_all_data_path(),
-            test_size=self.split_test_size,
-            random_state=self.split_seed,
+    def permute_shot_sparsity_for_support(
+        self,
+    ) -> tuple[int, list[int], list[SparsityTuple]]:
+        value_error = "shot_options and values in sparsity_options must be list"
+        if not isinstance(self.shot_options, list):
+            raise ValueError(value_error)
+        sparsity_list_init: list[SparsityTuple] = []
+        for sparsity in self.sparsity_options:
+            if not isinstance(sparsity[1], list):
+                raise ValueError(value_error)
+            sparsity_list_init.extend([(sparsity[0], value) for value in sparsity[1]])
+        num_iterations = len(self.shot_options) * len(sparsity_list_init)
+        batch_list: list[int] = []
+        sparsity_list: list[SparsityTuple] = []
+        for i in range(num_iterations):
+            shot = self.shot_options[i // len(sparsity_list_init)]
+            sparsity = sparsity_list_init[i % len(sparsity_list_init)]
+            batch_list.append(shot)
+            sparsity_list.append(sparsity)
+        return num_iterations, batch_list, sparsity_list
+
+    def make_support_batches(self) -> list[int]:
+        if isinstance(self.shot_options, list) and len(self.shot_options) == 0:
+            raise ValueError("shot_options list is empty")
+
+        support_size_init = round((1 - self.split_query_size) * len(self.items))
+        if self.shot_options == "all":
+            return [support_size_init] * self.num_iterations
+
+        batch_list = []
+        for i in range(self.num_iterations):
+            if self.shot_options == "random":
+                shot = np.random.randint(1, support_size_init)
+            elif isinstance(self.shot_options, list):
+                shot = self.shot_options[i % len(self.shot_options)]
+            elif isinstance(self.shot_options, tuple):
+                np.random.seed(i)
+                shot = np.random.randint(self.shot_options[0], self.shot_options[1])
+                np.random.seed(None)
+            else:
+                shot = self.shot_options
+            batch_list.append(shot)
+        return batch_list
+
+    def make_support_query_indices(self) -> tuple[list[int], list[int]]:
+        query_size = round(self.split_query_size * len(self.items))
+        support_indices_init, query_indices_init = self.split_train_test(
+            list(range(len(self.items))),
+            test_size=query_size,
+            random_state=self.seed,
             shuffle=False,
+            fold=self.split_query_fold,
         )
+        support_indices = self.extend_data(
+            support_indices_init, sum(self.support_batches)
+        )
+        query_indices = self.extend_data(
+            query_indices_init, self.num_iterations * self.query_batch_size
+        )
+        return support_indices, query_indices
 
-        # Select split, based on the mode
-        if "train" in self.mode:
-            data_list = tr
-        elif "test" in self.mode:
-            data_list = ts
+    def select_sparsity(self, index: int) -> tuple[SparsityMode, SparsityValue]:
+        if len(self.sparsity_options) == 0:
+            return "random", "random"
+        random.seed(index)
+        sparsity = self.sparsity_options[index % len(self.sparsity_options)]
+        sparsity_mode = sparsity[0]
+        sparsity_value_options = sparsity[1]
+        if isinstance(sparsity_value_options, list):
+            sparsity_value = random.choice(sparsity_value_options)
+        elif isinstance(sparsity_value_options, tuple):
+            low, high = sparsity_value_options
+            if isinstance(low, float) or isinstance(high, float):
+                sparsity_value = random.uniform(low, high)
+            else:
+                sparsity_value = random.randint(low, high)
+        elif sparsity_value_options == "random":
+            sparsity_value = "random"
         else:
-            return []
-
-        random.seed(self.split_seed)
-        random.shuffle(data_list)
+            sparsity_value = sparsity_value_options
         random.seed(None)
-
-        # If few-shot, select only a subset of samples
-        if self.num_shots != -1 and self.num_shots <= len(data_list):
-            data_list = data_list[: self.num_shots]
-
-        # Returning list.
-        return data_list
+        return sparsity_mode, sparsity_value
 
     def get_sparse_mask(
         self,
-        sparsity_mode: SparsityModes,
+        sparsity_mode: SparsityMode,
         msk: NDArray,
         img: NDArray | None = None,
         sparsity_value: SparsityValue = "random",
@@ -383,7 +461,9 @@ class FewSparseDataset(BaseDataset, ABC):
         sparse_msk = np.copy(msk)
 
         if sparsity_mode == "random":
-            selected_sparsity_mode = random.choice(self.sparsity_mode_default)
+            selected_sparsity_mode = random.choice(
+                self.sparsity_mode_default + self.sparsity_mode_additional
+            )
             selected_sparsity_value = "random"
         else:
             selected_sparsity_mode = sparsity_mode
@@ -438,20 +518,6 @@ class FewSparseDataset(BaseDataset, ABC):
 
         return sparse_msk
 
-    def get_data_with_sparse(self, index: int) -> tuple[NDArray, NDArray, NDArray, str]:
-        img, msk, img_filename = self.get_data(index)
-
-        sparse_msk = self.get_sparse_mask(
-            self.sparsity_mode,
-            msk,
-            img,
-            self.sparsity_value,
-            index,
-        )
-
-        # Returning to iterator.
-        return img, msk, sparse_msk, img_filename
-
     def get_data_with_sparse_all(
         self,
         index: int,
@@ -473,23 +539,88 @@ class FewSparseDataset(BaseDataset, ABC):
 
         return img, msk, all_sparse_msk, img_filename
 
-    def __getitem__(self, index: int) -> TensorDataItem:
-        img, msk, sparse_msk, img_filename = self.get_data_with_sparse(index)
+    def get_support_data(
+        self,
+        index: int,
+        sparsity_mode: SparsityMode | None = None,
+        sparsity_value: SparsityValue | None = None,
+    ) -> tuple[NDArray, NDArray, str, SparsityMode, SparsityValue]:
+        img, msk, img_filename = self.get_data(self.support_indices[index])
+        if sparsity_mode is None or sparsity_value is None:
+            sparsity_mode, sparsity_value = self.select_sparsity(index)
 
-        # Normalization.
-        img = self.norm(img)
+        sparse_msk = self.get_sparse_mask(
+            sparsity_mode,
+            msk,
+            img,
+            sparsity_value,
+            index,
+        )
 
-        # Ensure image has channel dimension.
-        img = self.ensure_channels(img)
+        return img, sparse_msk, img_filename, sparsity_mode, sparsity_value
 
-        # Turning to tensors.
-        img = torch.from_numpy(img)
-        msk = torch.from_numpy(msk).type(torch.int64)
+    def get_query_data(self, index: int) -> tuple[NDArray, NDArray, str]:
+        return self.get_data(self.query_indices[index])
 
-        sparse_msk = torch.from_numpy(sparse_msk).type(torch.int64)
+    def __getitem__(self, index: int) -> FewSparseDataTuple:
+        support_batch_size = self.support_batches[index]
+        support_images_list = []
+        support_masks_list = []
+        support_name_list = []
+        support_sparsity_list: list[SparsityTuple] = []
+        support_sparsity = []
+        if self.homogen_support_batch:
+            if self.shot_sparsity_permutation:
+                support_sparsity = self.support_sparsities[index]
+            else:
+                support_sparsity = self.select_sparsity(index)
+            sparsity_mode, sparsity_value = support_sparsity
+        else:
+            sparsity_mode, sparsity_value = None, None
+        for i in range(support_batch_size):
+            item_index = sum(self.support_batches[:index]) + i
+            img, msk, name, mode, value = self.get_support_data(
+                item_index, sparsity_mode, sparsity_value
+            )
+            img = self.prepare_image_as_tensor(img)
+            msk = self.prepare_mask_as_tensor(msk)
+            support_images_list.append(img)
+            support_masks_list.append(msk)
+            support_name_list.append(name)
+            if not self.homogen_support_batch:
+                support_sparsity_list.append((mode, value))
+        if not self.homogen_support_batch:
+            support_sparsity = support_sparsity_list
 
-        # Returning to iterator.
-        return img, msk, sparse_msk, img_filename
+        query_images_list = []
+        query_masks_list = []
+        query_names_list = []
+        for i in range(self.query_batch_size):
+            item_index = self.query_batch_size * index + i
+            img, msk, name = self.get_query_data(item_index)
+            img = self.prepare_image_as_tensor(img)
+            msk = self.prepare_mask_as_tensor(msk)
+            query_images_list.append(img)
+            query_masks_list.append(msk)
+            query_names_list.append(name)
+
+        support_images = torch.stack(support_images_list, dim=0)
+        support_masks = torch.stack(support_masks_list, dim=0)
+        query_images = torch.stack(query_images_list, dim=0)
+        query_masks = torch.stack(query_masks_list, dim=0)
+
+        return FewSparseDataTuple(
+            support=SupportDataTuple(
+                images=support_images,
+                masks=support_masks,
+                file_names=support_name_list,
+                sparsity=support_sparsity,
+            ),
+            query=QueryDataTuple(
+                images=query_images, masks=query_masks, file_names=query_names_list
+            ),
+            dataset_name=self.dataset_name,
+        )
 
     def __len__(self):
-        return len(self.items)
+        return len(self.support_batches)

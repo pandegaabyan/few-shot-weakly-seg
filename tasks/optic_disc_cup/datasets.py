@@ -8,10 +8,10 @@ from skimage import io
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.types import SparsityModes, SparsityValue
+from data.typings import DataPathList, SparsityMode, SparsityValue
 
 
-def get_rim_one_data_path() -> list[tuple[str, str]]:
+def get_rim_one_data_path() -> DataPathList:
     data_path = "../Data/RIM-ONE"
     img_dir = "/images/"
     msk_dir = "/masks/"
@@ -74,87 +74,105 @@ def read_image_mask(img_path: str, msk_path: str) -> tuple[NDArray, NDArray]:
 
 
 class OpticDiscCupDataset(FewSparseDataset, ABC):
-    def set_additional_sparse_mode(self) -> list[SparsityModes]:
+    def set_class_labels(self) -> dict[int, str]:
+        return {0: "background", 1: "optic_disc", 2: "optic_cup"}
+
+    def set_additional_sparse_mode(self) -> list[SparsityMode]:
         return []
 
     def get_additional_sparse_mask(
         self,
-        sparsity_mode: SparsityModes,
+        sparsity_mode: SparsityMode,
         msk: NDArray,
         img: NDArray | None = None,
         sparsity_value: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
-        if sparsity_mode == "point_old":
-            return self.sparse_point_old(msk, self.num_classes, sparsity_value, seed)
-        elif sparsity_mode == "grid_old":
-            return self.sparse_grid_old(msk, sparsity_value, seed)
-        else:
-            return msk
+        return msk
 
-    @staticmethod
-    def sparse_point_old(
-        msk: NDArray, num_classes: int, sparsity: SparsityValue = "random", seed=0
-    ) -> NDArray:
-        if sparsity != "random":
-            np.random.seed(seed)
+    # def get_additional_sparse_mask(
+    #     self,
+    #     sparsity_mode: SparsityMode,
+    #     msk: NDArray,
+    #     img: NDArray | None = None,
+    #     sparsity_value: SparsityValue = "random",
+    #     seed=0,
+    # ) -> NDArray:
+    #     if sparsity_mode == "point_old":
+    #         return self.sparse_point_old(msk, self.num_classes, sparsity_value, seed)
+    #     elif sparsity_mode == "grid_old":
+    #         return self.sparse_grid_old(msk, sparsity_value, seed)
+    #     else:
+    #         return msk
 
-        # Linearizing mask.
-        msk_ravel = msk.ravel()
+    # @staticmethod
+    # def sparse_point_old(
+    #     msk: NDArray, num_classes: int, sparsity: SparsityValue = "random", seed=0
+    # ) -> NDArray:
+    #     if sparsity != "random":
+    #         np.random.seed(seed)
 
-        # Copying raveled mask and starting it with -1 for inserting sparsity.
-        new_msk = np.zeros(msk_ravel.shape[0], dtype=msk.dtype)
-        new_msk[:] = -1
+    #     # Linearizing mask.
+    #     msk_ravel = msk.ravel()
 
-        for c in range(num_classes):
-            # Slicing array for only containing class "c" pixels.
-            msk_class = new_msk[msk_ravel == c]
+    #     # Copying raveled mask and starting it with -1 for inserting sparsity.
+    #     new_msk = np.zeros(msk_ravel.shape[0], dtype=msk.dtype)
+    #     new_msk[:] = -1
 
-            # Random permutation of class "c" pixels.
-            perm = np.random.permutation(msk_class.shape[0])
-            if isinstance(sparsity, float) or isinstance(sparsity, int):
-                sparsity_num = round(sparsity)
-            else:
-                sparsity_num = np.random.randint(low=1, high=len(perm))
-            msk_class[perm[: min(sparsity_num, len(perm))]] = c
+    #     for c in range(num_classes):
+    #         # Slicing array for only containing class "c" pixels.
+    #         msk_class = new_msk[msk_ravel == c]
 
-            # Merging sparse masks.
-            new_msk[msk_ravel == c] = msk_class
+    #         # Random permutation of class "c" pixels.
+    #         perm = np.random.permutation(msk_class.shape[0])
+    #         if isinstance(sparsity, float) or isinstance(sparsity, int):
+    #             sparsity_num = round(sparsity)
+    #         else:
+    #             sparsity_num = np.random.randint(low=1, high=len(perm))
+    #         msk_class[perm[: min(sparsity_num, len(perm))]] = c
 
-        # Reshaping linearized sparse mask to the original 2 dimensions.
-        new_msk = new_msk.reshape(msk.shape)
+    #         # Merging sparse masks.
+    #         new_msk[msk_ravel == c] = msk_class
 
-        np.random.seed(None)
+    #     # Reshaping linearized sparse mask to the original 2 dimensions.
+    #     new_msk = new_msk.reshape(msk.shape)
 
-        return new_msk
+    #     np.random.seed(None)
 
-    @staticmethod
-    def sparse_grid_old(
-        msk: NDArray, sparsity: SparsityValue = "random", seed=0
-    ) -> NDArray:
-        if sparsity != "random":
-            np.random.seed(seed)
+    #     return new_msk
 
-        # Copying mask and starting it with -1 for inserting sparsity.
-        new_msk = np.zeros_like(msk)
-        new_msk[:, :] = -1
+    # @staticmethod
+    # def sparse_grid_old(
+    #     msk: NDArray, sparsity: SparsityValue = "random", seed=0
+    # ) -> NDArray:
+    #     if sparsity != "random":
+    #         np.random.seed(seed)
 
-        if isinstance(sparsity, float) or isinstance(sparsity, int):
-            spacing_value = int(sparsity)
-        else:
-            max_high = int(np.max(msk.shape) / 2)
-            spacing_value = np.random.randint(low=1, high=max_high)
-        spacing = (spacing_value, spacing_value)
+    #     # Copying mask and starting it with -1 for inserting sparsity.
+    #     new_msk = np.zeros_like(msk)
+    #     new_msk[:, :] = -1
 
-        starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
+    #     if isinstance(sparsity, float) or isinstance(sparsity, int):
+    #         spacing_value = int(sparsity)
+    #     else:
+    #         max_high = int(np.max(msk.shape) / 2)
+    #         spacing_value = np.random.randint(low=1, high=max_high)
+    #     spacing = (spacing_value, spacing_value)
 
-        new_msk[starting[0] :: spacing[0], starting[1] :: spacing[1]] = msk[
-            starting[0] :: spacing[0], starting[1] :: spacing[1]
-        ]
+    #     starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
 
-        np.random.seed(None)
+    #     new_msk[starting[0] :: spacing[0], starting[1] :: spacing[1]] = msk[
+    #         starting[0] :: spacing[0], starting[1] :: spacing[1]
+    #     ]
 
-        return new_msk
+    #     np.random.seed(None)
+
+    #     return new_msk
+
+
+class OpticDiscCupSimpleDataset(SimpleDataset, ABC):
+    def set_class_labels(self) -> dict[int, str]:
+        return {0: "background", 1: "optic_disc", 2: "optic_cup"}
 
 
 class RimOneDataset(OpticDiscCupDataset):
@@ -173,7 +191,7 @@ class DrishtiDataset(OpticDiscCupDataset):
         return read_image_mask(img_path, msk_path)
 
 
-class RimOneSimpleDataset(SimpleDataset):
+class RimOneSimpleDataset(OpticDiscCupSimpleDataset):
     def get_all_data_path(self) -> list[tuple[str, str]]:
         return get_rim_one_data_path()
 
@@ -181,7 +199,7 @@ class RimOneSimpleDataset(SimpleDataset):
         return read_image_mask(img_path, msk_path)
 
 
-class DrishtiSimpleDataset(SimpleDataset):
+class DrishtiSimpleDataset(OpticDiscCupSimpleDataset):
     def get_all_data_path(self) -> list[tuple[str, str]]:
         return get_drishti_data_path()
 

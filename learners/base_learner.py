@@ -1,351 +1,466 @@
-import csv
-import logging
 import os
 from abc import ABC, abstractmethod
-from typing import Type
+from typing import Any, Generic, Literal, Type
 
 import numpy as np
-import torch
-from numpy.typing import NDArray
-from sklearn import metrics
-from torch import nn, optim
+from pytorch_lightning import LightningModule
+from torch import Tensor
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard.writer import SummaryWriter
 
-from config.config_type import ConfigBase, ConfigUnion
-from config.constants import DEFAULT_CONFIGS, FILENAMES
+import wandb
+from config.config_type import ConfigUnion
+from config.constants import FILENAMES, WANDB_SETTINGS
+from data.typings import DatasetModes
 from learners.losses import CustomLoss
-from learners.types import CalcMetrics, NeuralNetworks, Optimizer, Scheduler
-from learners.utils import (
+from learners.metrics import CustomMetric
+from learners.typings import (
+    ConfigType,
+    DatasetClass,
+    DatasetKwargs,
+)
+from utils.logging import (
     check_mkdir,
     check_rmtree,
     dump_json,
-    get_gpu_memory,
-    get_name_from_function,
+    get_name_from_class,
     get_name_from_instance,
     get_short_git_hash,
     get_simple_stack_list,
     load_json,
+    prepare_ckpt_path_for_artifact,
+    write_to_csv,
+)
+from utils.utils import (
+    diff_dict,
+    get_iso_timestamp_now,
+    make_batch_sample_indices,
+    merge_dicts,
 )
 
 
-class BaseLearner(ABC):
+class BaseLearner(
+    LightningModule, ABC, Generic[ConfigType, DatasetClass, DatasetKwargs]
+):
     def __init__(
         self,
-        net: NeuralNetworks,
-        config: ConfigBase,
-        calc_metrics: CalcMetrics | None = None,
-        calc_loss: CustomLoss | None = None,
-        optimizer: Optimizer | None = None,
-        scheduler: Scheduler | None = None,
+        config: ConfigType,
+        dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]],
+        val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
+        test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
+        loss: CustomLoss | None = None,
+        metric: CustomMetric | None = None,
+        resume: bool = False,
+        force_clear_dir: bool = False,
     ):
-        self.net = net
-        self.calc_metrics = calc_metrics
-        self.config = config
+        super().__init__()
 
-        self.output_path = os.path.join(
-            FILENAMES["output_folder"], self.config["learn"]["exp_name"]
+        self.config = config
+        self.dataset_list = dataset_list
+        self.val_dataset_list = val_dataset_list
+        self.test_dataset_list = test_dataset_list
+
+        self.train_datasets = self.make_dataset("train", dataset_list)
+        self.val_datasets = self.make_dataset("val", val_dataset_list or dataset_list)
+        self.test_datasets = self.make_dataset(
+            "test", test_dataset_list or dataset_list
+        )
+
+        self.loss = loss or CustomLoss()
+        self.metric = metric or CustomMetric()
+        self.resume = resume
+        self.force_clear_dir = force_clear_dir
+        self.use_wandb = config.get("wandb") is not None
+        self.tensorboard_graph = config["learn"].get("tensorboard_graph", True)
+
+        self.initial_messages: list[str] = []
+        self.log_path = os.path.join(
+            FILENAMES["log_folder"],
+            config["learn"]["exp_name"],
+            config["learn"]["run_name"],
         )
         self.ckpt_path = os.path.join(
-            FILENAMES["checkpoint_folder"], self.config["learn"]["exp_name"]
+            FILENAMES["checkpoint_folder"],
+            config["learn"]["exp_name"],
+            config["learn"]["run_name"],
         )
 
-        self.checkpoint = {}
-        self.initial_gpu_percent = 0
-        self.initial_messages = []
+        self.init_ok = False
+        self.example_input_array = self.make_input_example()
+        self.wandb_tables: dict[str, wandb.Table] = {}
 
-        if calc_loss is not None:
-            self.calc_loss = calc_loss
-        else:
-            self.calc_loss = CustomLoss()
-
-        if optimizer is not None:
-            self.optimizer = optimizer
-        else:
-            if isinstance(net, nn.Module):
-                net_params = net.parameters()
-            else:
-                net_params = []
-                for n in net.values():
-                    net_params += n.parameters()
-            self.optimizer = optim.Adam(
-                [
-                    {
-                        "params": net_params,
-                        "lr": self.config["optimizer"].get(
-                            "lr", DEFAULT_CONFIGS["optimizer_lr"]
-                        ),
-                    }
-                ]
-            )
-
-        if scheduler is not None:
-            self.scheduler = scheduler
-        else:
-            self.scheduler = optim.lr_scheduler.StepLR(
-                self.optimizer,
-                self.config["scheduler"].get(
-                    "step_size", DEFAULT_CONFIGS["scheduler_step_size"]
-                ),
-            )
+        wandb_config = config.get("wandb", {})
+        batch_size = config["data"]["batch_size"]
+        self.train_indices_to_save = make_batch_sample_indices(
+            sum(len(ds.items) for ds in self.train_datasets),
+            wandb_config.get("save_test_preds", 0),
+            batch_size,
+        )
+        self.val_indices_to_save = make_batch_sample_indices(
+            sum(len(ds.items) for ds in self.val_datasets),
+            wandb_config.get("save_test_preds", 0),
+            batch_size,
+        )
+        self.test_indices_to_save = make_batch_sample_indices(
+            sum(len(ds.items) for ds in self.test_datasets),
+            wandb_config.get("save_test_preds", 0),
+            batch_size,
+        )
+        self.class_labels = merge_dicts(
+            [
+                ds.class_labels
+                for ds in (self.train_datasets + self.val_datasets + self.test_datasets)
+            ]
+        )
 
     @abstractmethod
-    def save_configuration(self, is_new: bool):
+    def make_dataloader(self, datasets: list[DatasetClass]) -> DataLoader:
         pass
 
     @abstractmethod
-    def learn_process(self, epoch: int):
+    def make_input_example(self) -> tuple[Any, ...]:
         pass
 
-    def learn(self):
-        gpu_percent, gpu_total = self.initialize_gpu_usage()
+    def on_fit_start(self):
+        if not self.init_ok:
+            raise ValueError("Learner not initialized")
 
-        # Loading optimizer state in case of resuming training.
-        if self.config["learn"]["should_resume"]:
-            ok = self.check_output_and_ckpt_dir()
+        super().on_fit_start()
+        self.log_configuration()
+
+        if isinstance(self.example_input_array, tuple):
+            self.example_input_array = tuple(
+                inp.to(self.device) if isinstance(inp, Tensor) else inp
+                for inp in self.example_input_array
+            )
+        elif isinstance(self.example_input_array, Tensor):
+            self.example_input_array = self.example_input_array.to(self.device)
+
+        if self.tensorboard_graph:
+            tensorboard_dir = os.path.join(
+                FILENAMES["tensorboard_folder"],
+                self.config["learn"]["exp_name"],
+                self.config["learn"]["run_name"],
+            )
+            check_rmtree(tensorboard_dir, True)
+            tensorboard_writer = SummaryWriter(tensorboard_dir)
+            tensorboard_writer.add_graph(self, self.example_input_array)
+            tensorboard_writer.close()
+
+    def train_dataloader(self) -> DataLoader:
+        return self.make_dataloader(self.train_datasets)
+
+    def val_dataloader(self) -> DataLoader:
+        return self.make_dataloader(self.val_datasets)
+
+    def test_dataloader(self) -> DataLoader:
+        return self.make_dataloader(self.test_datasets)
+
+    def init(self) -> bool:
+        if self.resume:
+            ok = self.check_log_and_ckpt_dir()
             if not ok:
                 print("No data from previous learning")
-                return
-
-            self.read_checkpoint()
-            self.load_net_and_optimizer()
-
-            self.initialize_log()
-            self.save_configuration(False)
-
-            self.log_initial_info()
-            self.print_and_log("Resume learning ...")
-            curr_epoch = self.checkpoint["epoch"] + 1
-
+                return False
         else:
-            ok = self.clear_output_and_ckpt_dir()
+            ok = self.clear_log_and_ckpt_dir()
             if not ok:
-                print("Learning canceled")
-                return
+                print("Fit canceled")
+                return False
+            self.create_log_and_ckpt_dir()
 
-            self.create_output_and_ckpt_dir()
+        if not self.config["learn"].get("ref_ckpt_path"):
+            onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+            self.to_onnx(onnx_path, export_params=False)
 
-            self.initialize_log()
-            self.save_configuration(True)
+        self.wandb_init()
 
-            self.log_initial_info()
-            self.print_and_log("Start learning ...")
-            curr_epoch = 1
+        self.print_initial_info()
+        self.init_ok = True
+        return True
 
-        if self.config["learn"]["use_gpu"]:
-            self.print_and_log(
-                "Using GPU with total memory %dMiB, %.2f%% is already used"
-                % (gpu_total, gpu_percent)
+    def wandb_init(self):
+        if not self.use_wandb:
+            return
+
+        assert wandb.run is not None, "Wandb run is not initialized"
+
+        wandb_config = self.config.get("wandb")
+        assert wandb_config is not None
+
+        parent_path = WANDB_SETTINGS["entity"] + "/" + WANDB_SETTINGS["project"]
+        datasets: list[tuple[str, list[DatasetClass]]] = [
+            ("train_dataset", self.train_datasets),
+            ("val_dataset", self.val_datasets),
+            ("test_dataset", self.test_datasets),
+        ]
+        for use_as, dataset_list in datasets:
+            if dataset_list is None:
+                continue
+            for ds in dataset_list:
+                wandb.run.use_artifact(
+                    f"{parent_path}/{ds.dataset_name}:latest",
+                    type="dataset",
+                    use_as=use_as,
+                )
+        ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
+        if ref_ckpt_path:
+            ckpt_name, ckpt_alias = prepare_ckpt_path_for_artifact(ref_ckpt_path)
+            wandb.run.use_artifact(
+                f"{parent_path}/{ckpt_name}:{ckpt_alias}", type="checkpoint"
             )
 
-        # Iterating over epochs.
-        for epoch in range(curr_epoch, self.config["learn"]["num_epochs"] + 1):
-            self.learn_process(epoch)
+        if wandb_config["log_model"]:
+            onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+            # wandb.log_model(onnx_path)
+            model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
+            model_artifact.add_file(onnx_path)
+            wandb.log_artifact(model_artifact)
+        if wandb_config["watch_model"]:
+            wandb.watch(self, log_freq=1)
 
-        self.print_and_log("Finish learning ...", end="\n")
-        self.remove_log_handlers()
+        wandb.define_metric("epoch")
+        wandb.define_metric("summary/*", step_metric="epoch")
 
-    def check_and_clean_config(self, config: ConfigUnion, ref_type: Type[ConfigUnion]):
-        ref_keys = ref_type.__annotations__.keys()
+    def check_and_clean_config(self, ref_type: Type[ConfigUnion]):
+        config = self.config.copy()
+        keys_to_remove = []
         for key in config.keys():
-            if key not in ref_keys:
-                del config[key]
-        for key in ref_keys:
+            if key not in ref_type.__annotations__.keys():
+                keys_to_remove.append(key)
+        for key in keys_to_remove:
+            del config[key]
+        for key in ref_type.__required_keys__:
             if key not in config.keys():
                 raise ValueError(f"Missing {key} in config")
+        self.config = config
 
-    def initialize_gpu_usage(self) -> tuple[float, int]:
-        gpu_percent, gpu_total = 0, 0
-        if self.config["learn"]["use_gpu"]:
-            gpu_percent, gpu_total = get_gpu_memory()
-            self.initial_gpu_percent = gpu_percent
-            if isinstance(self.net, nn.Module):
-                self.net = self.net.cuda()
-            else:
-                for net in self.net.values():
-                    net.cuda()
-        return gpu_percent, gpu_total
+    def make_dataset(
+        self,
+        mode: DatasetModes,
+        datasets: list[tuple[Type[DatasetClass], DatasetKwargs]],
+    ) -> list[DatasetClass]:
+        return [
+            dataset_class(
+                mode,
+                self.config["data"]["num_classes"],
+                self.config["data"]["resize_to"],
+                **dataset_kwargs,
+            )
+            for dataset_class, dataset_kwargs in datasets
+        ]
 
-    def check_output_and_ckpt_dir(self) -> bool:
-        return os.path.exists(self.output_path) and os.path.exists(self.ckpt_path)
+    def check_log_and_ckpt_dir(self) -> bool:
+        return os.path.exists(self.log_path) and os.path.exists(self.ckpt_path)
 
-    def create_output_and_ckpt_dir(self):
-        check_mkdir(FILENAMES["output_folder"])
-        check_mkdir(self.output_path)
+    def create_log_and_ckpt_dir(self):
+        check_mkdir(FILENAMES["log_folder"])
+        check_mkdir(self.log_path)
         check_mkdir(FILENAMES["checkpoint_folder"])
         check_mkdir(self.ckpt_path)
 
-    def clear_output_and_ckpt_dir(self) -> bool:
-        output_ok = check_rmtree(self.output_path)
-        ckpt_ok = check_rmtree(self.ckpt_path)
-        return output_ok and ckpt_ok
+    def clear_log_and_ckpt_dir(self) -> bool:
+        log_ok = check_rmtree(self.log_path, self.force_clear_dir)
+        ckpt_ok = check_rmtree(self.ckpt_path, self.force_clear_dir)
+        return log_ok and ckpt_ok
 
-    def initialize_log(self):
-        logging.basicConfig(
-            filename=os.path.join(self.output_path, FILENAMES["learn_log"]),
-            encoding="utf-8",
-            level=logging.INFO,
-            format="%(asctime)s | %(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            force=True,
-        )
-
-    @staticmethod
-    def print_and_log(message: str, start: str = "", end: str = ""):
-        print(start + message + end)
-        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
-
-    @staticmethod
-    def log_error():
-        logging.error("Exception:", exc_info=True, stack_info=True)
-
-    @staticmethod
-    def remove_log_handlers():
-        logger = logging.getLogger()
-        while logger.hasHandlers():
-            logger.removeHandler(logger.handlers[0])
-
-    def write_to_csv(self, filename: str, fieldnames: list[str], row: dict):
-        filename = os.path.join(self.output_path, filename)
-        if os.path.isfile(filename):
-            with open(filename, "a", encoding="UTF8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writerow(row)
-        else:
-            with open(filename, "w", encoding="UTF8", newline="") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerow(row)
-
-    def read_checkpoint(self):
-        self.checkpoint = load_json(
-            os.path.join(self.ckpt_path, FILENAMES["checkpoint"])
-        )
-
-    def update_checkpoint(self, data: dict):
-        self.checkpoint.update(data)
-        dump_json(
-            os.path.join(self.ckpt_path, FILENAMES["checkpoint"]), self.checkpoint
-        )
-
-    def log_initial_info(self):
-        self.print_and_log("-" * 30)
-        self.print_and_log("Git hash: " + get_short_git_hash())
+    def print_initial_info(self):
+        print("-" * 30)
+        print("Git hash: " + get_short_git_hash())
         stack_list = get_simple_stack_list(end=-3)
-        if "ipykernel" in stack_list[-1]:
-            self.print_and_log("Call stack: (called in jupyter notebook)")
+        if any("ipykernel" in sl for sl in stack_list):
+            print("Call stack: (called in jupyter notebook)")
         else:
             for i, stack in enumerate(stack_list):
-                self.print_and_log(f"Call stack ({i}): {stack}")
+                print(f"Call stack ({i}): {stack}")
         for msg in self.initial_messages:
-            self.print_and_log("Note: " + msg)
+            print("Note: " + msg)
         print("")
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
 
-    def get_optimization_data_dict(self) -> dict:
-        optimizer_data = [
+    # def get_optimization_data_dict(self) -> dict:
+    #     optimization_data_dict = {}
+
+    #     scheduler = self.lr_schedulers()
+    #     if isinstance(scheduler, list):
+    #         for i, s in enumerate(scheduler):
+    #             optimization_data_dict[f"scheduler_{i}"] = get_name_from_instance(s)
+    #             optimization_data_dict[f"scheduler_{i}_data"] = get_scheduler_data(s)
+    #     elif scheduler is not None:
+    #         optimization_data_dict["scheduler"] = get_name_from_instance(scheduler)
+    #         optimization_data_dict["scheduler_data"] = get_scheduler_data(scheduler)
+
+    #     optimizer = self.optimizers(False)
+    #     if isinstance(optimizer, list):
+    #         for i, o in enumerate(optimizer):
+    #             optimization_data_dict[f"optimizer_{i}"] = get_name_from_instance(o)
+    #             optimization_data_dict[f"optimizer_{i}_data"] = get_optimizer_data(o)
+    #     elif optimizer is not None:
+    #         optimization_data_dict["optimizer"] = get_name_from_instance(optimizer)
+    #         optimization_data_dict["optimizer_data"] = get_optimizer_data(optimizer)
+
+    #     return optimization_data_dict
+
+    def log_configuration(self):
+        def dictify_datasets(datasets: list[tuple[Type[DatasetClass], DatasetKwargs]]):
+            if datasets is None:
+                return []
+            return [
+                {"class": get_name_from_class(cls), "kwargs": kwargs}
+                for cls, kwargs in datasets
+            ]
+
+        configuration = {
+            "config": self.config,
+            "datasets": dictify_datasets(self.dataset_list),
+        }
+        if self.val_dataset_list is not None:
+            configuration["val_datasets"] = dictify_datasets(self.val_dataset_list)
+        if self.test_dataset_list is not None:
+            configuration["test_datasets"] = dictify_datasets(self.test_dataset_list)
+        configuration.update(
             {
-                key: param_group[key]
-                for key in filter(lambda x: x != "params", param_group.keys())
+                "loss": get_name_from_instance(self.loss),
+                "loss_data": self.loss.params(),
+                "metric": get_name_from_instance(self.metric),
+                "metric_data": self.metric.params(),
             }
-            for param_group in self.optimizer.__dict__["param_groups"]
-        ]
-        scheduler_data = {
-            key: self.scheduler.__dict__[key]
-            for key in filter(
-                lambda x: x != "optimizer" and not x.startswith("_"),
-                self.scheduler.__dict__.keys(),
-            )
-        }
-        return {
-            "metrics": None
-            if self.calc_metrics is None
-            else get_name_from_function(self.calc_metrics),
-            "loss": get_name_from_instance(self.calc_loss),
-            "loss_data": self.calc_loss.params(),
-            "optimizer": get_name_from_instance(self.optimizer),
-            "optimizer_data": optimizer_data,
-            "scheduler": get_name_from_instance(self.scheduler),
-            "scheduler_data": scheduler_data,
-        }
+        )
 
-    def save_net_as_text(self):
-        if isinstance(self.net, nn.Module):
-            n_params = sum(p.numel() for p in self.net.parameters() if p.requires_grad)
-            net_text = "# of parameters: " + str(n_params) + "\n\n" + str(self.net)
+        filepath = os.path.join(self.log_path, FILENAMES["configuration"])
+        if self.resume:
+            diff_filepath = os.path.join(self.log_path, FILENAMES["configuration_diff"])
+            old_configuration = load_json(filepath)
+            assert isinstance(old_configuration, dict)
+            if os.path.isfile(diff_filepath):
+                prev_diff_list = load_json(diff_filepath)
+                assert isinstance(prev_diff_list, list)
+            else:
+                prev_diff_list = []
+            new_diff = {"timestamp": get_iso_timestamp_now()}
+            new_diff.update(diff_dict(old_configuration, configuration))
+            new_diff_list = prev_diff_list + [new_diff]
+            dump_json(diff_filepath, new_diff_list)
         else:
-            net_text = ""
-            for i, name in enumerate(self.net.keys()):
-                if i != 0:
-                    net_text += "\n\n\n"
-                net = self.net[name]
-                n_params = sum(p.numel() for p in net.parameters() if p.requires_grad)
-                net_text += (
-                    "# of net_"
-                    + name
-                    + " parameters: "
-                    + str(n_params)
-                    + "\n\n"
-                    + str(net)
-                )
-        with open(
-            os.path.join(self.output_path, FILENAMES["net_text"]), "w"
-        ) as net_file:
-            net_file.write(net_text)
+            dump_json(filepath, configuration)
 
-    def calc_and_log_metrics(
+        if self.config["learn"].get("dummy") is True:
+            dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
+            dummy_file.close()
+
+    def log_table(
         self,
-        labels: list[NDArray],
-        preds: list[NDArray],
-        message: str = "",
-        start: str = "",
-        end: str = "",
-    ) -> dict:
-        if self.calc_metrics is None:
-            iou_mean = metrics.jaccard_score(
-                np.concatenate(labels, axis=0).ravel(),
-                np.concatenate(preds, axis=0).ravel(),
-                average="macro",
-            )
-            iou_mean = float(iou_mean)
-            score = {"iou_mean": iou_mean}
-            score_text = "%.2f" % (iou_mean * 100)
-            name = "Mean IoU score"
-        else:
-            score, score_text, name = self.calc_metrics(labels, preds)
-        if message == "":
-            full_message = f"{name}: {score_text}"
-        else:
-            full_message = f"{name} - {message}: {score_text}"
-        self.print_and_log(full_message, start, end)
-        return score
+        data: list[tuple[str, Any]],
+        group: str,
+        index: Literal["step", "epoch", "both"] = "both",
+    ):
+        index_data = []
+        if index == "epoch" or index == "both":
+            index_data.append(("epoch", self.current_epoch))
+        if index == "step" or index == "both":
+            index_data.append(("step", self.global_step))
+        new_data = index_data + data
 
-    def save_torch_dict(self, state_dict: dict, filename: str, epoch: int = 0):
-        prefix = f"ep{epoch}_" if epoch != 0 else ""
-        torch.save(state_dict, os.path.join(self.ckpt_path, prefix + filename))
+        self.wandb_log_table(new_data, group)
 
-    def load_torch_dict(self, filename: str, epoch: int = 0) -> dict:
-        prefix = f"ep{epoch}_" if epoch != 0 else ""
-        return torch.load(os.path.join(self.ckpt_path, prefix + filename))
+        csv_filename = os.path.join(self.log_path, f"{group}.csv")
+        write_to_csv(csv_filename, new_data)
 
-    def save_net_and_optimizer(self, epoch: int = 0):
-        self.save_torch_dict(
-            self.optimizer.state_dict(), FILENAMES["optimizer_state"], epoch
+    def log_checkpoint_ref(self, value: float):
+        name = self.config["callbacks"].get("ckpt_monitor")
+        if name is not None:
+            self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
+
+    def wandb_log(
+        self, data: dict[str, Any], prefix: str = "", use_epoch: bool = False
+    ):
+        if not self.use_wandb:
+            return
+        wandb.log(
+            {prefix + k: v for k, v in data.items()}
+            | ({"epoch": self.current_epoch} if use_epoch else {})
         )
-        if isinstance(self.net, nn.Module):
-            self.save_torch_dict(self.net.state_dict(), FILENAMES["net_state"], epoch)
-        else:
-            for name, net in self.net.items():
-                self.save_torch_dict(net.state_dict(), f"net_{name}.pth", epoch)
 
-    def load_net_and_optimizer(self, epoch: int = 0):
-        self.optimizer.load_state_dict(
-            self.load_torch_dict(FILENAMES["optimizer_state"], epoch)
-        )
-        if isinstance(self.net, nn.Module):
-            self.net.load_state_dict(
-                self.load_torch_dict(FILENAMES["net_state"], epoch)
-            )
+    def wandb_log_table(
+        self,
+        data: list[tuple[str, Any]],
+        group: str,
+    ):
+        use_wandb_table = self.config.get("wandb", {}).get("push_table_freq")
+        if not self.use_wandb or not use_wandb_table:
+            return
+        if group not in self.wandb_tables:
+            self.wandb_tables[group] = wandb.Table(columns=[d[0] for d in data])
+        self.wandb_tables[group].add_data(*[d[1] for d in data])
+
+    def wandb_push_table(self, force: bool = False):
+        push_table_freq = self.config.get("wandb", {}).get("push_table_freq")
+        if push_table_freq and (
+            self.current_epoch % push_table_freq == 0
+            or self.current_epoch == self.config["learn"]["num_epochs"] - 1
+            or force
+        ):
+            wandb.log(self.wandb_tables)
+
+    def wandb_log_image(
+        self,
+        gt: Tensor,
+        pred: Tensor,
+        data: list[tuple[str, Any]],
+        group: str,
+        image: Tensor | None = None,
+    ):
+        gt_arr = gt.cpu().numpy()
+        pred_arr = pred.argmax(0).cpu().numpy()
+        if image is not None:
+            image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
         else:
-            for name, net in self.net.items():
-                net.load_state_dict(self.load_torch_dict(f"net_{name}.pth", epoch))
+            image_arr = np.zeros(gt_arr.shape + (1,), dtype=np.uint8)
+
+        gt_img = wandb.Image(
+            image_arr,
+            masks={
+                "ground_truth": {
+                    "mask_data": gt_arr,
+                    "class_labels": self.class_labels,
+                },
+            },
+        )
+        pred_img = wandb.Image(
+            image_arr,
+            masks={
+                "prediction": {
+                    "mask_data": pred_arr,
+                    "class_labels": self.class_labels,
+                },
+            },
+        )
+        img_data = [("ground_truth", gt_img), ("prediction", pred_img)]
+
+        self.wandb_log_table(img_data + data, group)
+
+    def wandb_log_ckpt_ref(self):
+        if (
+            not self.use_wandb
+            or self.current_epoch != self.config["learn"]["num_epochs"] - 1
+        ):
+            return
+
+        for ckpt in os.listdir(self.ckpt_path):
+            if not ckpt.endswith(".ckpt"):
+                continue
+            ckpt_path = f"{self.config['learn']['exp_name']}/{self.config['learn']['run_name']}/{ckpt}"
+            name, alias = prepare_ckpt_path_for_artifact(ckpt_path)
+            artifact = wandb.Artifact(name, type="checkpoint")
+            artifact.add_reference(
+                "file://"
+                + os.path.join(
+                    os.getcwd().replace("\\", "/"),
+                    FILENAMES["checkpoint_folder"].removeprefix("./"),
+                    ckpt_path,
+                ),
+                checksum=False,
+            )
+            wandb.log_artifact(artifact, aliases=[alias])
