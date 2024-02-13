@@ -30,11 +30,12 @@ def clean_logging_data(
         wandb_runs_dummy = wandb_get_runs(start_time=start_time, dummy=True)
         if not dummy_only:
             wandb_runs = wandb_get_runs(start_time=start_time, dummy=False)
-    wandb_run_paths = [
-        (run.group or "") + "/" + run.name for run in wandb_runs + wandb_runs_dummy
+    wandb_run_paths = [(run.group or "") + "/" + run.name for run in wandb_runs]
+    wandb_run_paths_dummy = [
+        (run.group or "") + "/" + run.name for run in wandb_runs_dummy
     ]
 
-    combined_run_paths = set(local_run_paths + wandb_run_paths)
+    combined_run_paths = set(local_run_paths + wandb_run_paths + wandb_run_paths_dummy)
     annotated_run_paths = []
     for run in combined_run_paths:
         annotated_run = run + " "
@@ -42,6 +43,8 @@ def clean_logging_data(
             annotated_run += "(local)"
         if run in wandb_run_paths:
             annotated_run += "(wandb)"
+        if run in wandb_run_paths_dummy:
+            annotated_run += "(wandb dummy)"
         annotated_run_paths.append(annotated_run)
 
     print("The following runs will be cleaned:")
@@ -58,7 +61,7 @@ def clean_logging_data(
         FILENAMES["log_folder"],
     ]
     for parent in parent_dirs:
-        for run in combined_run_paths:
+        for run in local_run_paths:
             run_path = os.path.join(parent, run)
             if os.path.isfile(run_path):
                 os.remove(run_path)
