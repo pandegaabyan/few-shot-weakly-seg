@@ -145,7 +145,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
     ref_ckpt_path = config["learn"].get("ref_ckpt_path")
     ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
-    sweep_config = initialize_sweep(config, sweep_config)
+    sweep_config = initialize_sweep(config, sweep_config, dummy)
 
     def train():
         config["learn"]["run_name"] = make_run_name()
