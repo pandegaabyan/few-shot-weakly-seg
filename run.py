@@ -19,6 +19,7 @@ from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 from utils.logging import (
+    check_git_clean,
     get_configuration,
     get_full_ckpt_path,
 )
@@ -211,6 +212,9 @@ def main(
     no_wandb: bool,
     configs: list[tuple[str, str]],
 ):
+    if not dummy and not check_git_clean():
+        raise Exception("Git is not clean, please commit your changes first")
+
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
     )

@@ -23,6 +23,14 @@ def get_short_git_hash() -> str:
     return short_hash
 
 
+def check_git_clean() -> bool:
+    import subprocess
+
+    message = subprocess.check_output(["git", "status"])
+    message = str(message, "utf-8").strip()
+    return message.endswith("working tree clean")
+
+
 def get_simple_stack_list(start: int = 0, end: int | None = None) -> list[str]:
     import os
     import traceback
