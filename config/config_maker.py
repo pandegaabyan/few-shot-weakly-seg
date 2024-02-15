@@ -112,7 +112,10 @@ def make_run_name(exp_name: str) -> str:
     run_name_ori = (
         datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
     )
-    existing_runs = os.listdir(os.path.join(FILENAMES["log_folder"], exp_name))
+    exp_path = os.path.join(FILENAMES["log_folder"], exp_name)
+    if not os.path.exists(exp_path):
+        return run_name_ori
+    existing_runs = os.listdir(exp_path)
 
     i = 0
     run_name = run_name_ori
