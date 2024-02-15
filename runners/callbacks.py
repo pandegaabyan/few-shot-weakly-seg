@@ -1,5 +1,5 @@
 from pytorch_lightning import Callback, LightningModule, Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, RichProgressBar
+from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
 
 from config.config_type import CallbacksConfig
 
@@ -21,18 +21,31 @@ def make_callbacks(
     config: CallbacksConfig, ckpt_path: str, ckpt_every_n_epochs: int = 1
 ) -> list[Callback]:
     progress_callback = CustomRichProgressBar(leave=config.get("progress_leave", False))
-    ckpt_monitor = config.get("ckpt_monitor", None)
-    ckpt_filename = (
-        ("{epoch} {" + ckpt_monitor + ":.2f}") if ckpt_monitor else ("{epoch}")
-    )
+
+    monitor = config.get("monitor", None)
+    monitor_mode = config.get("monitor_mode", "min")
+    ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
     checkpoint_callback = ModelCheckpoint(
         dirpath=ckpt_path,
         filename=ckpt_filename,
-        monitor=ckpt_monitor,
+        monitor=monitor,
+        mode=monitor_mode,
         save_last=True,
         save_top_k=config.get("ckpt_top_k", 0),
-        mode=config.get("ckpt_mode", "min"),
         every_n_epochs=ckpt_every_n_epochs,
-        # save_on_train_epoch_end=True,
     )
-    return [progress_callback, checkpoint_callback]
+
+    early_stopping_callback = monitor and EarlyStopping(
+        monitor=monitor,
+        mode=monitor_mode,
+        verbose=True,
+        patience=config.get("stop_patience", 3),
+        min_delta=config.get("stop_min_delta", 0.0),
+        stopping_threshold=config.get("stop_threshold", None),
+    )
+
+    callbacks = [progress_callback, checkpoint_callback]
+    if early_stopping_callback:
+        callbacks.append(early_stopping_callback)
+
+    return callbacks

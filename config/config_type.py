@@ -41,9 +41,12 @@ class SchedulerConfig(TypedDict, total=False):
 
 class CallbacksConfig(TypedDict, total=False):
     progress_leave: bool
-    ckpt_monitor: str
-    ckpt_mode: Literal["min", "max"]
+    monitor: str
+    monitor_mode: Literal["min", "max"]
     ckpt_top_k: int
+    stop_patience: int
+    stop_min_delta: float
+    stop_threshold: float | None
 
 
 class WandbConfig(TypedDict):
@@ -54,6 +57,7 @@ class WandbConfig(TypedDict):
     watch_model: bool
     push_table_freq: int | None
     sweep_metric: NotRequired[tuple[str, Literal["maximize", "minimize"]]] | None
+    sweep_id: NotRequired[str]
     save_train_preds: NotRequired[int]
     save_val_preds: NotRequired[int]
     save_test_preds: NotRequired[int]
