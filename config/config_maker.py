@@ -1,4 +1,5 @@
 import datetime
+import os
 from typing import Literal
 
 from config.config_type import (
@@ -22,6 +23,8 @@ from config.config_type import (
     WandbConfig,
     WeaselConfig,
 )
+from config.constants import FILENAMES
+from utils.utils import generate_char
 
 data_config: DataConfig = {
     "num_classes": 3,
@@ -55,9 +58,12 @@ scheduler_config: SchedulerConfig = {"step_size": 150, "gamma": 0.2}
 
 callbacks_config: CallbacksConfig = {
     "progress_leave": True,
-    "ckpt_monitor": "val_score",
-    "ckpt_mode": "max",
+    "monitor": "val_score",
+    "monitor_mode": "max",
     "ckpt_top_k": 5,
+    "stop_patience": 5,
+    "stop_min_delta": 0.0,
+    "stop_threshold": None,
 }
 
 wandb_config: WandbConfig = {
@@ -68,6 +74,7 @@ wandb_config: WandbConfig = {
     "watch_model": True,
     "push_table_freq": 5,
     "sweep_metric": ("summary/val_score", "maximize"),
+    "sweep_id": "",
     "save_train_preds": 0,
     "save_val_preds": 0,
     "save_test_preds": 0,
@@ -101,8 +108,18 @@ protoseg_config: ProtoSegConfig = {
 guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
 
 
-def make_run_name() -> str:
-    return datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
+def make_run_name(exp_name: str) -> str:
+    run_name_ori = (
+        datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
+    )
+    existing_runs = os.listdir(os.path.join(FILENAMES["log_folder"], exp_name))
+
+    i = 0
+    run_name = run_name_ori
+    while run_name in existing_runs:
+        run_name = run_name_ori + " " + generate_char(i)
+
+    return run_name
 
 
 def make_config(
@@ -242,7 +259,6 @@ def make_config(
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
-
-    config["learn"]["run_name"] = make_run_name()
+    config["learn"]["run_name"] = make_run_name(exp_name)
 
     return config

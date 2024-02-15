@@ -125,3 +125,12 @@ def make_batch_sample_indices(
     for s in samples:
         batch_samples[s // batch_size].append(s - (s // batch_size) * batch_size)
     return batch_samples
+
+
+def generate_char(idx: int) -> str:
+    if idx < 0 or idx > 26 * 26:
+        raise ValueError("idx must be between 0 and 26*26")
+    if idx < 26:
+        return chr(65 + idx)
+    else:
+        return chr(65 + idx // 26 - 1) + chr(65 + idx % 26)

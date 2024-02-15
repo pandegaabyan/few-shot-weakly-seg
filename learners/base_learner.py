@@ -374,7 +374,7 @@ class BaseLearner(
         write_to_csv(csv_filename, new_data)
 
     def log_checkpoint_ref(self, value: float):
-        name = self.config["callbacks"].get("ckpt_monitor")
+        name = self.config["callbacks"].get("monitor")
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
 

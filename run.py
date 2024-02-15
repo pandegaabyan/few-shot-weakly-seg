@@ -32,7 +32,7 @@ def rim_one_simple_dataset(
 ) -> tuple[type[SimpleDataset], SimpleDatasetKwargs]:
     rim_one_kwargs: SimpleDatasetKwargs = {
         "seed": 0,
-        "max_items": 10,
+        "max_items": None,
         "split_val_size": 0.2,
         "split_val_fold": val_fold,
         "split_test_size": 0.2,
@@ -67,7 +67,7 @@ def make_learner_and_trainer(
         learner = SimpleUnet(**kwargs)
     else:
         learner = SimpleUnet.load_from_checkpoint(learner_ckpt, **kwargs)
-    learner.set_initial_messages(["Command: " + " ".join(sys.argv)])
+    learner.set_initial_messages(["Command " + " ".join(sys.argv)])
     init_ok = learner.init()
     if not init_ok:
         return None, None
@@ -134,7 +134,7 @@ def run_basic(
 def run_sweep(config: ConfigUnion, dummy: bool):
     sweep_config = {
         "method": "random",
-        "count": 5,
+        "count_per_agent": 3,
         "parameters": {
             "optimizer_lr": {"distribution": "uniform", "min": 0.0001, "max": 0.01},
             "scheduler_step_size": {"values": [50, 100, 150, 200]},
@@ -146,9 +146,10 @@ def run_sweep(config: ConfigUnion, dummy: bool):
     ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
     sweep_config = initialize_sweep(config, sweep_config, dummy)
+    config["wandb"]["sweep_id"] = sweep_config["sweep_id"]  # type: ignore
 
     def train():
-        config["learn"]["run_name"] = make_run_name()
+        config["learn"]["run_name"] = make_run_name(config["learn"]["exp_name"])
 
         wandb.init(
             tags=config.get("wandb", {}).get("tags"),
@@ -176,7 +177,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
         sweep_config["sweep_id"],
         function=train,
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
-        count=sweep_config.get("count"),
+        count=sweep_config.get("count_per_agent"),
     )
 
 

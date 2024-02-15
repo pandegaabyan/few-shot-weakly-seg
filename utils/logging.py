@@ -166,6 +166,8 @@ def get_run_paths(
     for exp_name in os.listdir(parent_path):
         exp_path = os.path.join(parent_path, exp_name)
         for run_name in os.listdir(exp_path):
+            if run_name == ".ipynb_checkpoints":
+                continue
             run_path = os.path.join(exp_path, run_name)
             run_time = os.path.getmtime(run_path)
             if start_time is not None and run_time < start_time:
