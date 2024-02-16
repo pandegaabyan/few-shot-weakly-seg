@@ -38,6 +38,7 @@ def rim_one_simple_dataset(
         "split_val_fold": val_fold,
         "split_test_size": 0.2,
         "split_test_fold": test_fold,
+        "cache_data": True,
         "dataset_name": "RIM-ONE",
     }
 

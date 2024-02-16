@@ -1,4 +1,5 @@
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal, Type
 
@@ -126,26 +127,11 @@ class BaseLearner(
             raise ValueError("Learner not initialized")
 
         super().on_fit_start()
+
         self.log_configuration()
-
-        if isinstance(self.example_input_array, tuple):
-            self.example_input_array = tuple(
-                inp.to(self.device) if isinstance(inp, Tensor) else inp
-                for inp in self.example_input_array
-            )
-        elif isinstance(self.example_input_array, Tensor):
-            self.example_input_array = self.example_input_array.to(self.device)
-
-        if self.tensorboard_graph:
-            tensorboard_dir = os.path.join(
-                FILENAMES["tensorboard_folder"],
-                self.config["learn"]["exp_name"],
-                self.config["learn"]["run_name"],
-            )
-            check_rmtree(tensorboard_dir, True)
-            tensorboard_writer = SummaryWriter(tensorboard_dir)
-            tensorboard_writer.add_graph(self, self.example_input_array)
-            tensorboard_writer.close()
+        self.prepare_datasets()
+        self.cast_example_input_array()
+        self.log_tensorboard_graph()
 
     def train_dataloader(self) -> DataLoader:
         return self.make_dataloader(self.train_datasets)
@@ -308,6 +294,28 @@ class BaseLearner(
 
     #     return optimization_data_dict
 
+    def prepare_datasets(self):
+        self.print("Preparing train datasets ... ")
+        start_time = time.perf_counter()
+        for ds in self.train_datasets:
+            ds.fill_cached_items_data()
+        inter_time = time.perf_counter()
+        self.print(f"train preparation done in {(inter_time - start_time):.2f} s")
+        self.print("Preparing val datasets ... ")
+        for ds in self.val_datasets:
+            ds.fill_cached_items_data()
+        end_time = time.perf_counter()
+        self.print(f"val preparation done in {(end_time - inter_time):.2f} s")
+
+    def cast_example_input_array(self):
+        if isinstance(self.example_input_array, tuple):
+            self.example_input_array = tuple(
+                inp.to(self.device) if isinstance(inp, Tensor) else inp
+                for inp in self.example_input_array
+            )
+        elif isinstance(self.example_input_array, Tensor):
+            self.example_input_array = self.example_input_array.to(self.device)
+
     def log_configuration(self):
         def dictify_datasets(datasets: list[tuple[Type[DatasetClass], DatasetKwargs]]):
             if datasets is None:
@@ -354,6 +362,19 @@ class BaseLearner(
         if self.config["learn"].get("dummy") is True:
             dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
             dummy_file.close()
+
+    def log_tensorboard_graph(self):
+        if not self.tensorboard_graph:
+            return
+        tensorboard_dir = os.path.join(
+            FILENAMES["tensorboard_folder"],
+            self.config["learn"]["exp_name"],
+            self.config["learn"]["run_name"],
+        )
+        check_rmtree(tensorboard_dir, True)
+        tensorboard_writer = SummaryWriter(tensorboard_dir)
+        tensorboard_writer.add_graph(self, self.example_input_array)
+        tensorboard_writer.close()
 
     def log_table(
         self,

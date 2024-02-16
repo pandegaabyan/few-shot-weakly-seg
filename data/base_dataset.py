@@ -9,7 +9,7 @@ from skimage import transform
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from data.typings import DataPathList, DatasetModes, T
+from data.typings import BaseDataTuple, DataPathList, DatasetModes, T
 
 
 class BaseDataset(Dataset, ABC):
@@ -24,6 +24,7 @@ class BaseDataset(Dataset, ABC):
         split_val_fold: int = 0,
         split_test_size: float = 0,
         split_test_fold: int = 0,
+        cache_data: bool = False,
         dataset_name: str | None = None,
     ):
         # Initializing variables.
@@ -36,6 +37,7 @@ class BaseDataset(Dataset, ABC):
         self.split_val_fold = split_val_fold
         self.split_test_size = split_test_size
         self.split_test_fold = split_test_fold
+        self.cache_data = cache_data
         self.dataset_name = dataset_name or self.__class__.__name__
         self.class_labels = self.set_class_labels()
 
@@ -43,6 +45,8 @@ class BaseDataset(Dataset, ABC):
         self.items = self.make_items()
         if len(self.items) == 0:
             raise (RuntimeError("Get 0 items, please check"))
+
+        self.cached_items_data: list[BaseDataTuple] = []
 
     # Function that create the list of pairs (img_path, mask_path)
     # Implement this function for your dataset structure
@@ -213,10 +217,10 @@ class BaseDataset(Dataset, ABC):
 
         return []
 
-    # Function to load images and masks
-    # Implement this function based on your data
-    # Returns: img, mask, img_filename
-    def get_data(self, index: int) -> tuple[NDArray, NDArray, str]:
+    def get_data(self, index: int) -> BaseDataTuple:
+        if self.cache_data and len(self.cached_items_data) > index:
+            return self.cached_items_data[index]
+
         img_path, msk_path = self.items[index]
 
         img, msk = self.read_image_mask(img_path, msk_path)
@@ -226,4 +230,17 @@ class BaseDataset(Dataset, ABC):
 
         img_filename = self.filename_from_path(img_path)
 
-        return img, msk, img_filename
+        data = BaseDataTuple(
+            image=img,
+            mask=msk,
+            file_name=img_filename,
+        )
+
+        return data
+
+    def fill_cached_items_data(self):
+        if not self.cache_data:
+            return
+
+        for i in range(len(self.items)):
+            self.cached_items_data.append(self.get_data(i))

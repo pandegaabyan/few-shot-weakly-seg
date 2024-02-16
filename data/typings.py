@@ -1,5 +1,6 @@
 from typing import Literal, NamedTuple, TypedDict, TypeVar, Union
 
+from numpy.typing import NDArray
 from torch import Tensor
 
 T = TypeVar("T")
@@ -31,6 +32,12 @@ SparsityTuple = tuple[SparsityMode, SparsityValue]
 SparsityOptions = list[tuple[SparsityMode, SparsityValueOptions]]
 
 ShotOptions = Union[int, list[int], tuple[int, int], Literal["random", "all"]]
+
+
+class BaseDataTuple(NamedTuple):
+    image: NDArray
+    mask: NDArray
+    file_name: str
 
 
 class SimpleDataTuple(NamedTuple):
@@ -66,6 +73,7 @@ class BaseDatasetKwargs(TypedDict, total=False):
     split_val_fold: int
     split_test_size: float
     split_test_fold: int
+    cache_data: bool
     dataset_name: str | None
 
 
