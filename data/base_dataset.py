@@ -137,20 +137,6 @@ class BaseDataset(Dataset, ABC):
 
         return filename
 
-    # def make_items(self) -> DataPathList:
-    #     items = super().make_items()
-    #     if (
-    #         not self.extend_dataset_to_max
-    #         or self.max_items is None
-    #         or len(items) >= self.max_items
-    #     ):
-    #         return items
-    #     multiplied_items = items * int(np.ceil(self.max_items / len(items)))
-    #     random.seed(self.seed)
-    #     items = random.sample(multiplied_items, self.max_items)
-    #     random.seed(None)
-    #     return items
-
     @staticmethod
     def extend_data(data: list[T], num_items: int, seed: int | None = None) -> list[T]:
         if len(data) >= num_items:

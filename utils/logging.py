@@ -55,10 +55,6 @@ def get_count_as_text(data: Iterable) -> str:
     return " ".join([f"{key}({count})" for key, count in counted.items()])
 
 
-# def prepare_ckpt_path_for_artifact(ckpt_path: str) -> str:
-#     return (
-#         ckpt_path.replace("-", "").replace(" ", "-").replace("/", "-").replace("=", "_")
-#     )
 def prepare_ckpt_path_for_artifact(ckpt_path: str) -> tuple[str, str]:
     exp_name, run_name, ckpt_name = ckpt_path.split("/")
     run_name = run_name.replace("-", "").replace(" ", "-")
@@ -66,7 +62,7 @@ def prepare_ckpt_path_for_artifact(ckpt_path: str) -> tuple[str, str]:
     return f"{exp_name}-{run_name}", ckpt_name
 
 
-def check_mkdir(dir_name: str):  # Error Here
+def check_mkdir(dir_name: str):
     import os
 
     if not os.path.exists(dir_name):

@@ -26,10 +26,6 @@ class CustomMetric(Metric):
     def params(self) -> dict:
         return {
             "training": self.training,
-            # "compute_on_cpu": self.compute_on_cpu,
-            # "dist_sync_on_step": self.dist_sync_on_step,
-            # "sync_on_compute": self.sync_on_compute,
-            # "compute_with_cache": self.compute_with_cache,
             **self.additional_params(),
         }
 

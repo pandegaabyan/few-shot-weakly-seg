@@ -185,7 +185,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
 
 @click.command()
 @click.option("--dummy", "-d", is_flag=True)
-@click.option("--resume", "-r", is_flag=True)  # Need to test this
+@click.option("--resume", "-r", is_flag=True)
 @click.option("--no_wandb", "-nw", is_flag=True)
 @click.option(
     "--mode",

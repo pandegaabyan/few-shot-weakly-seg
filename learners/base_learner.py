@@ -203,7 +203,6 @@ class BaseLearner(
 
         if wandb_config["log_model"]:
             onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
-            # wandb.log_model(onnx_path)
             model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
             model_artifact.add_file(onnx_path)
             wandb.log_artifact(model_artifact)
@@ -270,29 +269,6 @@ class BaseLearner(
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
-
-    # def get_optimization_data_dict(self) -> dict:
-    #     optimization_data_dict = {}
-
-    #     scheduler = self.lr_schedulers()
-    #     if isinstance(scheduler, list):
-    #         for i, s in enumerate(scheduler):
-    #             optimization_data_dict[f"scheduler_{i}"] = get_name_from_instance(s)
-    #             optimization_data_dict[f"scheduler_{i}_data"] = get_scheduler_data(s)
-    #     elif scheduler is not None:
-    #         optimization_data_dict["scheduler"] = get_name_from_instance(scheduler)
-    #         optimization_data_dict["scheduler_data"] = get_scheduler_data(scheduler)
-
-    #     optimizer = self.optimizers(False)
-    #     if isinstance(optimizer, list):
-    #         for i, o in enumerate(optimizer):
-    #             optimization_data_dict[f"optimizer_{i}"] = get_name_from_instance(o)
-    #             optimization_data_dict[f"optimizer_{i}_data"] = get_optimizer_data(o)
-    #     elif optimizer is not None:
-    #         optimization_data_dict["optimizer"] = get_name_from_instance(optimizer)
-    #         optimization_data_dict["optimizer_data"] = get_optimizer_data(optimizer)
-
-    #     return optimization_data_dict
 
     def prepare_datasets(self):
         self.print("Preparing train datasets ... ")
