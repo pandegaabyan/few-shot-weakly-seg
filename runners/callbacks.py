@@ -1,12 +1,13 @@
 from pytorch_lightning import Callback, LightningModule, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
+from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
 
 from config.config_type import CallbacksConfig
 
 
 class CustomRichProgressBar(RichProgressBar):
     def on_sanity_check_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-        ...
+        self.refresh()
 
     def on_validation_epoch_end(self, trainer, pl_module) -> None:
         if (
@@ -20,7 +21,16 @@ class CustomRichProgressBar(RichProgressBar):
 def make_callbacks(
     config: CallbacksConfig, ckpt_path: str, ckpt_every_n_epochs: int = 1
 ) -> list[Callback]:
-    progress_callback = CustomRichProgressBar(leave=config.get("progress_leave", False))
+    progress_callback = CustomRichProgressBar(
+        leave=config.get("progress_leave", False),
+        theme=RichProgressBarTheme(
+            description="#6206E0",
+            batch_progress="#6206E0",
+            time="#6206E0",
+            processing_speed="#6206E0",
+            metrics="#6206E0",
+        ),
+    )
 
     monitor = config.get("monitor", None)
     monitor_mode = config.get("monitor_mode", "min")
