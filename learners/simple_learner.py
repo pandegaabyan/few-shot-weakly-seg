@@ -101,6 +101,9 @@ class SimpleLearner(
         score = self.metric.prepare_for_log(score)
         end_time = time.perf_counter()
 
+        if self.trainer.sanity_checking:
+            return loss
+
         self.log_table(
             [
                 ("batch", batch_idx),
