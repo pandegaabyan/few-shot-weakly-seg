@@ -1,8 +1,8 @@
 import os
 
+import wandb
 from dotenv import load_dotenv
 
-import wandb
 from config.constants import WANDB_SETTINGS
 from utils.utils import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 
@@ -52,3 +52,19 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
     dataset_artifact.add_reference(f"file://{dataset_path}")
     wandb.log_artifact(dataset_artifact)
     wandb.finish()
+
+
+def wandb_delete_old_tables(run_id: str | None, dummy: bool = False):
+    if run_id is None:
+        return
+    wandb_path = (
+        WANDB_SETTINGS["entity"]
+        + "/"
+        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+        + "/"
+        + run_id
+    )
+    run = wandb.Api().run(wandb_path)
+    for artifact in run.logged_artifacts():
+        if artifact.type == "run_table" and "latest" not in artifact.aliases:
+            artifact.delete(delete_aliases=True)

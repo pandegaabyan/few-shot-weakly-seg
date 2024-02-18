@@ -1,4 +1,3 @@
-import time
 from abc import ABC, abstractmethod
 from typing import Any, Type
 
@@ -13,7 +12,7 @@ from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
 from learners.metrics import CustomMetric
 from learners.typings import SimpleDataBatchTuple
-from utils.logging import get_count_as_text
+from utils.utils import mean
 
 
 class SimpleLearner(
@@ -58,31 +57,35 @@ class SimpleLearner(
         return self.net(x)
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        start_time = time.perf_counter()
         image, mask, file_names, dataset_names = batch
         pred = self(image)
         loss = self.loss(pred, mask)
+
         self.training_step_losses.append(loss.item())
-        end_time = time.perf_counter()
+        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
 
         self.log_table(
             [
+                ("type", "TR"),
+                ("epoch", self.current_epoch),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
-                ("duration", end_time - start_time),
-                ("dataset", get_count_as_text(dataset_names)),
-            ],
-            "train",
+            ]
+            + dummy_score,
+            "metrics",
         )
-        self.wandb_log({"loss": loss.item()}, "train/")
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
             for i in self.train_indices_to_save[batch_idx]:
                 self.wandb_log_image(
                     mask[i],
                     pred[i],
-                    [("file_name", file_names[i]), ("dataset", dataset_names[i])],
-                    "train_preds",
+                    [
+                        ("type", "TR"),
+                        ("file_name", file_names[i]),
+                        ("dataset", dataset_names[i]),
+                    ],
+                    "preds",
                 )
 
         return loss
@@ -92,37 +95,39 @@ class SimpleLearner(
         if val_freq != 0 and self.current_epoch % val_freq != 0:
             return
 
-        start_time = time.perf_counter()
         image, mask, file_names, dataset_names = batch
         pred = self(image)
         loss = self.loss(pred, mask)
-        self.validation_step_losses.append(loss.item())
-        score = self.metric(pred, mask)
-        score = self.metric.prepare_for_log(score)
-        end_time = time.perf_counter()
 
         if self.trainer.sanity_checking:
             return loss
 
+        self.validation_step_losses.append(loss.item())
+        score = self.metric(pred, mask)
+        score = self.metric.prepare_for_log(score)
+
         self.log_table(
             [
+                ("type", "VL"),
+                ("epoch", self.current_epoch),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
-                ("duration", end_time - start_time),
-                ("dataset", get_count_as_text(dataset_names)),
             ]
             + score,
-            "val",
+            "metrics",
         )
-        self.wandb_log({"loss": loss.item()} | dict(score), "val/")
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
             for i in self.val_indices_to_save[batch_idx]:
                 self.wandb_log_image(
                     mask[i],
                     pred[i],
-                    [("file_name", file_names[i]), ("dataset", dataset_names[i])],
-                    "val_preds",
+                    [
+                        ("type", "VL"),
+                        ("file_name", file_names[i]),
+                        ("dataset", dataset_names[i]),
+                    ],
+                    "preds",
                 )
 
         return loss
@@ -130,14 +135,9 @@ class SimpleLearner(
     def on_train_epoch_end(self):
         super().on_train_epoch_end()
 
-        train_loss = sum(self.training_step_losses) / len(self.training_step_losses)
-        self.log_table(
-            [("loss", train_loss)],
-            "train_summary",
-            index="epoch",
-        )
-        self.wandb_log({"loss": train_loss}, "summary/train_", True)
+        train_loss = mean(self.training_step_losses)
         self.training_step_losses.clear()
+        self.wandb_log({"loss": train_loss}, "summary/train_")
 
         total_epoch = self.config["learn"]["num_epochs"] - 1
         message = (
@@ -145,24 +145,17 @@ class SimpleLearner(
         )
 
         if len(self.validation_step_losses) != 0:
-            val_loss = sum(self.validation_step_losses) / len(
-                self.validation_step_losses
-            )
+            val_loss = mean(self.validation_step_losses)
+            self.validation_step_losses.clear()
             val_score = self.metric.compute()
             val_score = self.metric.prepare_for_log(val_score)
             score_summary = self.metric.score_summary()
-            self.log_table(
-                [("loss", val_loss)] + val_score,
-                "val_summary",
-                index="epoch",
-            )
+
             self.wandb_log(
                 {"loss": val_loss} | dict(val_score) | {"score": score_summary},
                 "summary/val_",
-                True,
             )
             self.log_checkpoint_ref(score_summary)
-            self.validation_step_losses.clear()
             message += f"  val_loss: {val_loss:.4f}  val_score: {dict(val_score)}"
 
         self.print(message)
@@ -170,52 +163,51 @@ class SimpleLearner(
         self.wandb_log_ckpt_ref()
 
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        start_time = time.perf_counter()
         image, mask, file_names, dataset_names = batch
         pred = self(image)
         loss = self.loss(pred, mask)
+
         self.test_step_losses.append(loss.item())
         score = self.metric(pred, mask)
         score = self.metric.prepare_for_log(score)
-        end_time = time.perf_counter()
 
         self.log_table(
             [
+                ("type", "TS"),
+                ("epoch", self.current_epoch),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
-                ("duration", end_time - start_time),
-                ("dataset", get_count_as_text(dataset_names)),
             ]
             + score,
-            "test",
-            index="step",
+            "metrics",
         )
-        self.wandb_log({"loss": loss.item()} | dict(score), "test/")
 
         for i in self.test_indices_to_save[batch_idx]:
             self.wandb_log_image(
                 mask[i],
                 pred[i],
-                [("file_name", file_names[i]), ("dataset", dataset_names[i])],
-                "test_preds",
+                [
+                    ("type", "TS"),
+                    ("file_name", file_names[i]),
+                    ("dataset", dataset_names[i]),
+                ],
+                "preds",
             )
 
         return loss
 
     def on_test_end(self) -> None:
         super().on_test_end()
-        test_loss = sum(self.test_step_losses) / len(self.test_step_losses)
+
+        test_loss = mean(self.test_step_losses)
+        self.test_step_losses.clear()
         test_score = self.metric.compute()
         test_score = self.metric.prepare_for_log(test_score)
-        self.log_table(
-            [("loss", test_loss)] + test_score,
-            "test_summary",
-            index="epoch",
-        )
-        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_", True)
-        self.test_step_losses.clear()
+
+        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
+
         self.print(f"Test  loss: {test_loss}  score: {dict(test_score)}")
-        self.wandb_push_table()
+        self.wandb_push_table(force=True)
 
     def make_dataloader(self, datasets: list[SimpleDataset]):
         return DataLoader(

@@ -1,14 +1,14 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Literal, Type
+from typing import Any, Generic, Type
 
 import numpy as np
+import wandb
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 
-import wandb
 from config.config_type import ConfigUnion
 from config.constants import FILENAMES, WANDB_SETTINGS
 from data.typings import DatasetModes
@@ -37,6 +37,7 @@ from utils.utils import (
     make_batch_sample_indices,
     merge_dicts,
 )
+from utils.wandb import wandb_delete_old_tables
 
 
 class BaseLearner(
@@ -341,30 +342,21 @@ class BaseLearner(
         self,
         data: list[tuple[str, Any]],
         group: str,
-        index: Literal["step", "epoch", "both"] = "both",
     ):
-        index_data = []
-        if index == "epoch" or index == "both":
-            index_data.append(("epoch", self.current_epoch))
-        if index == "step" or index == "both":
-            index_data.append(("step", self.global_step))
-        new_data = index_data + data
-
-        self.wandb_log_table(new_data, group)
+        self.wandb_log_table(data, group)
 
         csv_filename = os.path.join(self.log_path, f"{group}.csv")
-        write_to_csv(csv_filename, new_data)
+        write_to_csv(csv_filename, data)
 
     def log_checkpoint_ref(self, value: float):
         name = self.config["callbacks"].get("monitor")
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
 
-    def wandb_log(
-        self, data: dict[str, Any], prefix: str = "", use_epoch: bool = False
-    ):
+    def wandb_log(self, data: dict[str, Any], prefix: str = ""):
         if not self.use_wandb:
             return
+        use_epoch = prefix.startswith("summary/")
         wandb.log(
             {prefix + k: v for k, v in data.items()}
             | ({"epoch": self.current_epoch} if use_epoch else {})
@@ -384,12 +376,21 @@ class BaseLearner(
 
     def wandb_push_table(self, force: bool = False):
         push_table_freq = self.config.get("wandb", {}).get("push_table_freq")
+        last_epoch = self.current_epoch == self.config["learn"]["num_epochs"] - 1
         if push_table_freq and (
-            self.current_epoch % push_table_freq == 0
-            or self.current_epoch == self.config["learn"]["num_epochs"] - 1
-            or force
+            self.current_epoch % push_table_freq == 0 or last_epoch or force
         ):
             wandb.log(self.wandb_tables)
+            for group in self.wandb_tables:
+                self.wandb_tables[group] = wandb.Table(
+                    columns=self.wandb_tables[group].columns,
+                    data=self.wandb_tables[group].data,
+                )
+        if last_epoch or force:
+            wandb_delete_old_tables(
+                self.config.get("wandb", {}).get("run_id"),
+                self.config["learn"].get("dummy", False),
+            )
 
     def wandb_log_image(
         self,

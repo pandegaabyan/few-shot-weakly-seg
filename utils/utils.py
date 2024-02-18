@@ -29,6 +29,10 @@ def convert_local_iso_to_utc_iso(iso_timestamp: str) -> str:
     return datetime.datetime.utcfromtimestamp(timestamp).isoformat()
 
 
+def mean(ls: list[float]) -> float:
+    return sum(ls) / len(ls)
+
+
 def merge_dicts(dicts: list[dict]) -> dict:
     return {k: v for d in dicts for k, v in d.items()}
 
