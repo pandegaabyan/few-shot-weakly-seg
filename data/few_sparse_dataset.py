@@ -31,6 +31,7 @@ class FewSparseDataset(BaseDataset, ABC):
         seed: int | None = None,
         split_val_size: float = 0,
         split_test_size: float = 0,
+        cache_data: bool = False,
         dataset_name: str | None = None,
         shot_options: ShotOptions = "all",
         sparsity_options: SparsityOptions = [("random", "random")],
@@ -52,6 +53,7 @@ class FewSparseDataset(BaseDataset, ABC):
             0,
             split_test_size,
             0,
+            cache_data,
             dataset_name,
         )
 
