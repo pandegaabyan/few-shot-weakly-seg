@@ -3,12 +3,12 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, Type
 
 import numpy as np
-import wandb
 from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 
+import wandb
 from config.config_type import ConfigUnion
 from config.constants import FILENAMES, WANDB_SETTINGS
 from data.typings import DatasetModes
@@ -357,9 +357,10 @@ class BaseLearner(
         if not self.use_wandb:
             return
         use_epoch = prefix.startswith("summary/")
+        epoch_value = 0 if "test" in prefix else self.current_epoch
         wandb.log(
             {prefix + k: v for k, v in data.items()}
-            | ({"epoch": self.current_epoch} if use_epoch else {})
+            | ({"epoch": epoch_value} if use_epoch else {})
         )
 
     def wandb_log_table(

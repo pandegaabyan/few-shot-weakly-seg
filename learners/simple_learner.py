@@ -174,7 +174,7 @@ class SimpleLearner(
         self.log_table(
             [
                 ("type", "TS"),
-                ("epoch", self.current_epoch),
+                ("epoch", 0),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
             ]
