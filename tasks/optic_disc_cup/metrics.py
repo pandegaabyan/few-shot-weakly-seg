@@ -8,8 +8,8 @@ from learners.metrics import CustomMetric
 class DiscCupIoU(CustomMetric):
     def __init__(self, **kwargs):
         super(CustomMetric, self).__init__(**kwargs)
-        self.add_state("disc_iou", default=torch.tensor(0), dist_reduce_fx="mean")
-        self.add_state("cup_iou", default=torch.tensor(0), dist_reduce_fx="mean")
+        self.add_state("iou_disc", default=torch.tensor(0), dist_reduce_fx="mean")
+        self.add_state("iou_cup", default=torch.tensor(0), dist_reduce_fx="mean")
 
     def update(self, inputs: Tensor, targets: Tensor):
         inputs = inputs.argmax(dim=1)
@@ -17,17 +17,17 @@ class DiscCupIoU(CustomMetric):
         disc_inputs = inputs != 0
         cup_targets = targets == 2
         cup_inputs = inputs == 2
-        self.disc_iou = binary_jaccard_index(disc_inputs, disc_targets)
-        self.cup_iou = binary_jaccard_index(cup_inputs, cup_targets)
+        self.iou_disc = binary_jaccard_index(disc_inputs, disc_targets)
+        self.iou_cup = binary_jaccard_index(cup_inputs, cup_targets)
 
     def compute(self) -> dict[str, Tensor]:
-        return {"disc_iou": self.disc_iou, "cup_iou": self.cup_iou}
+        return {"iou_disc": self.iou_disc, "iou_cup": self.iou_cup}
 
     def score_summary(self) -> float:
-        return sum([self.disc_iou.item(), self.cup_iou.item()]) / 2
+        return sum([self.iou_disc.item(), self.iou_cup.item()]) / 2
 
     def additional_params(self) -> dict:
         return {
-            "disc_iou": "mean",
-            "cup_iou": "mean",
+            "iou_disc": "mean",
+            "iou_cup": "mean",
         }
