@@ -127,7 +127,7 @@ def make_run_name(exp_name: str) -> str:
 
 def make_config(
     learner: Literal["simple", "meta", "weasel", "protoseg", "guidednets", None] = None,
-    mode: Literal["train", "test", "sweep", None] = None,
+    mode: Literal["fit", "test", "sweep", None] = None,
     name_suffix: str = "",
     use_wandb: bool = True,
     dummy: bool = False,
@@ -162,13 +162,13 @@ def make_config(
                 "save_val_preds": 0,
                 "save_test_preds": 20,
             }
-    elif mode == "train":
+    elif mode == "fit":
         config_base["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_base["wandb"] = {
                 "run_id": "",
                 "tags": [],
-                "job_type": "train",
+                "job_type": "fit",
                 "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,

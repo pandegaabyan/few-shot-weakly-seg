@@ -88,7 +88,11 @@ def make_learner_and_trainer(
 
 
 def run_basic(
-    config: ConfigUnion, dummy: bool, resume: bool = False, test_only: bool = False
+    config: ConfigUnion,
+    dummy: bool,
+    resume: bool = False,
+    fit_only: bool = False,
+    test_only: bool = False,
 ):
     exp_name = config["learn"]["exp_name"]
     run_name = config["learn"]["run_name"]
@@ -127,7 +131,8 @@ def run_basic(
 
     if not test_only:
         trainer.fit(learner, ckpt_path=ckpt_path if resume else None)
-    trainer.test(learner, ckpt_path=ckpt_path if test_only else "best")
+    if not fit_only:
+        trainer.test(learner, ckpt_path=ckpt_path if test_only else "best")
 
     if use_wandb:
         wandb.finish()
@@ -190,8 +195,8 @@ def run_sweep(config: ConfigUnion, dummy: bool):
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["train", "test", "sweep"]),
-    default="train",
+    type=click.Choice(["basic", "fit", "test", "sweep"]),
+    default="basic",
 )
 @click.option(
     "--configs",
@@ -204,7 +209,8 @@ def run_sweep(config: ConfigUnion, dummy: bool):
 )
 def main(
     mode: Literal[
-        "train",
+        "basic",
+        "fit",
         "test",
         "sweep",
     ],
@@ -216,6 +222,8 @@ def main(
     if not dummy and not check_git_clean():
         raise Exception("Git is not clean, please commit your changes first")
 
+    if mode == "basic":
+        mode = "fit"
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
     )
@@ -223,8 +231,10 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    if mode == "train":
+    if mode == "basic":
         run_basic(config, dummy, resume=resume)
+    elif mode == "fit":
+        run_basic(config, dummy, resume=resume, fit_only=True)
     elif mode == "test":
         run_basic(config, dummy, resume=resume, test_only=True)
     elif mode == "sweep":
