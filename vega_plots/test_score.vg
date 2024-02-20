@@ -1,0 +1,112 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+        "url": "data.csv"
+    },
+    "transform": [
+        {
+            "filter": "datum.type == 'TS'"
+        },
+        {
+            "fold": [
+                "iou_cup",
+                "iou_disc"
+            ],
+            "as": [
+                "iou_type",
+                "iou"
+            ]
+        },
+        {
+            "filter": {
+                "param": "select"
+            }
+        }
+    ],
+    "facet": {
+        "row": {
+            "field": "sparsity_mode"
+        },
+        "column": {
+            "field": "shot"
+        }
+    },
+    "spec": {
+        "width": 300,
+        "params": [
+            {
+                "name": "name",
+                "select": {
+                    "type": "point",
+                    "fields": [
+                        "name"
+                    ]
+                },
+                "bind": "legend"
+            },
+            {
+                "name": "select",
+                "select": {
+                    "type": "point",
+                    "fields": [
+                        "iou_type"
+                    ]
+                },
+                "bind": {
+                    "input": "select",
+                    "options": [
+                        null,
+                        "iou_cup",
+                        "iou_disc"
+                    ],
+                    "labels": [
+                        "All",
+                        "iou_cup",
+                        "iou_disc"
+                    ]
+                }
+            }
+        ],
+        "encoding": {
+            "x": {
+                "field": "sparsity_value",
+                "type": "nominal"
+            },
+            "y": {
+                "field": "iou",
+                "type": "quantitative",
+                "scale": {
+                    "zero": false
+                }
+            },
+            "strokeDash": {
+                "field": "iou_type",
+                "type": "nominal"
+            },
+            "color": {
+                "field": "name",
+                "type": "nominal"
+            },
+            "opacity": {
+                "condition": {
+                    "param": "name",
+                    "value": 1
+                },
+                "value": 0.2
+            }
+        },
+        "mark": {
+            "type": "line",
+            "point": true,
+            "tooltip": true
+        }
+    },
+    "resolve": {
+        "axis": {
+            "x": "independent"
+        },
+        "scale": {
+            "x": "independent"
+        }
+    }
+}

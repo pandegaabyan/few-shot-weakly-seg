@@ -1,0 +1,193 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+        "url": "data.csv"
+    },
+    "transform": [
+        {
+            "filter": "datum.type != 'TR'"
+        },
+        {
+            "filter": {
+                "param": "select"
+            }
+        },
+        {
+            "fold": [
+                "iou_cup",
+                "iou_disc"
+            ],
+            "as": [
+                "iou_type",
+                "iou"
+            ]
+        },
+        {
+            "calculate": "datum.iou",
+            "as": "iou_copy"
+        },
+        {
+            "fold": [
+                "iou",
+                "iou_copy"
+            ],
+            "as": [
+                "iou_copy_type",
+                "iou"
+            ]
+        },
+        {
+            "calculate": "datum.iou_copy_type == 'iou' ? datum.sparsity_mode : 'combined'",
+            "as": "sparsity_mode"
+        }
+    ],
+    "facet": {
+        "row": {
+            "field": "sparsity_mode"
+        },
+        "column": {
+            "field": "iou_type"
+        }
+    },
+    "spec": {
+        "width": 300,
+        "encoding": {
+            "x": {
+                "field": "epoch",
+                "type": "quantitative"
+            },
+            "y": {
+                "field": "iou",
+                "type": "quantitative",
+                "scale": {
+                    "zero": false
+                }
+            },
+            "color": {
+                "field": "name",
+                "type": "nominal"
+            }
+        },
+        "layer": [
+            {
+                "params": [
+                    {
+                        "name": "name",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "name"
+                            ]
+                        },
+                        "bind": "legend"
+                    },
+                    {
+                        "name": "select",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "type"
+                            ]
+                        },
+                        "bind": {
+                            "input": "select",
+                            "options": [
+                                null,
+                                "VL",
+                                "TS"
+                            ],
+                            "labels": [
+                                "All",
+                                "Validation",
+                                "Test"
+                            ]
+                        }
+                    }
+                ],
+                "transform": [
+                    {
+                        "filter": "datum.type == 'VL'"
+                    }
+                ],
+                "mark": "line",
+                "encoding": {
+                    "y": {
+                        "field": "iou",
+                        "aggregate": "mean"
+                    },
+                    "opacity": {
+                        "condition": {
+                            "param": "name",
+                            "value": 1
+                        },
+                        "value": 0.2
+                    }
+                }
+            },
+            {
+                "transform": [
+                    {
+                        "filter": "datum.type == 'VL'"
+                    }
+                ],
+                "mark": {
+                    "type": "errorband",
+                    "extent": "ci"
+                },
+                "encoding": {
+                    "opacity": {
+                        "condition": {
+                            "param": "name",
+                            "value": 0.2
+                        },
+                        "value": 0
+                    }
+                }
+            },
+            {
+                "transform": [
+                    {
+                        "filter": "datum.type == 'TS'"
+                    }
+                ],
+                "mark": "point",
+                "encoding": {
+                    "y": {
+                        "field": "iou",
+                        "aggregate": "mean"
+                    },
+                    "size": {
+                        "value": 20
+                    },
+                    "opacity": {
+                        "condition": {
+                            "param": "name",
+                            "value": 1
+                        },
+                        "value": 0.2
+                    }
+                }
+            },
+            {
+                "transform": [
+                    {
+                        "filter": "datum.type == 'TS'"
+                    }
+                ],
+                "mark": {
+                    "type": "errorbar",
+                    "extent": "ci"
+                },
+                "encoding": {
+                    "opacity": {
+                        "condition": {
+                            "param": "name",
+                            "value": 1
+                        },
+                        "value": 0
+                    }
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,129 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+        "url": "data.csv"
+    },
+    "transform": [
+        {
+            "filter": {
+                "param": "select"
+            }
+        },
+        {
+            "calculate": "datum.type == 'TR' ? datum.epoch + '-' + datum.batch : datum.type == 'VL' ? datum.epoch + 'V' : '-TS'",
+            "as": "step"
+        }
+    ],
+    "width": 500,
+    "height": 500,
+    "encoding": {
+        "x": {
+            "field": "step",
+            "type": "ordinal",
+            "axis": {
+                "ticks": false,
+                "labelExpr": "indexof(datum.value, 'V') != -1 || datum.value == '-TS' ? datum.value : ''"
+            }
+        },
+        "y": {
+            "field": "loss",
+            "type": "quantitative",
+            "scale": {
+                "zero": false
+            }
+        },
+        "strokeWidth": {
+            "value": 1.5
+        },
+        "color": {
+            "field": "name",
+            "type": "nominal"
+        },
+        "opacity": {
+            "condition": {
+                "param": "name",
+                "value": 1
+            },
+            "value": 0.2
+        }
+    },
+    "layer": [
+        {
+            "params": [
+                {
+                    "name": "name",
+                    "select": {
+                        "type": "point",
+                        "fields": [
+                            "name"
+                        ]
+                    },
+                    "bind": "legend"
+                },
+                {
+                    "name": "select",
+                    "select": {
+                        "type": "point",
+                        "fields": [
+                            "type"
+                        ]
+                    },
+                    "bind": {
+                        "input": "select",
+                        "options": [
+                            null,
+                            "TR",
+                            "VL",
+                            "TS"
+                        ],
+                        "labels": [
+                            "All",
+                            "Train",
+                            "Validation",
+                            "Test"
+                        ]
+                    }
+                }
+            ],
+            "transform": [
+                {
+                    "filter": "datum.type == 'TR'"
+                }
+            ],
+            "mark": {
+                "type": "line"
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type != 'TR'"
+                }
+            ],
+            "mark": {
+                "type": "errorbar",
+                "extent": "ci"
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type != 'TR'"
+                }
+            ],
+            "mark": "point",
+            "encoding": {
+                "y": {
+                    "field": "loss",
+                    "aggregate": "mean"
+                },
+                "size": {
+                    "value": 20
+                },
+                "shape": {
+                    "field": "type"
+                }
+            }
+        }
+    ]
+}

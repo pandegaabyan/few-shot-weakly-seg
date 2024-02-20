@@ -1,0 +1,108 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+        "url": "data.csv"
+    },
+    "transform": [
+        {
+            "filter": "datum.type == 'TS'"
+        },
+        {
+            "fold": [
+                "iou_cup",
+                "iou_disc"
+            ],
+            "as": [
+                "iou_type",
+                "iou"
+            ]
+        },
+        {
+            "calculate": "datum.iou",
+            "as": "iou_copy"
+        },
+        {
+            "fold": [
+                "iou",
+                "iou_copy"
+            ],
+            "as": [
+                "iou_copy_type",
+                "iou"
+            ]
+        },
+        {
+            "calculate": "datum.iou_copy_type == 'iou' ? datum.sparsity_mode : 'combined'",
+            "as": "sparsity_mode"
+        }
+    ],
+    "facet": {
+        "row": {
+            "field": "iou_type"
+        }
+    },
+    "spec": {
+        "width": 400,
+        "height": 400,
+        "encoding": {
+            "x": {
+                "field": "sparsity_mode",
+                "type": "nominal"
+            },
+            "y": {
+                "field": "iou",
+                "type": "quantitative",
+                "scale": {
+                    "zero": false
+                }
+            },
+            "strokeWidth": {
+                "value": 1.5
+            },
+            "color": {
+                "field": "name",
+                "type": "nominal"
+            },
+            "opacity": {
+                "condition": {
+                    "param": "name",
+                    "value": 1
+                },
+                "value": 0.2
+            }
+        },
+        "layer": [
+            {
+                "mark": "point",
+                "params": [
+                    {
+                        "name": "name",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "name"
+                            ]
+                        },
+                        "bind": "legend"
+                    }
+                ],
+                "encoding": {
+                    "y": {
+                        "field": "iou",
+                        "aggregate": "mean"
+                    },
+                    "size": {
+                        "value": 20
+                    }
+                }
+            },
+            {
+                "mark": {
+                    "type": "errorbar",
+                    "extent": "ci",
+                    "ticks": true
+                }
+            }
+        ]
+    }
+}

@@ -1,0 +1,146 @@
+{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "data": {
+        "url": "data.csv"
+    },
+    "transform": [
+        {
+            "filter": {
+                "param": "select"
+            }
+        }
+    ],
+    "width": 500,
+    "height": 500,
+    "encoding": {
+        "x": {
+            "field": "epoch",
+            "type": "quantitative",
+            "axis": {
+                "labelAngle": 0
+            }
+        },
+        "y": {
+            "field": "loss",
+            "type": "quantitative",
+            "scale": {
+                "zero": false
+            }
+        },
+        "strokeWidth": {
+            "value": 1.5
+        },
+        "color": {
+            "field": "name",
+            "type": "nominal"
+        },
+        "opacity": {
+            "condition": {
+                "param": "name",
+                "value": 1
+            },
+            "value": 0.2
+        }
+    },
+    "layer": [
+        {
+            "params": [
+                {
+                    "name": "name",
+                    "select": {
+                        "type": "point",
+                        "fields": [
+                            "name"
+                        ]
+                    },
+                    "bind": "legend"
+                },
+                {
+                    "name": "select",
+                    "select": {
+                        "type": "point",
+                        "fields": [
+                            "type"
+                        ]
+                    },
+                    "bind": {
+                        "input": "select",
+                        "options": [
+                            null,
+                            "TR",
+                            "VL",
+                            "TS"
+                        ],
+                        "labels": [
+                            "All",
+                            "Train",
+                            "Validation",
+                            "Test"
+                        ]
+                    }
+                }
+            ],
+            "transform": [
+                {
+                    "filter": "datum.type != 'TS'"
+                }
+            ],
+            "mark": "line",
+            "encoding": {
+                "y": {
+                    "field": "loss",
+                    "aggregate": "mean"
+                },
+                "strokeDash": {
+                    "field": "type",
+                    "type": "nominal"
+                }
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type != 'TS'"
+                }
+            ],
+            "mark": {
+                "type": "errorbar",
+                "extent": "ci"
+            },
+            "encoding": {
+                "strokeDash": {
+                    "field": "type",
+                    "type": "nominal"
+                }
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type == 'TS'"
+                }
+            ],
+            "mark": {
+                "type": "errorbar",
+                "extent": "ci"
+            }
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type == 'TS'"
+                }
+            ],
+            "mark": "point",
+            "encoding": {
+                "y": {
+                    "field": "loss",
+                    "aggregate": "mean"
+                },
+                "size": {
+                    "value": 20
+                }
+            }
+        }
+    ]
+}
