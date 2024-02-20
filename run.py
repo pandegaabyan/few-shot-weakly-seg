@@ -222,10 +222,9 @@ def main(
     if not dummy and not check_git_clean():
         raise Exception("Git is not clean, please commit your changes first")
 
-    if mode == "basic":
-        mode = "fit"
+    config_mode = "fit" if mode == "basic" else mode
     config = make_config(
-        mode=mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
+        mode=config_mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
     )
     for key, value in configs:
         [parent_key, child_key] = key.split("/")

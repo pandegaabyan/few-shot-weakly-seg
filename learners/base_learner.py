@@ -37,7 +37,6 @@ from utils.utils import (
     make_batch_sample_indices,
     merge_dicts,
 )
-from utils.wandb import wandb_delete_old_tables
 
 
 class BaseLearner(
@@ -384,14 +383,8 @@ class BaseLearner(
             wandb.log(self.wandb_tables)
             for group in self.wandb_tables:
                 self.wandb_tables[group] = wandb.Table(
-                    columns=self.wandb_tables[group].columns,
-                    data=self.wandb_tables[group].data,
+                    columns=self.wandb_tables[group].columns
                 )
-        if last_epoch or force:
-            wandb_delete_old_tables(
-                self.config.get("wandb", {}).get("run_id"),
-                self.config["learn"].get("dummy", False),
-            )
 
     def wandb_log_image(
         self,
