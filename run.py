@@ -83,6 +83,7 @@ def make_learner_and_trainer(
             new_config["learn"].get("val_freq", 1),
         ),
         logger=False,
+        # profiler="simple"
     )
 
     return (learner, trainer)
