@@ -95,12 +95,12 @@ class SimpleLearner(
         pred = self(image)
         loss = self.loss(pred, mask)
 
-        if self.trainer.sanity_checking:
-            return loss
-
         self.validation_step_losses.append(loss.item())
         score = self.metric(pred, mask)
         score = self.metric.prepare_for_log(score)
+
+        if self.trainer.sanity_checking:
+            return loss
 
         self.log_table(
             [
@@ -136,6 +136,9 @@ class SimpleLearner(
         val_score = self.metric.compute()
         val_score = self.metric.prepare_for_log(val_score)
         score_summary = self.metric.score_summary()
+
+        if self.trainer.sanity_checking:
+            return
 
         self.wandb_log(
             {"loss": val_loss} | dict(val_score) | {"score": score_summary},
