@@ -76,6 +76,7 @@ def make_learner_and_trainer(
 
     trainer = Trainer(
         max_epochs=new_config["learn"]["num_epochs"],
+        check_val_every_n_epoch=new_config["learn"].get("val_freq", 1),
         callbacks=make_callbacks(
             new_config["callbacks"],
             learner.ckpt_path,

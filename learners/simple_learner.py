@@ -91,10 +91,6 @@ class SimpleLearner(
         return loss
 
     def validation_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        val_freq = self.config["learn"].get("val_freq", 1)
-        if val_freq != 0 and self.current_epoch % val_freq != 0:
-            return
-
         image, mask, file_names, dataset_names = batch
         pred = self(image)
         loss = self.loss(pred, mask)
@@ -132,6 +128,21 @@ class SimpleLearner(
 
         return loss
 
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()
+
+        val_loss = mean(self.validation_step_losses)
+        self.validation_step_losses.clear()
+        val_score = self.metric.compute()
+        val_score = self.metric.prepare_for_log(val_score)
+        score_summary = self.metric.score_summary()
+
+        self.wandb_log(
+            {"loss": val_loss} | dict(val_score) | {"score": score_summary},
+            "summary/val_",
+        )
+        self.log_monitor(score_summary)
+
     def on_train_epoch_end(self):
         super().on_train_epoch_end()
 
@@ -139,28 +150,8 @@ class SimpleLearner(
         self.training_step_losses.clear()
         self.wandb_log({"loss": train_loss}, "summary/train_")
 
-        total_epoch = self.config["learn"]["num_epochs"] - 1
-        message = (
-            f"Epoch {self.current_epoch}/{total_epoch}  train_loss: {train_loss:.4f}"
-        )
-
-        if len(self.validation_step_losses) != 0:
-            val_loss = mean(self.validation_step_losses)
-            self.validation_step_losses.clear()
-            val_score = self.metric.compute()
-            val_score = self.metric.prepare_for_log(val_score)
-            score_summary = self.metric.score_summary()
-
-            self.wandb_log(
-                {"loss": val_loss} | dict(val_score) | {"score": score_summary},
-                "summary/val_",
-            )
-            self.log_checkpoint_ref(score_summary)
-            message += f"  val_loss: {val_loss:.4f}  val_score: {dict(val_score)}"
-
-        self.print(message)
         self.wandb_push_table()
-        self.wandb_log_ckpt_ref()
+        self.wandb_log_ckpt_files()
 
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
@@ -206,7 +197,6 @@ class SimpleLearner(
 
         self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
 
-        self.print(f"Test  loss: {test_loss}  score: {dict(test_score)}")
         self.wandb_push_table(force=True)
 
     def make_dataloader(self, datasets: list[SimpleDataset]):
