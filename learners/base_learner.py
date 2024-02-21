@@ -1,4 +1,5 @@
 import os
+import time
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Type
 
@@ -128,6 +129,7 @@ class BaseLearner(
         super().on_fit_start()
 
         self.log_configuration()
+        self.prepare_datasets()
         self.cast_example_input_array()
         self.log_tensorboard_graph()
 
@@ -267,6 +269,19 @@ class BaseLearner(
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
+
+    def prepare_datasets(self):
+        self.print("Preparing train datasets ... ")
+        start_time = time.perf_counter()
+        for ds in self.train_datasets:
+            ds.fill_cached_items_data()
+        inter_time = time.perf_counter()
+        self.print(f"train preparation done in {(inter_time - start_time):.2f} s")
+        self.print("Preparing val datasets ... ")
+        for ds in self.val_datasets:
+            ds.fill_cached_items_data()
+        end_time = time.perf_counter()
+        self.print(f"val preparation done in {(end_time - inter_time):.2f} s")
 
     def cast_example_input_array(self):
         if isinstance(self.example_input_array, tuple):
