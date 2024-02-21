@@ -98,4 +98,7 @@ def clean_local_wandb(before: str | int, force_clean: bool = False):
             return
 
     for dir in dirs_to_clean:
-        check_rmtree(os.path.join(WANDB_SETTINGS["dir"], dir), True)
+        try:
+            check_rmtree(os.path.join(WANDB_SETTINGS["dir"], dir), True)
+        except OSError:
+            print(f"Failed to clean {dir}.")
