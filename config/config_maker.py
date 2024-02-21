@@ -54,7 +54,7 @@ optimizer_config: OptimizerConfig = {
     "betas": (0.9, 0.99),
 }
 
-scheduler_config: SchedulerConfig = {"step_size": 150, "gamma": 0.2}
+scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
 
 callbacks_config: CallbacksConfig = {
     "progress_leave": True,
@@ -141,7 +141,7 @@ def make_config(
             "job_type": "sweep",
             "log_model": False,
             "watch_model": False,
-            "push_table_freq": None,
+            "push_table_freq": 20,
             "sweep_metric": ("summary/val_score", "maximize"),
             "save_train_preds": 0,
             "save_val_preds": 0,
@@ -211,8 +211,9 @@ def make_config(
         }
         config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
-            config_simple["data"]["batch_size"] = 32
+            config_simple["data"]["batch_size"] = 16
             config_simple["learn"]["num_epochs"] = 300
+            config_simple["callbacks"]["stop_patience"] = 15
         config = config_simple
     elif learner == "meta":
         config_meta: ConfigMetaLearner = {

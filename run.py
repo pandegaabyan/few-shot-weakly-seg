@@ -143,8 +143,19 @@ def run_sweep(config: ConfigUnion, dummy: bool):
         "method": "random",
         "count_per_agent": 3,
         "parameters": {
-            "optimizer_lr": {"distribution": "uniform", "min": 0.0001, "max": 0.01},
-            "scheduler_step_size": {"values": [50, 100, 150, 200]},
+            "opt_lr": {
+                "distribution": "log_uniform_values",
+                "min": 0.00001,
+                "max": 0.1,
+            },
+            "opt_weight_decay": {
+                "distribution": "log_uniform_values",
+                "min": 0.00001,
+                "max": 0.1,
+            },
+            "opt_beta_0": {"values": [0.5, 0.9, 0.99]},
+            "opt_beta_1": {"values": [0.99, 0.999, 0.9999]},
+            "sch_gamma": {"distribution": "uniform", "min": 0.05, "max": 0.95},
             "dataset_fold": {"values": [0, 1, 2, 3]},
         },
     }
@@ -165,9 +176,14 @@ def run_sweep(config: ConfigUnion, dummy: bool):
             job_type=config.get("wandb", {}).get("job_type"),
         )
         ref_config = wandb.config
-        config["optimizer"]["lr"] = ref_config["optimizer_lr"]
-        config["optimizer"]["lr_bias"] = ref_config["optimizer_lr"] * 2
-        config["scheduler"]["step_size"] = ref_config["scheduler_step_size"]
+        config["optimizer"]["lr"] = ref_config["opt_lr"]
+        config["optimizer"]["lr_bias"] = ref_config["opt_lr"] * 2
+        config["optimizer"]["weight_decay"] = ref_config["opt_weight_decay"]
+        config["optimizer"]["betas"] = (
+            ref_config["opt_beta_0"],
+            ref_config["opt_beta_1"],
+        )
+        config["scheduler"]["gamma"] = ref_config["sch_gamma"]
         dataset_fold = ref_config["dataset_fold"]
 
         learner, trainer = make_learner_and_trainer(
