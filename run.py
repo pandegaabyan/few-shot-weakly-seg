@@ -53,8 +53,6 @@ def make_learner_and_trainer(
     learner_ckpt: str | None = None,
 ) -> tuple[BaseLearner | None, Trainer | None]:
     dataset_list = [rim_one_simple_dataset(dataset_fold, dataset_fold)]
-    for ds in dataset_list:
-        ds[1]["max_items"] = 10 if dummy else None
 
     new_config: ConfigSimpleLearner = config  # type: ignore
     kwargs: SimpleLearnerKwargs = {
