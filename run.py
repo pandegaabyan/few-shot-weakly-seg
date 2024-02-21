@@ -1,12 +1,11 @@
 import sys
-from typing import Literal
 
 import click
 from pytorch_lightning import Trainer
 
 import wandb
 from config.config_maker import make_config, make_run_name
-from config.config_type import ConfigSimpleLearner, ConfigUnion
+from config.config_type import ConfigSimpleLearner, ConfigUnion, RunMode
 from config.constants import WANDB_SETTINGS
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
@@ -89,7 +88,7 @@ def make_learner_and_trainer(
     return (learner, trainer)
 
 
-def run_basic(
+def run_fit_test(
     config: ConfigUnion,
     dummy: bool,
     resume: bool = False,
@@ -213,8 +212,8 @@ def run_sweep(config: ConfigUnion, dummy: bool):
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["basic", "fit", "test", "sweep"]),
-    default="basic",
+    type=click.Choice(["fit-test", "fit", "test", "sweep"]),
+    default="fit-test",
 )
 @click.option(
     "--configs",
@@ -226,12 +225,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
     help="(key, value) for overriding config, use '/' for nesting keys",
 )
 def main(
-    mode: Literal[
-        "basic",
-        "fit",
-        "test",
-        "sweep",
-    ],
+    mode: RunMode,
     dummy: bool,
     resume: bool,
     no_wandb: bool,
@@ -240,20 +234,19 @@ def main(
     if not dummy and not check_git_clean():
         raise Exception("Git is not clean, please commit your changes first")
 
-    config_mode = "fit" if mode == "basic" else mode
     config = make_config(
-        mode=config_mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
+        mode=mode, dummy=dummy, use_wandb=not no_wandb, learner="simple"
     )
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    if mode == "basic":
-        run_basic(config, dummy, resume=resume)
+    if mode == "fit-test":
+        run_fit_test(config, dummy, resume=resume)
     elif mode == "fit":
-        run_basic(config, dummy, resume=resume, fit_only=True)
+        run_fit_test(config, dummy, resume=resume, fit_only=True)
     elif mode == "test":
-        run_basic(config, dummy, resume=resume, test_only=True)
+        run_fit_test(config, dummy, resume=resume, test_only=True)
     elif mode == "sweep":
         run_sweep(config, dummy)
 

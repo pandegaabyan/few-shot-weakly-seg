@@ -18,6 +18,7 @@ from config.config_type import (
     MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
+    RunMode,
     SchedulerConfig,
     SimpleLearnerConfig,
     WandbConfig,
@@ -127,7 +128,7 @@ def make_run_name(exp_name: str) -> str:
 
 def make_config(
     learner: Literal["simple", "meta", "weasel", "protoseg", "guidednets", None] = None,
-    mode: Literal["fit", "test", "sweep", None] = None,
+    mode: RunMode = "fit-test",
     name_suffix: str = "",
     use_wandb: bool = True,
     dummy: bool = False,
@@ -138,7 +139,7 @@ def make_config(
         config_base["wandb"] = {
             "run_id": "",
             "tags": [],
-            "job_type": "sweep",
+            "job_type": mode,
             "log_model": False,
             "watch_model": False,
             "push_table_freq": 20,
@@ -147,13 +148,28 @@ def make_config(
             "save_val_preds": 0,
             "save_test_preds": 0,
         }
+    elif mode == "fit":
+        config_base["learn"]["tensorboard_graph"] = True
+        if use_wandb:
+            config_base["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
+                "log_model": True,
+                "watch_model": True,
+                "push_table_freq": 5,
+                "sweep_metric": None,
+                "save_train_preds": 20,
+                "save_val_preds": 20,
+                "save_test_preds": 0,
+            }
     elif mode == "test":
         config_base["learn"]["tensorboard_graph"] = False
         if use_wandb:
             config_base["wandb"] = {
                 "run_id": "",
                 "tags": [],
-                "job_type": "test",
+                "job_type": mode,
                 "log_model": False,
                 "watch_model": False,
                 "push_table_freq": 1,
@@ -162,13 +178,13 @@ def make_config(
                 "save_val_preds": 0,
                 "save_test_preds": 20,
             }
-    elif mode == "fit":
+    else:
         config_base["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_base["wandb"] = {
                 "run_id": "",
                 "tags": [],
-                "job_type": "fit",
+                "job_type": mode,
                 "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,

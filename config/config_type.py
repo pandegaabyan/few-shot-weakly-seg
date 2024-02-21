@@ -2,6 +2,8 @@ from typing import Literal, Union
 
 from typing_extensions import NotRequired, TypedDict
 
+RunMode = Literal["fit-test", "fit", "test", "sweep"]
+
 
 class DataConfig(TypedDict):
     num_classes: int
