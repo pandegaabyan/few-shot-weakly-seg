@@ -1,5 +1,3 @@
-import ctypes
-import multiprocessing as mp
 import os
 import random
 from abc import ABC, abstractmethod
@@ -48,7 +46,7 @@ class BaseDataset(Dataset, ABC):
         if len(self.items) == 0:
             raise (RuntimeError("Get 0 items, please check"))
 
-        self.shared_data_cache: dict[int, BaseDataTuple] = {}
+        self.cached_items_data: list[BaseDataTuple] = []
 
     # Function that create the list of pairs (img_path, mask_path)
     # Implement this function for your dataset structure
@@ -205,29 +203,9 @@ class BaseDataset(Dataset, ABC):
 
         return []
 
-    def set_shared_data_cache(self, index: int, data: BaseDataTuple):
-        shared_image_base = mp.Array(ctypes.c_uint8, data.image.size)
-        shared_image = np.ctypeslib.as_array(shared_image_base.get_obj())
-        shared_image = shared_image.astype(np.uint8).reshape(data.image.shape)
-
-        shared_mask_base = mp.Array(ctypes.c_int8, data.mask.size)
-        shared_mask = np.ctypeslib.as_array(shared_mask_base.get_obj())
-        shared_mask = shared_mask.astype(np.int8).reshape(data.mask.shape)
-
-        shared_image[:] = data.image
-        shared_mask[:] = data.mask
-
-        self.shared_data_cache[index] = BaseDataTuple(
-            image=shared_image,
-            mask=shared_mask,
-            file_name=data.file_name,
-        )
-
     def get_data(self, index: int) -> BaseDataTuple:
-        if self.cache_data:
-            data_cache = self.shared_data_cache.get(index)
-            if data_cache is not None:
-                return data_cache
+        if self.cache_data and len(self.cached_items_data) > index:
+            return self.cached_items_data[index]
 
         img_path, msk_path = self.items[index]
 
@@ -244,7 +222,11 @@ class BaseDataset(Dataset, ABC):
             file_name=img_filename,
         )
 
-        if self.cache_data:
-            self.set_shared_data_cache(index, data)
-
         return data
+
+    def fill_cached_items_data(self):
+        if not self.cache_data:
+            return
+
+        for i in range(len(self.items)):
+            self.cached_items_data.append(self.get_data(i))
