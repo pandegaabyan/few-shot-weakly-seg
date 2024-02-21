@@ -347,7 +347,7 @@ class BaseLearner(
         csv_filename = os.path.join(self.log_path, f"{group}.csv")
         write_to_csv(csv_filename, data)
 
-    def log_checkpoint_ref(self, value: float):
+    def log_monitor(self, value: float):
         name = self.config["callbacks"].get("monitor")
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
@@ -423,7 +423,7 @@ class BaseLearner(
 
         self.wandb_log_table(img_data + data, group)
 
-    def wandb_log_ckpt_ref(self):
+    def wandb_log_ckpt_files(self):
         if (
             not self.use_wandb
             or self.current_epoch != self.config["learn"]["num_epochs"] - 1
