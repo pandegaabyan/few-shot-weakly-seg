@@ -33,73 +33,133 @@
     },
     "spec": {
         "width": 300,
-        "params": [
-            {
-                "name": "name",
-                "select": {
-                    "type": "point",
-                    "fields": [
-                        "name"
-                    ]
-                },
-                "bind": "legend"
-            },
-            {
-                "name": "select",
-                "select": {
-                    "type": "point",
-                    "fields": [
-                        "iou_type"
-                    ]
-                },
-                "bind": {
-                    "input": "select",
-                    "options": [
-                        null,
-                        "iou_cup",
-                        "iou_disc"
-                    ],
-                    "labels": [
-                        "All",
-                        "iou_cup",
-                        "iou_disc"
-                    ]
-                }
-            }
-        ],
         "encoding": {
             "x": {
                 "field": "sparsity_value",
                 "type": "nominal"
-            },
-            "y": {
-                "field": "iou",
-                "type": "quantitative",
-                "scale": {
-                    "zero": false
-                }
-            },
-            "strokeDash": {
-                "field": "iou_type",
-                "type": "nominal"
-            },
-            "color": {
-                "field": "name",
-                "type": "nominal"
-            },
-            "opacity": {
-                "condition": {
-                    "param": "name",
-                    "value": 1
-                },
-                "value": 0.2
             }
         },
-        "mark": {
-            "type": "line",
-            "point": true,
-            "tooltip": true
-        }
+        "layer": [
+            {
+                "params": [
+                    {
+                        "name": "name",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "name"
+                            ]
+                        },
+                        "bind": "legend"
+                    },
+                    {
+                        "name": "select",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "iou_type"
+                            ]
+                        },
+                        "bind": {
+                            "input": "select",
+                            "options": [
+                                null,
+                                "iou_cup",
+                                "iou_disc"
+                            ],
+                            "labels": [
+                                "All",
+                                "iou_cup",
+                                "iou_disc"
+                            ]
+                        }
+                    }
+                ],
+                "encoding": {
+                    "y": {
+                        "field": "iou",
+                        "type": "quantitative",
+                        "scale": {
+                            "zero": false
+                        }
+                    },
+                    "strokeDash": {
+                        "field": "iou_type",
+                        "type": "nominal"
+                    },
+                    "color": {
+                        "field": "name",
+                        "type": "nominal"
+                    },
+                    "opacity": {
+                        "condition": {
+                            "param": "name",
+                            "value": 1
+                        },
+                        "value": 0.2
+                    }
+                },
+                "mark": {
+                    "type": "line",
+                    "point": true
+                }
+            },
+            {
+                "params": [
+                    {
+                        "name": "hover",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "sparsity_mode",
+                                "sparsity_value"
+                            ],
+                            "nearest": true,
+                            "on": "mouseover",
+                            "clear": "mouseout"
+                        }
+                    }
+                ],
+                "transform": [
+                    {
+                        "calculate": "datum.name + ' - ' + datum.iou_type",
+                        "as": "pivot_field"
+                    },
+                    {
+                        "pivot": "pivot_field",
+                        "value": "loss",
+                        "groupby": [
+                            "shot",
+                            "sparsity_mode",
+                            "sparsity_value"
+                        ],
+                        "op": "mean"
+                    }
+                ],
+                "mark": {
+                    "type": "rule",
+                    "tooltip": {
+                        "content": "data"
+                    }
+                },
+                "encoding": {
+                    "y": {
+                        "field": ""
+                    },
+                    "color": {
+                        "value": "gray"
+                    },
+                    "opacity": {
+                        "condition": {
+                            "param": "hover",
+                            "value": 0.8,
+                            "empty": false
+                        },
+                        "value": 0
+                    }
+                }
+            }
+        ]
     },
     "resolve": {
         "axis": {

@@ -44,101 +44,167 @@
     },
     "layer": [
         {
-            "params": [
+            "transform": [
                 {
-                    "name": "name",
-                    "select": {
-                        "type": "point",
-                        "fields": [
-                            "name"
-                        ]
-                    },
-                    "bind": "legend"
+                    "filter": "datum.type != 'TS'"
+                }
+            ],
+            "encoding": {
+                "strokeDash": {
+                    "field": "type",
+                    "type": "nominal"
+                }
+            },
+            "layer": [
+                {
+                    "params": [
+                        {
+                            "name": "name",
+                            "select": {
+                                "type": "point",
+                                "fields": [
+                                    "name"
+                                ]
+                            },
+                            "bind": "legend"
+                        },
+                        {
+                            "name": "select",
+                            "select": {
+                                "type": "point",
+                                "fields": [
+                                    "type"
+                                ]
+                            },
+                            "bind": {
+                                "input": "select",
+                                "options": [
+                                    null,
+                                    "TR",
+                                    "VL",
+                                    "TS"
+                                ],
+                                "labels": [
+                                    "All",
+                                    "Train",
+                                    "Validation",
+                                    "Test"
+                                ]
+                            }
+                        }
+                    ],
+                    "mark": "line",
+                    "encoding": {
+                        "y": {
+                            "field": "loss",
+                            "aggregate": "mean"
+                        }
+                    }
                 },
                 {
-                    "name": "select",
+                    "mark": {
+                        "type": "errorbar",
+                        "extent": "ci"
+                    }
+                },
+                {
+                    "mark": "point",
+                    "encoding": {
+                        "y": {
+                            "field": "loss",
+                            "aggregate": "mean"
+                        },
+                        "size": {
+                            "value": 20
+                        },
+                        "opacity": {
+                            "condition": {
+                                "param": "hover",
+                                "value": 1,
+                                "empty": false
+                            },
+                            "value": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "transform": [
+                {
+                    "filter": "datum.type == 'TS'"
+                }
+            ],
+            "layer": [
+                {
+                    "mark": {
+                        "type": "errorbar",
+                        "extent": "ci"
+                    }
+                },
+                {
+                    "mark": "point",
+                    "encoding": {
+                        "y": {
+                            "field": "loss",
+                            "aggregate": "mean"
+                        },
+                        "size": {
+                            "value": 20
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "params": [
+                {
+                    "name": "hover",
                     "select": {
                         "type": "point",
                         "fields": [
-                            "type"
-                        ]
-                    },
-                    "bind": {
-                        "input": "select",
-                        "options": [
-                            null,
-                            "TR",
-                            "VL",
-                            "TS"
+                            "epoch"
                         ],
-                        "labels": [
-                            "All",
-                            "Train",
-                            "Validation",
-                            "Test"
-                        ]
+                        "nearest": true,
+                        "on": "mouseover",
+                        "clear": "mouseout"
                     }
                 }
             ],
             "transform": [
                 {
-                    "filter": "datum.type != 'TS'"
-                }
-            ],
-            "mark": "line",
-            "encoding": {
-                "y": {
-                    "field": "loss",
-                    "aggregate": "mean"
+                    "calculate": "datum.type + ' - ' + datum.name",
+                    "as": "pivot_field"
                 },
-                "strokeDash": {
-                    "field": "type",
-                    "type": "nominal"
-                }
-            }
-        },
-        {
-            "transform": [
                 {
-                    "filter": "datum.type != 'TS'"
+                    "pivot": "pivot_field",
+                    "value": "loss",
+                    "groupby": [
+                        "epoch"
+                    ],
+                    "op": "mean"
                 }
             ],
             "mark": {
-                "type": "errorbar",
-                "extent": "ci"
+                "type": "rule",
+                "tooltip": {
+                    "content": "data"
+                }
             },
             "encoding": {
-                "strokeDash": {
-                    "field": "type",
-                    "type": "nominal"
-                }
-            }
-        },
-        {
-            "transform": [
-                {
-                    "filter": "datum.type == 'TS'"
-                }
-            ],
-            "mark": {
-                "type": "errorbar",
-                "extent": "ci"
-            }
-        },
-        {
-            "transform": [
-                {
-                    "filter": "datum.type == 'TS'"
-                }
-            ],
-            "mark": "point",
-            "encoding": {
                 "y": {
-                    "field": "loss",
-                    "aggregate": "mean"
+                    "field": ""
                 },
-                "size": {
-                    "value": 20
+                "color": {
+                    "value": "gray"
+                },
+                "opacity": {
+                    "condition": {
+                        "param": "hover",
+                        "value": 0.8,
+                        "empty": false
+                    },
+                    "value": 0
                 }
             }
         }

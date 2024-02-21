@@ -73,7 +73,6 @@
         },
         "layer": [
             {
-                "mark": "point",
                 "params": [
                     {
                         "name": "name",
@@ -86,6 +85,7 @@
                         "bind": "legend"
                     }
                 ],
+                "mark": "point",
                 "encoding": {
                     "y": {
                         "field": "iou",
@@ -101,6 +101,55 @@
                     "type": "errorbar",
                     "extent": "ci",
                     "ticks": true
+                }
+            },
+            {
+                "params": [
+                    {
+                        "name": "hover",
+                        "select": {
+                            "type": "point",
+                            "fields": [
+                                "sparsity_mode"
+                            ],
+                            "nearest": true,
+                            "on": "mouseover",
+                            "clear": "mouseout"
+                        }
+                    }
+                ],
+                "transform": [
+                    {
+                        "pivot": "name",
+                        "value": "iou",
+                        "groupby": [
+                            "iou_type",
+                            "sparsity_mode"
+                        ],
+                        "op": "mean"
+                    }
+                ],
+                "mark": {
+                    "type": "rule",
+                    "tooltip": {
+                        "content": "data"
+                    }
+                },
+                "encoding": {
+                    "y": {
+                        "field": ""
+                    },
+                    "color": {
+                        "value": "gray"
+                    },
+                    "opacity": {
+                        "condition": {
+                            "param": "hover",
+                            "value": 0.8,
+                            "empty": false
+                        },
+                        "value": 0
+                    }
                 }
             }
         ]

@@ -49,119 +49,169 @@
         },
         "layer": [
             {
-                "params": [
+                "transform": [
                     {
-                        "name": "name",
-                        "select": {
-                            "type": "point",
-                            "fields": [
-                                "name"
-                            ]
-                        },
-                        "bind": "legend"
+                        "filter": "datum.type == 'VL'"
+                    }
+                ],
+                "layer": [
+                    {
+                        "params": [
+                            {
+                                "name": "name",
+                                "select": {
+                                    "type": "point",
+                                    "fields": [
+                                        "name"
+                                    ]
+                                },
+                                "bind": "legend"
+                            },
+                            {
+                                "name": "select",
+                                "select": {
+                                    "type": "point",
+                                    "fields": [
+                                        "type"
+                                    ]
+                                },
+                                "bind": {
+                                    "input": "select",
+                                    "options": [
+                                        null,
+                                        "VL",
+                                        "TS"
+                                    ],
+                                    "labels": [
+                                        "All",
+                                        "Validation",
+                                        "Test"
+                                    ]
+                                }
+                            }
+                        ],
+                        "mark": "line",
+                        "encoding": {
+                            "y": {
+                                "field": "iou",
+                                "aggregate": "mean"
+                            },
+                            "opacity": {
+                                "condition": {
+                                    "param": "name",
+                                    "value": 1
+                                },
+                                "value": 0.2
+                            }
+                        }
                     },
                     {
-                        "name": "select",
+                        "mark": {
+                            "type": "errorband",
+                            "extent": "ci"
+                        },
+                        "encoding": {
+                            "opacity": {
+                                "condition": {
+                                    "param": "name",
+                                    "value": 0.2
+                                },
+                                "value": 0
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "transform": [
+                    {
+                        "filter": "datum.type == 'TS'"
+                    }
+                ],
+                "layer": [
+                    {
+                        "mark": "point",
+                        "encoding": {
+                            "y": {
+                                "field": "iou",
+                                "aggregate": "mean"
+                            },
+                            "size": {
+                                "value": 20
+                            },
+                            "opacity": {
+                                "condition": {
+                                    "param": "name",
+                                    "value": 1
+                                },
+                                "value": 0.2
+                            }
+                        }
+                    },
+                    {
+                        "mark": {
+                            "type": "errorbar",
+                            "extent": "ci"
+                        },
+                        "encoding": {
+                            "opacity": {
+                                "condition": {
+                                    "param": "name",
+                                    "value": 1
+                                },
+                                "value": 0
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "params": [
+                    {
+                        "name": "hover",
                         "select": {
                             "type": "point",
                             "fields": [
-                                "type"
-                            ]
-                        },
-                        "bind": {
-                            "input": "select",
-                            "options": [
-                                null,
-                                "VL",
-                                "TS"
+                                "epoch"
                             ],
-                            "labels": [
-                                "All",
-                                "Validation",
-                                "Test"
-                            ]
+                            "nearest": true,
+                            "on": "mouseover",
+                            "clear": "mouseout"
                         }
                     }
                 ],
                 "transform": [
                     {
-                        "filter": "datum.type == 'VL'"
-                    }
-                ],
-                "mark": "line",
-                "encoding": {
-                    "y": {
-                        "field": "iou",
-                        "aggregate": "mean"
+                        "calculate": "datum.type + ' - ' + datum.name",
+                        "as": "pivot_field"
                     },
-                    "opacity": {
-                        "condition": {
-                            "param": "name",
-                            "value": 1
-                        },
-                        "value": 0.2
-                    }
-                }
-            },
-            {
-                "transform": [
                     {
-                        "filter": "datum.type == 'VL'"
+                        "pivot": "pivot_field",
+                        "value": "loss",
+                        "groupby": [
+                            "epoch"
+                        ],
+                        "op": "mean"
                     }
                 ],
                 "mark": {
-                    "type": "errorband",
-                    "extent": "ci"
+                    "type": "rule",
+                    "tooltip": {
+                        "content": "data"
+                    }
                 },
-                "encoding": {
-                    "opacity": {
-                        "condition": {
-                            "param": "name",
-                            "value": 0.2
-                        },
-                        "value": 0
-                    }
-                }
-            },
-            {
-                "transform": [
-                    {
-                        "filter": "datum.type == 'TS'"
-                    }
-                ],
-                "mark": "point",
                 "encoding": {
                     "y": {
-                        "field": "iou",
-                        "aggregate": "mean"
+                        "field": ""
                     },
-                    "size": {
-                        "value": 20
+                    "color": {
+                        "value": "gray"
                     },
                     "opacity": {
                         "condition": {
-                            "param": "name",
-                            "value": 1
-                        },
-                        "value": 0.2
-                    }
-                }
-            },
-            {
-                "transform": [
-                    {
-                        "filter": "datum.type == 'TS'"
-                    }
-                ],
-                "mark": {
-                    "type": "errorbar",
-                    "extent": "ci"
-                },
-                "encoding": {
-                    "opacity": {
-                        "condition": {
-                            "param": "name",
-                            "value": 1
+                            "param": "hover",
+                            "value": 0.8,
+                            "empty": false
                         },
                         "value": 0
                     }

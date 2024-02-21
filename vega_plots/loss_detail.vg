@@ -10,7 +10,7 @@
             }
         },
         {
-            "calculate": "datum.type == 'TR' ? datum.epoch + '-' + datum.batch : datum.type == 'VL' ? datum.epoch + 'V' : '-TS'",
+            "calculate": "datum.type == 'TR' ? datum.epoch + 'T' + datum.batch : datum.type == 'VL' ? datum.epoch + 'V' : '.TS'",
             "as": "step"
         }
     ],
@@ -22,7 +22,7 @@
             "type": "ordinal",
             "axis": {
                 "ticks": false,
-                "labelExpr": "indexof(datum.value, 'V') != -1 || datum.value == '-TS' ? datum.value : ''"
+                "labelExpr": "indexof(datum.value, 'V') != -1 || datum.value == '.TS' ? datum.value : ''"
             }
         },
         "y": {
@@ -49,50 +49,54 @@
     },
     "layer": [
         {
-            "params": [
-                {
-                    "name": "name",
-                    "select": {
-                        "type": "point",
-                        "fields": [
-                            "name"
-                        ]
-                    },
-                    "bind": "legend"
-                },
-                {
-                    "name": "select",
-                    "select": {
-                        "type": "point",
-                        "fields": [
-                            "type"
-                        ]
-                    },
-                    "bind": {
-                        "input": "select",
-                        "options": [
-                            null,
-                            "TR",
-                            "VL",
-                            "TS"
-                        ],
-                        "labels": [
-                            "All",
-                            "Train",
-                            "Validation",
-                            "Test"
-                        ]
-                    }
-                }
-            ],
             "transform": [
                 {
                     "filter": "datum.type == 'TR'"
                 }
             ],
-            "mark": {
-                "type": "line"
-            }
+            "layer": [
+                {
+                    "params": [
+                        {
+                            "name": "name",
+                            "select": {
+                                "type": "point",
+                                "fields": [
+                                    "name"
+                                ]
+                            },
+                            "bind": "legend"
+                        },
+                        {
+                            "name": "select",
+                            "select": {
+                                "type": "point",
+                                "fields": [
+                                    "type"
+                                ]
+                            },
+                            "bind": {
+                                "input": "select",
+                                "options": [
+                                    null,
+                                    "TR",
+                                    "VL",
+                                    "TS"
+                                ],
+                                "labels": [
+                                    "All",
+                                    "Train",
+                                    "Validation",
+                                    "Test"
+                                ]
+                            }
+                        }
+                    ],
+                    "mark": {
+                        "type": "line"
+                    }
+                }
+            ]
         },
         {
             "transform": [
@@ -100,28 +104,78 @@
                     "filter": "datum.type != 'TR'"
                 }
             ],
-            "mark": {
-                "type": "errorbar",
-                "extent": "ci"
-            }
+            "layer": [
+                {
+                    "mark": {
+                        "type": "errorbar",
+                        "extent": "ci"
+                    }
+                },
+                {
+                    "mark": "point",
+                    "encoding": {
+                        "y": {
+                            "field": "loss",
+                            "aggregate": "mean"
+                        },
+                        "size": {
+                            "value": 20
+                        },
+                        "shape": {
+                            "field": "type"
+                        }
+                    }
+                }
+            ]
         },
         {
-            "transform": [
+            "params": [
                 {
-                    "filter": "datum.type != 'TR'"
+                    "name": "hover",
+                    "select": {
+                        "type": "point",
+                        "fields": [
+                            "step"
+                        ],
+                        "nearest": true,
+                        "on": "mouseover",
+                        "clear": "mouseout"
+                    }
                 }
             ],
-            "mark": "point",
+            "transform": [
+                {
+                    "pivot": "name",
+                    "value": "loss",
+                    "groupby": [
+                        "step"
+                    ],
+                    "op": "mean"
+                }
+            ],
+            "mark": {
+                "type": "rule",
+                "tooltip": {
+                    "content": "data"
+                }
+            },
             "encoding": {
+                "x": {
+                    "field": "step"
+                },
                 "y": {
-                    "field": "loss",
-                    "aggregate": "mean"
+                    "field": ""
                 },
-                "size": {
-                    "value": 20
+                "color": {
+                    "value": "gray"
                 },
-                "shape": {
-                    "field": "type"
+                "opacity": {
+                    "condition": {
+                        "param": "hover",
+                        "value": 0.8,
+                        "empty": false
+                    },
+                    "value": 0
                 }
             }
         }
