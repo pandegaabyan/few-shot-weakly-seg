@@ -30,6 +30,8 @@ def convert_local_iso_to_utc_iso(iso_timestamp: str) -> str:
 
 
 def mean(ls: list[float]) -> float:
+    if len(ls) == 0:
+        return 0
     return sum(ls) / len(ls)
 
 
