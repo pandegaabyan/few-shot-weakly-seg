@@ -14,7 +14,7 @@ from learners.base_learner import BaseLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import SimpleLearnerKwargs
 from runners.callbacks import make_callbacks
-from runners.sweeps import initialize_sweep
+from runners.sweeps import SweepConfigBase, initialize_sweep
 from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
@@ -141,13 +141,11 @@ def run_fit_test(
         wandb.finish()
 
 
-def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
+def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int = 3):
     if config.get("wandb") is None:
         raise ValueError("sweep use wandb and need wandb config")
 
-    sweep_config = {
-        "count_per_agent": 3,
-        "use_cv": use_cv,
+    sweep_config: SweepConfigBase = {
         "method": "random",
         "metric": {"name": "summary/val_score", "goal": "maximize"},
         "parameters": {
@@ -181,7 +179,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
     ref_ckpt_path = config["learn"].get("ref_ckpt_path")
     ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
-    sweep_config = initialize_sweep(config, sweep_config, dummy)
+    sweep_config = initialize_sweep(config, sweep_config, dummy, use_cv, count)
     config["wandb"]["sweep_id"] = sweep_config["sweep_id"]  # type: ignore
 
     def train(
@@ -262,7 +260,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
         sweep_config["sweep_id"],
         function=train_cv if use_cv else train,
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
-        count=sweep_config.get("count_per_agent"),
+        count=sweep_config["counts"][-1],
     )
 
 
@@ -276,6 +274,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
     type=click.Choice(["fit-test", "fit", "test", "sweep", "sweep-cv"]),
     default="fit-test",
 )
+@click.option("--sweep_count", "-sc", type=int, default=3)
 @click.option(
     "--configs",
     "-c",
@@ -290,6 +289,7 @@ def main(
     dummy: bool,
     resume: bool,
     no_wandb: bool,
+    sweep_count: int,
     configs: list[tuple[str, str]],
 ):
     if not dummy and not check_git_clean():
@@ -309,9 +309,9 @@ def main(
     elif mode == "test":
         run_fit_test(config, dummy, resume=resume, test_only=True)
     elif mode == "sweep":
-        run_sweep(config, dummy)
+        run_sweep(config, dummy, count=sweep_count)
     elif mode == "sweep-cv":
-        run_sweep(config, dummy, use_cv=True)
+        run_sweep(config, dummy, use_cv=True, count=sweep_count)
 
 
 if __name__ == "__main__":
