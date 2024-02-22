@@ -179,7 +179,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
     ref_ckpt_path = config["learn"].get("ref_ckpt_path")
     ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
-    sweep_config = initialize_sweep(config, sweep_config, dummy, use_cv, count)
+    sweep_config = initialize_sweep(config, sweep_config, dummy, use_cv)
     config["wandb"]["sweep_id"] = sweep_config["sweep_id"]
 
     def train(
@@ -230,7 +230,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
         return final_score
 
     def train_cv(config: ConfigUnion = deepcopy(config)):
-        num_folds = 2
+        num_folds = 4
 
         assert "wandb" in config
 
@@ -265,7 +265,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
         sweep_config["sweep_id"],
         function=train_cv if use_cv else train,
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
-        count=sweep_config["counts"][-1],
+        count=count,
     )
 
 
