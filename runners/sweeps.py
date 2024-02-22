@@ -41,14 +41,12 @@ def initialize_sweep(
     sweep_config: SweepConfigBase,
     dummy: bool = False,
     use_cv: bool = False,
-    count: int = 3,
 ) -> SweepConfigFull:
-    if config.get("wandb") is None:
-        raise ValueError("sweep use wandb and need wandb config")
+    assert "wandb" in config
 
     wandb_login()
 
-    sweep_id = config.get("wandb", {}).get("sweep_id")
+    sweep_id = config["wandb"].get("sweep_id")
     if sweep_id:
         prev_sweep_config_path = get_sweep_config_path(
             config["learn"]["exp_name"], sweep_id

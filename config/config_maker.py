@@ -204,14 +204,14 @@ def make_config(
         config_base["learn"]["dummy"] = False
         config_base["data"]["num_workers"] = 3
     if use_wandb:
-        config_base["wandb"] = {  # type: ignore
-            **config_base.get("wandb", {}),
-            **{
+        assert "wandb" in config_base
+        config_base["wandb"].update(
+            {
                 "save_train_preds": save_train_preds,
                 "save_val_preds": save_val_preds,
                 "save_test_preds": save_test_preds,
-            },
-        }
+            }
+        )
     else:
         config_base.pop("wandb")
 
