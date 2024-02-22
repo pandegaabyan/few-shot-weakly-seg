@@ -1,5 +1,6 @@
 import datetime
 import os
+from copy import deepcopy
 from typing import Literal
 
 from config.config_type import (
@@ -18,6 +19,7 @@ from config.config_type import (
     MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
+    RunMode,
     SchedulerConfig,
     SimpleLearnerConfig,
     WandbConfig,
@@ -73,7 +75,6 @@ wandb_config: WandbConfig = {
     "log_model": True,
     "watch_model": True,
     "push_table_freq": 5,
-    "sweep_metric": ("summary/val_score", "maximize"),
     "sweep_id": "",
     "save_train_preds": 0,
     "save_val_preds": 0,
@@ -127,52 +128,63 @@ def make_run_name(exp_name: str) -> str:
 
 def make_config(
     learner: Literal["simple", "meta", "weasel", "protoseg", "guidednets", None] = None,
-    mode: Literal["fit", "test", "sweep", None] = None,
+    mode: RunMode = "fit-test",
     name_suffix: str = "",
     use_wandb: bool = True,
     dummy: bool = False,
 ) -> ConfigUnion:
-    if mode == "sweep":
+    if mode == "sweep" or mode == "sweep-cv":
         use_wandb = True
         config_base["learn"]["tensorboard_graph"] = False
         config_base["wandb"] = {
             "run_id": "",
             "tags": [],
-            "job_type": "sweep",
+            "job_type": mode,
             "log_model": False,
             "watch_model": False,
             "push_table_freq": 20,
-            "sweep_metric": ("summary/val_score", "maximize"),
             "save_train_preds": 0,
             "save_val_preds": 0,
             "save_test_preds": 0,
         }
-    elif mode == "test":
-        config_base["learn"]["tensorboard_graph"] = False
-        if use_wandb:
-            config_base["wandb"] = {
-                "run_id": "",
-                "tags": [],
-                "job_type": "test",
-                "log_model": False,
-                "watch_model": False,
-                "push_table_freq": 1,
-                "sweep_metric": None,
-                "save_train_preds": 0,
-                "save_val_preds": 0,
-                "save_test_preds": 20,
-            }
     elif mode == "fit":
         config_base["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_base["wandb"] = {
                 "run_id": "",
                 "tags": [],
-                "job_type": "fit",
+                "job_type": mode,
                 "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,
-                "sweep_metric": None,
+                "save_train_preds": 20,
+                "save_val_preds": 20,
+                "save_test_preds": 0,
+            }
+    elif mode == "test":
+        config_base["learn"]["tensorboard_graph"] = False
+        if use_wandb:
+            config_base["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
+                "log_model": False,
+                "watch_model": False,
+                "push_table_freq": 1,
+                "save_train_preds": 0,
+                "save_val_preds": 0,
+                "save_test_preds": 20,
+            }
+    else:
+        config_base["learn"]["tensorboard_graph"] = True
+        if use_wandb:
+            config_base["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
+                "log_model": True,
+                "watch_model": True,
+                "push_table_freq": 5,
                 "save_train_preds": 20,
                 "save_val_preds": 20,
                 "save_test_preds": 20,
@@ -203,7 +215,7 @@ def make_config(
     else:
         config_base.pop("wandb")
 
-    config: ConfigUnion = config_base.copy()
+    config: ConfigUnion = deepcopy(config_base)
     if learner == "simple":
         config_simple: ConfigSimpleLearner = {
             **config_base,
