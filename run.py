@@ -141,7 +141,7 @@ def run_basic(
 def run_sweep(config: ConfigUnion, dummy: bool):
     sweep_config = {
         "method": "random",
-        "count_per_agent": 180,
+        "count_per_agent": 8,
         "parameters": {
             "opt_lr": {
                 "distribution": "log_uniform_values",
