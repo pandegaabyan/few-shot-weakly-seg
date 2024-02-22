@@ -144,7 +144,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
     assert "wandb" in config
 
     sweep_config: SweepConfigBase = {
-        "method": "random",
+        "method": "bayes",
         "metric": {"name": "summary/val_score", "goal": "maximize"},
         "parameters": {
             "opt_lr": {
