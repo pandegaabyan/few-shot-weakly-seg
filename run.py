@@ -149,6 +149,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
         "count_per_agent": 3,
         "use_cv": use_cv,
         "method": "random",
+        "metric": {"name": "summary/val_score", "goal": "maximize"},
         "parameters": {
             "opt_lr": {
                 "distribution": "log_uniform_values",
@@ -163,7 +164,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
             "opt_beta_0": {"values": [0.5, 0.9, 0.99]},
             "opt_beta_1": {"values": [0.99, 0.999, 0.9999]},
             "sch_gamma": {"distribution": "uniform", "min": 0.05, "max": 0.95},
-            "dataset_fold": {"values": [0, 1, 2, 3]},
+            # "dataset_fold": {"values": [0, 1, 2, 3]},
         },
     }
 

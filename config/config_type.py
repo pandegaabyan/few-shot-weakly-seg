@@ -58,7 +58,6 @@ class WandbConfig(TypedDict):
     log_model: bool
     watch_model: bool
     push_table_freq: int | None
-    sweep_metric: NotRequired[tuple[str, Literal["maximize", "minimize"]]] | None
     sweep_id: NotRequired[str]
     sweep_parent: NotRequired[str]
     save_train_preds: NotRequired[int]

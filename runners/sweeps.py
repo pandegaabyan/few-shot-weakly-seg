@@ -21,14 +21,6 @@ def initialize_sweep(
     if config.get("wandb") is None:
         raise ValueError("sweep use wandb and need wandb config")
 
-    sweep_metric = config.get("wandb", {}).get("sweep_metric")
-    if sweep_metric is None:
-        raise ValueError("sweep need sweep_metric in wandb config")
-    sweep_config["metric"] = {"name": sweep_metric[0], "goal": sweep_metric[1]}
-
-    if sweep_config.get("method") is None or sweep_config.get("parameters") is None:
-        raise ValueError("sweep need method and parameters in sweep_config")
-
     wandb_login()
 
     sweep_id = config.get("wandb", {}).get("sweep_id")
