@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 
 import click
 from pytorch_lightning import Trainer
@@ -22,13 +23,14 @@ from utils.logging import (
     get_configuration,
     get_full_ckpt_path,
 )
-from utils.utils import parse_string
-from utils.wandb import wandb_login
+from utils.utils import mean, parse_string
+from utils.wandb import reset_wandb_env, wandb_login
 from wandb import util as wandb_util
+from wandb.sdk import wandb_setup
 
 
 def rim_one_simple_dataset(
-    val_fold: int = 0, test_fold: int = 0
+    val_fold: int = 0,
 ) -> tuple[type[SimpleDataset], SimpleDatasetKwargs]:
     rim_one_kwargs: SimpleDatasetKwargs = {
         "seed": 0,
@@ -36,7 +38,7 @@ def rim_one_simple_dataset(
         "split_val_size": 0.2,
         "split_val_fold": val_fold,
         "split_test_size": 0.2,
-        "split_test_fold": test_fold,
+        "split_test_fold": 0,
         "cache_data": True,
         "dataset_name": "RIM-ONE",
     }
@@ -51,7 +53,7 @@ def make_learner_and_trainer(
     dataset_fold: int = 0,
     learner_ckpt: str | None = None,
 ) -> tuple[BaseLearner | None, Trainer | None]:
-    dataset_list = [rim_one_simple_dataset(dataset_fold, dataset_fold)]
+    dataset_list = [rim_one_simple_dataset(dataset_fold)]
     for ds in dataset_list:
         ds[1]["max_items"] = 10 if dummy else None
 
@@ -139,10 +141,14 @@ def run_fit_test(
         wandb.finish()
 
 
-def run_sweep(config: ConfigUnion, dummy: bool):
+def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False):
+    if config.get("wandb") is None:
+        raise ValueError("sweep use wandb and need wandb config")
+
     sweep_config = {
+        "count_per_agent": 3,
+        "use_cv": use_cv,
         "method": "random",
-        "count_per_agent": 10,
         "parameters": {
             "opt_lr": {
                 "distribution": "log_uniform_values",
@@ -161,22 +167,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
         },
     }
 
-    ref_ckpt_path = config["learn"].get("ref_ckpt_path")
-    ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
-
-    sweep_config = initialize_sweep(config, sweep_config, dummy)
-    config["wandb"]["sweep_id"] = sweep_config["sweep_id"]  # type: ignore
-
-    def train():
-        config["learn"]["run_name"] = make_run_name(config["learn"]["exp_name"])
-
-        wandb.init(
-            tags=config.get("wandb", {}).get("tags"),
-            group=config["learn"]["exp_name"],
-            name=config["learn"]["run_name"],
-            job_type=config.get("wandb", {}).get("job_type"),
-        )
-        ref_config = wandb.config
+    def update_config_from_ref(config: ConfigUnion, ref_config: dict):
         config["optimizer"]["lr"] = ref_config["opt_lr"]
         config["optimizer"]["lr_bias"] = ref_config["opt_lr"] * 2
         config["optimizer"]["weight_decay"] = ref_config["opt_weight_decay"]
@@ -185,21 +176,90 @@ def run_sweep(config: ConfigUnion, dummy: bool):
             ref_config["opt_beta_1"],
         )
         config["scheduler"]["gamma"] = ref_config["sch_gamma"]
-        dataset_fold = ref_config["dataset_fold"]
+
+    ref_ckpt_path = config["learn"].get("ref_ckpt_path")
+    ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
+
+    sweep_config = initialize_sweep(config, sweep_config, dummy)
+    config["wandb"]["sweep_id"] = sweep_config["sweep_id"]  # type: ignore
+
+    def train(
+        config: ConfigUnion = deepcopy(config), ref_config: dict | None = None
+    ) -> float | None:
+        if use_cv:
+            sweep_parent = config.get("wandb", {}).get("sweep_parent")
+            assert sweep_parent and ref_config
+            dataset_fold = ref_config["dataset_fold"]
+            run_name = f"{sweep_parent} F{dataset_fold}"
+            project = WANDB_SETTINGS["dummy_project" if dummy else "project"]
+            update_config_from_ref(config, ref_config)
+        else:
+            run_name = make_run_name(config["learn"]["exp_name"])
+            project = None
+        config["learn"]["run_name"] = run_name
+
+        wandb.init(
+            config=dict(config) if use_cv else None,
+            tags=config.get("wandb", {}).get("tags"),
+            project=project,
+            group=config["learn"]["exp_name"],
+            name=run_name,
+            job_type=config.get("wandb", {}).get("job_type"),
+            reinit=True if use_cv else None,
+        )
+        config["wandb"]["run_id"] = wandb.run.id  # type: ignore
+
+        if not use_cv:
+            ref_config = dict(wandb.config)
+            dataset_fold = ref_config.get("dataset_fold", 0)
+            update_config_from_ref(config, ref_config)
 
         learner, trainer = make_learner_and_trainer(
             config, dummy, dataset_fold=dataset_fold, learner_ckpt=ckpt_path
         )
         if learner is None or trainer is None:
-            return
+            return None
 
         trainer.fit(learner)
+        monitor = config["callbacks"].get("monitor")
+        final_score = trainer.callback_metrics[monitor].item() if monitor else None
 
+        wandb.finish()
+        return final_score
+
+    def train_cv(config: ConfigUnion = deepcopy(config)):
+        num_folds = 2
+
+        config["learn"]["run_name"] = make_run_name(config["learn"]["exp_name"])
+
+        wandb.init(
+            tags=config.get("wandb", {}).get("tags", []) + ["sweep-parent"],
+            group=config["learn"]["exp_name"],
+            name=config["learn"]["run_name"],
+            job_type=config.get("wandb", {}).get("job_type"),
+        )
+        sweep_run_id = wandb.run and wandb.run.id
+        ref_config = dict(wandb.config)
+        wandb.finish()
+        wandb_setup._setup(_reset=True)
+
+        config["wandb"]["sweep_parent"] = config["learn"]["run_name"]  # type: ignore
+
+        scores = []
+        for i in range(num_folds):
+            reset_wandb_env()
+            ref_config["dataset_fold"] = i
+            final_score = train(config, ref_config)
+            if final_score is not None:
+                scores.append(final_score)
+
+        wandb.init(id=sweep_run_id, resume="must")
+        wandb.log({sweep_config["metric"]["name"]: mean(scores)})
         wandb.finish()
 
     wandb.agent(
         sweep_config["sweep_id"],
-        function=train,
+        function=train_cv if use_cv else train,
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
         count=sweep_config.get("count_per_agent"),
     )
@@ -212,7 +272,7 @@ def run_sweep(config: ConfigUnion, dummy: bool):
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["fit-test", "fit", "test", "sweep"]),
+    type=click.Choice(["fit-test", "fit", "test", "sweep", "sweep-cv"]),
     default="fit-test",
 )
 @click.option(
@@ -249,6 +309,8 @@ def main(
         run_fit_test(config, dummy, resume=resume, test_only=True)
     elif mode == "sweep":
         run_sweep(config, dummy)
+    elif mode == "sweep-cv":
+        run_sweep(config, dummy, use_cv=True)
 
 
 if __name__ == "__main__":

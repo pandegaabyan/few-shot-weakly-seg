@@ -1,5 +1,6 @@
 import datetime
 import os
+from copy import deepcopy
 from typing import Literal
 
 from config.config_type import (
@@ -133,7 +134,7 @@ def make_config(
     use_wandb: bool = True,
     dummy: bool = False,
 ) -> ConfigUnion:
-    if mode == "sweep":
+    if mode == "sweep" or mode == "sweep-cv":
         use_wandb = True
         config_base["learn"]["tensorboard_graph"] = False
         config_base["wandb"] = {
@@ -219,7 +220,7 @@ def make_config(
     else:
         config_base.pop("wandb")
 
-    config: ConfigUnion = config_base.copy()
+    config: ConfigUnion = deepcopy(config_base)
     if learner == "simple":
         config_simple: ConfigSimpleLearner = {
             **config_base,

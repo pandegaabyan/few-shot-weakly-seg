@@ -1,8 +1,8 @@
 import os
 
-import wandb
 from dotenv import load_dotenv
 
+import wandb
 from config.constants import WANDB_SETTINGS
 from utils.utils import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 
@@ -68,3 +68,14 @@ def wandb_delete_old_tables(run_id: str | None, dummy: bool = False):
     for artifact in run.logged_artifacts():
         if artifact.type == "run_table" and "latest" not in artifact.aliases:
             artifact.delete(delete_aliases=True)
+
+
+def reset_wandb_env():
+    exclude = {
+        "WANDB_PROJECT",
+        "WANDB_ENTITY",
+        "WANDB_API_KEY",
+    }
+    for key in os.environ.keys():
+        if key.startswith("WANDB_") and key not in exclude:
+            del os.environ[key]

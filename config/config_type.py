@@ -2,7 +2,7 @@ from typing import Literal, Union
 
 from typing_extensions import NotRequired, TypedDict
 
-RunMode = Literal["fit-test", "fit", "test", "sweep"]
+RunMode = Literal["fit-test", "fit", "test", "sweep", "sweep-cv"]
 
 
 class DataConfig(TypedDict):
@@ -60,6 +60,7 @@ class WandbConfig(TypedDict):
     push_table_freq: int | None
     sweep_metric: NotRequired[tuple[str, Literal["maximize", "minimize"]]] | None
     sweep_id: NotRequired[str]
+    sweep_parent: NotRequired[str]
     save_train_preds: NotRequired[int]
     save_val_preds: NotRequired[int]
     save_test_preds: NotRequired[int]

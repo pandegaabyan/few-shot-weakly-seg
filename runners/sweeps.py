@@ -42,6 +42,7 @@ def initialize_sweep(
 
     clean_sweep_config = sweep_config.copy()
     clean_sweep_config.pop("count_per_agent")
+    clean_sweep_config.pop("use_cv")
     sweep_id = wandb.sweep(
         clean_sweep_config,
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
