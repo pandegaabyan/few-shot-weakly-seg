@@ -25,7 +25,6 @@ class SweepConfigBase(TypedDict):
 class SweepConfigFull(SweepConfigBase):
     sweep_id: str
     use_cv: bool
-    counts: list[int]
 
 
 def get_sweep_config_path(exp_name: str, sweep_id: str) -> str:
@@ -41,23 +40,18 @@ def initialize_sweep(
     sweep_config: SweepConfigBase,
     dummy: bool = False,
     use_cv: bool = False,
-    count: int = 3,
 ) -> SweepConfigFull:
-    if config.get("wandb") is None:
-        raise ValueError("sweep use wandb and need wandb config")
+    assert "wandb" in config
 
     wandb_login()
 
-    sweep_id = config.get("wandb", {}).get("sweep_id")
+    sweep_id = config["wandb"].get("sweep_id")
     if sweep_id:
         prev_sweep_config_path = get_sweep_config_path(
             config["learn"]["exp_name"], sweep_id
         )
         prev_sweep_config = load_json(prev_sweep_config_path)
         assert isinstance(prev_sweep_config, dict)
-        assert isinstance(prev_sweep_config["counts"], list)
-        prev_sweep_config["counts"].append(count)
-        dump_json(prev_sweep_config_path, prev_sweep_config)
         return prev_sweep_config  # type: ignore
 
     sweep_id = wandb.sweep(
@@ -68,7 +62,6 @@ def initialize_sweep(
         **sweep_config,
         "sweep_id": sweep_id,
         "use_cv": use_cv,
-        "counts": [count],
     }
 
     sweep_config_path = get_sweep_config_path(config["learn"]["exp_name"], sweep_id)

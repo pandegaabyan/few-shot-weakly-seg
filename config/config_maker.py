@@ -26,6 +26,7 @@ from config.config_type import (
     WeaselConfig,
 )
 from config.constants import FILENAMES
+from utils.logging import read_recent_runs, write_recent_runs
 from utils.utils import generate_char
 
 data_config: DataConfig = {
@@ -116,12 +117,15 @@ def make_run_name(exp_name: str) -> str:
     exp_path = os.path.join(FILENAMES["log_folder"], exp_name)
     if not os.path.exists(exp_path):
         return run_name_ori
-    existing_runs = os.listdir(exp_path)
+
+    recent_runs = read_recent_runs(exp_name)
 
     i = 0
     run_name = run_name_ori
-    while run_name in existing_runs:
+    while run_name in recent_runs:
         run_name = run_name_ori + " " + generate_char(i)
+
+    write_recent_runs(exp_name, recent_runs, run_name)
 
     return run_name
 
@@ -204,14 +208,14 @@ def make_config(
         config_base["learn"]["dummy"] = False
         config_base["data"]["num_workers"] = 3
     if use_wandb:
-        config_base["wandb"] = {  # type: ignore
-            **config_base.get("wandb", {}),
-            **{
+        assert "wandb" in config_base
+        config_base["wandb"].update(
+            {
                 "save_train_preds": save_train_preds,
                 "save_val_preds": save_val_preds,
                 "save_test_preds": save_test_preds,
-            },
-        }
+            }
+        )
     else:
         config_base.pop("wandb")
 
@@ -275,6 +279,7 @@ def make_config(
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
-    config["learn"]["run_name"] = make_run_name(exp_name)
+    if "sweep" not in mode:
+        config["learn"]["run_name"] = make_run_name(exp_name)
 
     return config
