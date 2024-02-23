@@ -15,7 +15,7 @@ from learners.simple_unet import SimpleUnet
 from learners.typings import SimpleLearnerKwargs
 from runners.callbacks import make_callbacks
 from runners.sweeps import SweepConfigBase, initialize_sweep
-from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
+from tasks.optic_disc_cup.datasets import DrishtiSimpleDataset, RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 from utils.logging import (
@@ -46,6 +46,23 @@ def rim_one_simple_dataset(
     return (RimOneSimpleDataset, rim_one_kwargs)
 
 
+def drishti_simple_dataset(
+    val_fold: int = 0,
+) -> tuple[type[SimpleDataset], SimpleDatasetKwargs]:
+    drishti_kwargs: SimpleDatasetKwargs = {
+        "seed": 0,
+        "max_items": None,
+        "split_val_size": 0.1,
+        "split_val_fold": val_fold,
+        "split_test_size": 0.1,
+        "split_test_fold": 0,
+        "cache_data": True,
+        "dataset_name": "DRISHTI",
+    }
+
+    return (DrishtiSimpleDataset, drishti_kwargs)
+
+
 def make_learner_and_trainer(
     config: ConfigUnion,
     dummy: bool,
@@ -53,7 +70,7 @@ def make_learner_and_trainer(
     dataset_fold: int = 0,
     learner_ckpt: str | None = None,
 ) -> tuple[BaseLearner | None, Trainer | None]:
-    dataset_list = [rim_one_simple_dataset(dataset_fold)]
+    dataset_list = [drishti_simple_dataset(dataset_fold)]
 
     new_config: ConfigSimpleLearner = config  # type: ignore
     kwargs: SimpleLearnerKwargs = {
@@ -228,7 +245,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
         return final_score
 
     def train_cv(config: ConfigUnion = deepcopy(config)):
-        num_folds = 4
+        num_folds = 6
 
         assert "wandb" in config
 
