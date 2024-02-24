@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Type
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data import ConcatDataset, DataLoader
 
 from config.config_type import ConfigSimpleLearner
@@ -12,7 +12,7 @@ from learners.base_learner import BaseLearner
 from learners.losses import CustomLoss
 from learners.metrics import CustomMetric
 from learners.typings import SimpleDataBatchTuple
-from utils.utils import mean
+from utils.utils import make_batch_sample_indices
 
 
 class SimpleLearner(
@@ -45,16 +45,40 @@ class SimpleLearner(
         self.check_and_clean_config(ConfigSimpleLearner)
 
         self.net = self.make_net()
-        self.training_step_losses = []
-        self.validation_step_losses = []
-        self.test_step_losses = []
 
     @abstractmethod
     def make_net(self) -> nn.Module:
         pass
 
-    def forward(self, x):
-        return self.net(x)
+    def make_dataloader(self, datasets: list[SimpleDataset]):
+        return DataLoader(
+            ConcatDataset(datasets),
+            batch_size=self.config["data"]["batch_size"],
+            shuffle=datasets[0].mode == "train",
+            num_workers=self.config["data"]["num_workers"],
+            pin_memory=self.device.type != "cpu",
+        )
+
+    def make_indices_to_save(
+        self, datasets: list[SimpleDataset], sample_size: int | None
+    ) -> list[list[int]]:
+        batch_size = self.config["data"]["batch_size"]
+        return make_batch_sample_indices(
+            sum(len(ds) for ds in datasets),
+            sample_size or 0,
+            batch_size,
+        )
+
+    def make_input_example(self) -> tuple[Any, ...]:
+        img_example = torch.rand(
+            self.config["data"]["batch_size"],
+            self.config["data"]["num_channels"],
+            *self.config["data"]["resize_to"],
+        )
+        return (img_example,)
+
+    def forward(self, img: Tensor) -> Tensor:
+        return self.net(img)
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
@@ -128,34 +152,6 @@ class SimpleLearner(
 
         return loss
 
-    def on_validation_epoch_end(self):
-        super().on_validation_epoch_end()
-
-        val_loss = mean(self.validation_step_losses)
-        self.validation_step_losses.clear()
-        val_score = self.metric.compute()
-        val_score = self.metric.prepare_for_log(val_score)
-        score_summary = self.metric.score_summary()
-
-        if self.trainer.sanity_checking:
-            return
-
-        self.wandb_log(
-            {"loss": val_loss} | dict(val_score) | {"score": score_summary},
-            "summary/val_",
-        )
-        self.log_monitor(score_summary)
-
-    def on_train_epoch_end(self):
-        super().on_train_epoch_end()
-
-        train_loss = mean(self.training_step_losses)
-        self.training_step_losses.clear()
-        self.wandb_log({"loss": train_loss}, "summary/train_")
-
-        self.wandb_push_table()
-        self.wandb_log_ckpt_files()
-
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
         pred = self(image)
@@ -189,32 +185,3 @@ class SimpleLearner(
             )
 
         return loss
-
-    def on_test_end(self) -> None:
-        super().on_test_end()
-
-        test_loss = mean(self.test_step_losses)
-        self.test_step_losses.clear()
-        test_score = self.metric.compute()
-        test_score = self.metric.prepare_for_log(test_score)
-
-        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
-
-        self.wandb_push_table(force=True)
-
-    def make_dataloader(self, datasets: list[SimpleDataset]):
-        return DataLoader(
-            ConcatDataset(datasets),
-            batch_size=self.config["data"]["batch_size"],
-            shuffle=datasets[0].mode == "train",
-            num_workers=self.config["data"]["num_workers"],
-            pin_memory=self.device.type != "cpu",
-        )
-
-    def make_input_example(self) -> tuple[Any, ...]:
-        input_example = torch.rand(
-            self.config["data"]["batch_size"],
-            self.config["data"]["num_channels"],
-            *self.config["data"]["resize_to"],
-        )
-        return (input_example,)

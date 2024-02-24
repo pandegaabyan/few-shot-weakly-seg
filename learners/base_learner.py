@@ -35,7 +35,7 @@ from utils.logging import (
 from utils.utils import (
     diff_dict,
     get_iso_timestamp_now,
-    make_batch_sample_indices,
+    mean,
     merge_dicts,
 )
 
@@ -86,26 +86,15 @@ class BaseLearner(
             config["learn"]["run_name"],
         )
 
-        self.init_ok = False
-        self.example_input_array = self.make_input_example()
-        self.wandb_tables: dict[str, wandb.Table] = {}
-
         wandb_config = config.get("wandb", {})
-        batch_size = config["data"]["batch_size"]
-        self.train_indices_to_save = make_batch_sample_indices(
-            sum(len(ds.items) for ds in self.train_datasets),
-            wandb_config.get("save_test_preds", 0),
-            batch_size,
+        self.train_indices_to_save = self.make_indices_to_save(
+            self.train_datasets, wandb_config.get("save_train_preds")
         )
-        self.val_indices_to_save = make_batch_sample_indices(
-            sum(len(ds.items) for ds in self.val_datasets),
-            wandb_config.get("save_test_preds", 0),
-            batch_size,
+        self.val_indices_to_save = self.make_indices_to_save(
+            self.val_datasets, wandb_config.get("save_val_preds")
         )
-        self.test_indices_to_save = make_batch_sample_indices(
-            sum(len(ds.items) for ds in self.test_datasets),
-            wandb_config.get("save_test_preds", 0),
-            batch_size,
+        self.test_indices_to_save = self.make_indices_to_save(
+            self.test_datasets, wandb_config.get("save_test_preds")
         )
         self.class_labels = merge_dicts(
             [
@@ -114,8 +103,22 @@ class BaseLearner(
             ]
         )
 
+        self.init_ok = False
+        self.example_input_array = self.make_input_example()
+
+        self.wandb_tables: dict[str, wandb.Table] = {}
+        self.training_step_losses: list[float] = []
+        self.validation_step_losses: list[float] = []
+        self.test_step_losses: list[float] = []
+
     @abstractmethod
     def make_dataloader(self, datasets: list[DatasetClass]) -> DataLoader:
+        pass
+
+    @abstractmethod
+    def make_indices_to_save(
+        self, datasets: list[DatasetClass], sample_size: int | None
+    ) -> list[list[int]]:
         pass
 
     @abstractmethod
@@ -132,6 +135,46 @@ class BaseLearner(
         self.prepare_datasets()
         self.cast_example_input_array()
         self.log_tensorboard_graph()
+
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()
+
+        val_loss = mean(self.validation_step_losses)
+        self.validation_step_losses.clear()
+        val_score = self.metric.compute()
+        val_score = self.metric.prepare_for_log(val_score)
+        score_summary = self.metric.score_summary()
+
+        if self.trainer.sanity_checking:
+            return
+
+        self.wandb_log(
+            {"loss": val_loss} | dict(val_score) | {"score": score_summary},
+            "summary/val_",
+        )
+        self.log_monitor(score_summary)
+
+    def on_train_epoch_end(self):
+        super().on_train_epoch_end()
+
+        train_loss = mean(self.training_step_losses)
+        self.training_step_losses.clear()
+        self.wandb_log({"loss": train_loss}, "summary/train_")
+
+        self.wandb_push_table()
+        self.wandb_log_ckpt_files()
+
+    def on_test_end(self) -> None:
+        super().on_test_end()
+
+        test_loss = mean(self.test_step_losses)
+        self.test_step_losses.clear()
+        test_score = self.metric.compute()
+        test_score = self.metric.prepare_for_log(test_score)
+
+        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
+
+        self.wandb_push_table(force=True)
 
     def train_dataloader(self) -> DataLoader:
         return self.make_dataloader(self.train_datasets)
