@@ -569,14 +569,13 @@ class FewSparseDataset(BaseDataset, ABC):
         support_images_list = []
         support_masks_list = []
         support_name_list = []
-        support_sparsity_list: list[SparsityTuple] = []
-        support_sparsity = []
+        support_sparsity_modes: list[SparsityMode] = []
+        support_sparsity_values: list[SparsityValue] = []
         if self.homogen_support_batch:
             if self.shot_sparsity_permutation:
-                support_sparsity = self.support_sparsities[index]
+                sparsity_mode, sparsity_value = self.support_sparsities[index]
             else:
-                support_sparsity = self.select_sparsity(index)
-            sparsity_mode, sparsity_value = support_sparsity
+                sparsity_mode, sparsity_value = self.select_sparsity(index)
         else:
             sparsity_mode, sparsity_value = None, None
         for i in range(support_batch_size):
@@ -590,9 +589,12 @@ class FewSparseDataset(BaseDataset, ABC):
             support_masks_list.append(msk)
             support_name_list.append(name)
             if not self.homogen_support_batch:
-                support_sparsity_list.append((mode, value))
+                support_sparsity_modes.append(mode)
+                support_sparsity_values.append(value)
         if not self.homogen_support_batch:
-            support_sparsity = support_sparsity_list
+            sparsity_mode = support_sparsity_modes
+            sparsity_value = support_sparsity_values
+        assert sparsity_mode is not None and sparsity_value is not None
 
         query_images_list = []
         query_masks_list = []
@@ -616,7 +618,8 @@ class FewSparseDataset(BaseDataset, ABC):
                 images=support_images,
                 masks=support_masks,
                 file_names=support_name_list,
-                sparsity=support_sparsity,
+                sparsity_mode=sparsity_mode,
+                sparsity_value=sparsity_value,
             ),
             query=QueryDataTuple(
                 images=query_images, masks=query_masks, file_names=query_names_list

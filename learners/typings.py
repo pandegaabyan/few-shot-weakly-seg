@@ -1,4 +1,4 @@
-from typing import NamedTuple, Type, TypedDict, TypeVar
+from typing import Type, TypedDict, TypeVar
 
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, optim
@@ -33,8 +33,4 @@ class SimpleLearnerKwargs(TypedDict, total=False):
     force_clear_dir: bool
 
 
-class SimpleDataBatchTuple(NamedTuple):
-    image: Tensor
-    mask: Tensor
-    file_names: list[str]
-    dataset_names: list[str]
+SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]

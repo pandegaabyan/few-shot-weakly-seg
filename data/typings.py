@@ -51,7 +51,8 @@ class SupportDataTuple(NamedTuple):
     images: Tensor
     masks: Tensor
     file_names: list[str]
-    sparsity: Union[SparsityTuple, list[SparsityTuple]]
+    sparsity_mode: Union[SparsityMode, list[SparsityMode]]
+    sparsity_value: Union[SparsityValue, list[SparsityValue]]
 
 
 class QueryDataTuple(NamedTuple):
