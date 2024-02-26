@@ -1,17 +1,27 @@
-from typing import Type, TypedDict, TypeVar
+from typing import Generic, Type, TypedDict, TypeVar
 
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, optim
 from typing_extensions import Required
 
-from config.config_type import ConfigBase, ConfigSimpleLearner
+from config.config_type import (
+    ConfigBase,
+    ConfigGuidedNets,
+    ConfigMetaLearner,
+    ConfigProtoSeg,
+    ConfigSimpleLearner,
+    ConfigWeasel,
+)
 from data.base_dataset import BaseDataset
+from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import BaseDatasetKwargs, SimpleDatasetKwargs
+from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.losses import CustomLoss
 from learners.metrics import CustomMetric
 
 ConfigType = TypeVar("ConfigType", bound=ConfigBase)
+
+ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)
 
 DatasetClass = TypeVar("DatasetClass", bound=BaseDataset)
 
@@ -22,15 +32,36 @@ Optimizer = optim.Optimizer
 Scheduler = LRSchedulerPLType
 
 
-class SimpleLearnerKwargs(TypedDict, total=False):
-    config: Required[ConfigSimpleLearner]
-    dataset_list: Required[list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]]
-    val_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-    test_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-    loss: CustomLoss | None
-    metric: CustomMetric | None
+class BaseLearnerKwargs(
+    TypedDict, Generic[ConfigType, DatasetClass, DatasetKwargs], total=False
+):
+    config: Required[ConfigType]
+    dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
+    val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    loss: CustomLoss
+    metric: CustomMetric
     resume: bool
     force_clear_dir: bool
+
+
+SimpleLearnerKwargs = BaseLearnerKwargs[
+    ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs
+]
+
+
+class MetaLearnerKwargs(
+    Generic[ConfigType],
+    BaseLearnerKwargs[ConfigType, FewSparseDataset, FewSparseDatasetKwargs],
+):
+    ...
+
+
+WeaselLearnerKwargs = MetaLearnerKwargs[ConfigWeasel]
+
+ProtoSegLearnerKwargs = MetaLearnerKwargs[ConfigProtoSeg]
+
+GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 
 
 SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]

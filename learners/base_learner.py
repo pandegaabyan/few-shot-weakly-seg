@@ -45,8 +45,8 @@ class BaseLearner(
 ):
     def __init__(
         self,
-        config: ConfigType,
-        dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]],
+        config: ConfigType | None = None,
+        dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
         val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
         test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
         loss: CustomLoss | None = None,
@@ -55,6 +55,7 @@ class BaseLearner(
         force_clear_dir: bool = False,
     ):
         super().__init__()
+        assert config is not None and dataset_list is not None
 
         self.config = config
         self.dataset_list = dataset_list

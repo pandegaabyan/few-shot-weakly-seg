@@ -1,46 +1,24 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal, Type
+from typing import Any, Literal
 
 import torch
 from torch import Tensor, nn
 from torch.utils.data import ConcatDataset, DataLoader
+from typing_extensions import Unpack
 
 from config.config_type import ConfigSimpleLearner
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
-from learners.losses import CustomLoss
-from learners.metrics import CustomMetric
-from learners.typings import SimpleDataBatchTuple
+from learners.typings import SimpleDataBatchTuple, SimpleLearnerKwargs
 from utils.utils import make_batch_sample_indices
 
 
 class SimpleLearner(
     BaseLearner[ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs], ABC
 ):
-    def __init__(
-        self,
-        config: ConfigSimpleLearner,
-        dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]],
-        val_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-        | None = None,
-        test_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-        | None = None,
-        loss: CustomLoss | None = None,
-        metric: CustomMetric | None = None,
-        resume: bool = False,
-        force_clear_dir: bool = False,
-    ):
-        super().__init__(
-            config,
-            dataset_list,
-            val_dataset_list,
-            test_dataset_list,
-            loss,
-            metric,
-            resume,
-            force_clear_dir,
-        )
+    def __init__(self, **kwargs: Unpack[SimpleLearnerKwargs]):
+        super().__init__(**kwargs)
 
         self.check_and_clean_config(ConfigSimpleLearner)
 
