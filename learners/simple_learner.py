@@ -4,20 +4,19 @@ from typing import Any, Literal
 import torch
 from torch import Tensor, nn
 from torch.utils.data import ConcatDataset, DataLoader
-from typing_extensions import Unpack
 
 from config.config_type import ConfigSimpleLearner
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
-from learners.typings import SimpleDataBatchTuple, SimpleLearnerKwargs
+from learners.typings import SimpleDataBatchTuple
 from utils.utils import make_batch_sample_indices
 
 
 class SimpleLearner(
     BaseLearner[ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs], ABC
 ):
-    def __init__(self, **kwargs: Unpack[SimpleLearnerKwargs]):
+    def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self.check_and_clean_config(ConfigSimpleLearner)

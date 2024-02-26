@@ -8,6 +8,7 @@ from pytorch_lightning import LightningModule
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
+from typing_extensions import Unpack
 
 import wandb
 from config.config_type import ConfigUnion
@@ -16,6 +17,7 @@ from data.typings import DatasetModes
 from learners.losses import CustomLoss
 from learners.metrics import CustomMetric
 from learners.typings import (
+    BaseLearnerKwargs,
     ConfigType,
     DatasetClass,
     DatasetKwargs,
@@ -45,49 +47,43 @@ class BaseLearner(
 ):
     def __init__(
         self,
-        config: ConfigType | None = None,
-        dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
-        val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
-        test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]] | None = None,
-        loss: CustomLoss | None = None,
-        metric: CustomMetric | None = None,
-        resume: bool = False,
-        force_clear_dir: bool = False,
+        **kwargs: Unpack[BaseLearnerKwargs[ConfigType, DatasetClass, DatasetKwargs]],
     ):
         super().__init__()
-        assert config is not None and dataset_list is not None
 
-        self.config = config
-        self.dataset_list = dataset_list
-        self.val_dataset_list = val_dataset_list
-        self.test_dataset_list = test_dataset_list
+        self.config = kwargs["config"]
+        self.dataset_list = kwargs["dataset_list"]
+        self.val_dataset_list = kwargs.get("val_dataset_list")
+        self.test_dataset_list = kwargs.get("test_dataset_list")
 
-        self.train_datasets = self.make_dataset("train", dataset_list)
-        self.val_datasets = self.make_dataset("val", val_dataset_list or dataset_list)
+        self.train_datasets = self.make_dataset("train", self.dataset_list)
+        self.val_datasets = self.make_dataset(
+            "val", self.val_dataset_list or self.dataset_list
+        )
         self.test_datasets = self.make_dataset(
-            "test", test_dataset_list or dataset_list
+            "test", self.test_dataset_list or self.dataset_list
         )
 
-        self.loss = loss or CustomLoss()
-        self.metric = metric or CustomMetric()
-        self.resume = resume
-        self.force_clear_dir = force_clear_dir
-        self.use_wandb = config.get("wandb") is not None
-        self.tensorboard_graph = config["learn"].get("tensorboard_graph", True)
+        self.loss = kwargs.get("loss") or CustomLoss()
+        self.metric = kwargs.get("metric") or CustomMetric()
+        self.resume = kwargs.get("resume", False)
+        self.force_clear_dir = kwargs.get("force_clear_dir", False)
+        self.use_wandb = self.config.get("wandb") is not None
+        self.tensorboard_graph = self.config["learn"].get("tensorboard_graph", True)
 
         self.initial_messages: list[str] = []
         self.log_path = os.path.join(
             FILENAMES["log_folder"],
-            config["learn"]["exp_name"],
-            config["learn"]["run_name"],
+            self.config["learn"]["exp_name"],
+            self.config["learn"]["run_name"],
         )
         self.ckpt_path = os.path.join(
             FILENAMES["checkpoint_folder"],
-            config["learn"]["exp_name"],
-            config["learn"]["run_name"],
+            self.config["learn"]["exp_name"],
+            self.config["learn"]["run_name"],
         )
 
-        wandb_config = config.get("wandb", {})
+        wandb_config = self.config.get("wandb", {})
         self.train_indices_to_save = self.make_indices_to_save(
             self.train_datasets, wandb_config.get("save_train_preds")
         )
