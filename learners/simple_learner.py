@@ -86,9 +86,8 @@ class SimpleLearner(
         loss = self.loss(pred, mask)
 
         self.training_step_losses.append(loss.item())
-        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
 
-        self.log_to_table_metrics("TR", batch_idx, loss, dummy_score)
+        self.log_to_table_metrics("TR", batch_idx, loss)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
             self.log_to_wandb_preds(
@@ -109,7 +108,7 @@ class SimpleLearner(
         if self.trainer.sanity_checking:
             return loss
 
-        self.log_to_table_metrics("VL", batch_idx, loss, score)
+        self.log_to_table_metrics("VL", batch_idx, loss, score=score)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
             self.log_to_wandb_preds(
@@ -127,7 +126,7 @@ class SimpleLearner(
         score = self.metric(pred, mask)
         score = self.metric.prepare_for_log(score)
 
-        self.log_to_table_metrics("TS", batch_idx, loss, score, epoch=0)
+        self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
         self.log_to_wandb_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
 
@@ -138,18 +137,17 @@ class SimpleLearner(
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
         loss: Tensor,
-        score: list[tuple[str, Any]],
+        score: list[tuple[str, float]] | None = None,
         epoch: int | None = None,
     ):
-        if epoch is None:
-            epoch = self.current_epoch
+        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
         self.log_table(
             [
                 ("type", type),
-                ("epoch", epoch),
+                ("epoch", epoch if epoch is not None else self.current_epoch),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
             ]
-            + score,
+            + (score if score is not None else dummy_score),
             "metrics",
         )
