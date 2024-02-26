@@ -51,8 +51,8 @@ SimpleLearnerKwargs = BaseLearnerKwargs[
 
 
 class MetaLearnerKwargs(
-    Generic[ConfigType],
-    BaseLearnerKwargs[ConfigType, FewSparseDataset, FewSparseDatasetKwargs],
+    Generic[ConfigTypeMeta],
+    BaseLearnerKwargs[ConfigTypeMeta, FewSparseDataset, FewSparseDatasetKwargs],
 ):
     ...
 
