@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import Tensor
 from torchmetrics.functional.classification import binary_jaccard_index
@@ -26,7 +28,7 @@ class DiscCupIoU(CustomMetric):
     def score_summary(self) -> float:
         return sum([self.iou_disc.item(), self.iou_cup.item()]) / 2
 
-    def additional_params(self) -> dict:
+    def additional_params(self) -> dict[str, Any]:
         return {
             "iou_disc": "mean",
             "iou_cup": "mean",

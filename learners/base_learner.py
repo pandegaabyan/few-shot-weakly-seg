@@ -1,7 +1,7 @@
 import os
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Type
+from typing import Any, Generic, Literal, Type
 
 import numpy as np
 from pytorch_lightning import LightningModule
@@ -444,7 +444,7 @@ class BaseLearner(
                     columns=self.wandb_tables[group].columns
                 )
 
-    def wandb_log_image(
+    def wandb_log_mask(
         self,
         gt: Tensor,
         pred: Tensor,
@@ -504,3 +504,35 @@ class BaseLearner(
                 checksum=False,
             )
             wandb.log_artifact(artifact, aliases=[alias])
+
+    def log_to_wandb_preds(
+        self,
+        type: Literal["TR", "VL", "TS"],
+        batch_idx: int,
+        gt: Tensor,
+        pred: Tensor,
+        file_name: str | list[str],
+        dataset: str | list[str],
+    ):
+        match type:
+            case "TR":
+                indices_to_save = self.train_indices_to_save
+            case "VL":
+                indices_to_save = self.val_indices_to_save
+            case "TS":
+                indices_to_save = self.test_indices_to_save
+        for i in indices_to_save[batch_idx]:
+            if isinstance(file_name, list):
+                file_name = file_name[i]
+            if isinstance(dataset, list):
+                dataset = dataset[i]
+            self.wandb_log_mask(
+                gt[i],
+                pred[i],
+                [
+                    ("type", "TR"),
+                    ("file_name", file_name[i]),
+                    ("dataset", dataset[i]),
+                ],
+                "preds",
+            )

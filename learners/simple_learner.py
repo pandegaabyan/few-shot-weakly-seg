@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Type
+from typing import Any, Literal, Type
 
 import torch
 from torch import Tensor, nn
@@ -88,29 +88,12 @@ class SimpleLearner(
         self.training_step_losses.append(loss.item())
         dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
 
-        self.log_table(
-            [
-                ("type", "TR"),
-                ("epoch", self.current_epoch),
-                ("batch", batch_idx),
-                ("loss", loss.item()),
-            ]
-            + dummy_score,
-            "metrics",
-        )
+        self.log_to_table_metrics("TR", batch_idx, loss, dummy_score)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            for i in self.train_indices_to_save[batch_idx]:
-                self.wandb_log_image(
-                    mask[i],
-                    pred[i],
-                    [
-                        ("type", "TR"),
-                        ("file_name", file_names[i]),
-                        ("dataset", dataset_names[i]),
-                    ],
-                    "preds",
-                )
+            self.log_to_wandb_preds(
+                "TR", batch_idx, mask, pred, file_names, dataset_names
+            )
 
         return loss
 
@@ -126,29 +109,12 @@ class SimpleLearner(
         if self.trainer.sanity_checking:
             return loss
 
-        self.log_table(
-            [
-                ("type", "VL"),
-                ("epoch", self.current_epoch),
-                ("batch", batch_idx),
-                ("loss", loss.item()),
-            ]
-            + score,
-            "metrics",
-        )
+        self.log_to_table_metrics("VL", batch_idx, loss, score)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            for i in self.val_indices_to_save[batch_idx]:
-                self.wandb_log_image(
-                    mask[i],
-                    pred[i],
-                    [
-                        ("type", "VL"),
-                        ("file_name", file_names[i]),
-                        ("dataset", dataset_names[i]),
-                    ],
-                    "preds",
-                )
+            self.log_to_wandb_preds(
+                "VL", batch_idx, mask, pred, file_names, dataset_names
+            )
 
         return loss
 
@@ -161,27 +127,29 @@ class SimpleLearner(
         score = self.metric(pred, mask)
         score = self.metric.prepare_for_log(score)
 
+        self.log_to_table_metrics("TS", batch_idx, loss, score, epoch=0)
+
+        self.log_to_wandb_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
+
+        return loss
+
+    def log_to_table_metrics(
+        self,
+        type: Literal["TR", "VL", "TS"],
+        batch_idx: int,
+        loss: Tensor,
+        score: list[tuple[str, Any]],
+        epoch: int | None = None,
+    ):
+        if epoch is None:
+            epoch = self.current_epoch
         self.log_table(
             [
-                ("type", "TS"),
-                ("epoch", 0),
+                ("type", type),
+                ("epoch", epoch),
                 ("batch", batch_idx),
                 ("loss", loss.item()),
             ]
             + score,
             "metrics",
         )
-
-        for i in self.test_indices_to_save[batch_idx]:
-            self.wandb_log_image(
-                mask[i],
-                pred[i],
-                [
-                    ("type", "TS"),
-                    ("file_name", file_names[i]),
-                    ("dataset", dataset_names[i]),
-                ],
-                "preds",
-            )
-
-        return loss

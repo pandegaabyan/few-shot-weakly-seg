@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import Tensor
 from torchmetrics import Metric
@@ -18,7 +20,7 @@ class CustomMetric(Metric):
     def score_summary(self) -> float:
         return self.iou.item()
 
-    def additional_params(self) -> dict:
+    def additional_params(self) -> dict[str, Any]:
         return {
             "iou": "mean",
         }
