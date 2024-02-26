@@ -131,9 +131,9 @@ class BaseLearner(
 
         super().on_fit_start()
 
-        self.log_configuration()
-        self.prepare_datasets()
         self.cast_example_input_array()
+        self.prepare_datasets()
+        self.log_configuration()
         self.log_tensorboard_graph()
 
     def on_validation_epoch_end(self):
@@ -283,6 +283,28 @@ class BaseLearner(
             for dataset_class, dataset_kwargs in datasets
         ]
 
+    def prepare_datasets(self):
+        self.print("Preparing train datasets ... ")
+        start_time = time.perf_counter()
+        for ds in self.train_datasets:
+            ds.fill_cached_items_data()
+        inter_time = time.perf_counter()
+        self.print(f"train preparation done in {(inter_time - start_time):.2f} s")
+        self.print("Preparing val datasets ... ")
+        for ds in self.val_datasets:
+            ds.fill_cached_items_data()
+        end_time = time.perf_counter()
+        self.print(f"val preparation done in {(end_time - inter_time):.2f} s")
+
+    def cast_example_input_array(self):
+        if isinstance(self.example_input_array, tuple):
+            self.example_input_array = tuple(
+                inp.to(self.device) if isinstance(inp, Tensor) else inp
+                for inp in self.example_input_array
+            )
+        elif isinstance(self.example_input_array, Tensor):
+            self.example_input_array = self.example_input_array.to(self.device)
+
     def check_log_and_ckpt_dir(self) -> bool:
         return os.path.exists(self.log_path) and os.path.exists(self.ckpt_path)
 
@@ -312,28 +334,6 @@ class BaseLearner(
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
-
-    def prepare_datasets(self):
-        self.print("Preparing train datasets ... ")
-        start_time = time.perf_counter()
-        for ds in self.train_datasets:
-            ds.fill_cached_items_data()
-        inter_time = time.perf_counter()
-        self.print(f"train preparation done in {(inter_time - start_time):.2f} s")
-        self.print("Preparing val datasets ... ")
-        for ds in self.val_datasets:
-            ds.fill_cached_items_data()
-        end_time = time.perf_counter()
-        self.print(f"val preparation done in {(end_time - inter_time):.2f} s")
-
-    def cast_example_input_array(self):
-        if isinstance(self.example_input_array, tuple):
-            self.example_input_array = tuple(
-                inp.to(self.device) if isinstance(inp, Tensor) else inp
-                for inp in self.example_input_array
-            )
-        elif isinstance(self.example_input_array, Tensor):
-            self.example_input_array = self.example_input_array.to(self.device)
 
     def log_configuration(self):
         def dictify_datasets(datasets: list[tuple[Type[DatasetClass], DatasetKwargs]]):
