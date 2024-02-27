@@ -47,15 +47,15 @@ class SimpleLearner(
         )
 
     def make_input_example(self) -> tuple[Any, ...]:
-        img_example = torch.rand(
+        image_example = torch.rand(
             self.config["data"]["batch_size"],
             self.config["data"]["num_channels"],
             *self.config["data"]["resize_to"],
         )
-        return (img_example,)
+        return (image_example,)
 
-    def forward(self, img: Tensor) -> Tensor:
-        return self.net(img)
+    def forward(self, image: Tensor) -> Tensor:
+        return self.net(image)
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
