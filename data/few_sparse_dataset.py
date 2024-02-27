@@ -6,15 +6,15 @@ import torch
 from numpy.typing import NDArray
 from skimage import data as skdata
 from skimage import measure, morphology, segmentation
+from typing_extensions import Unpack
 
 from data.base_dataset import BaseDataset
 from data.typings import (
     DatasetModes,
+    FewSparseDatasetKwargs,
     FewSparseDataTuple,
     QueryDataTuple,
-    ShotOptions,
     SparsityMode,
-    SparsityOptions,
     SparsityTuple,
     SparsityValue,
     SupportDataTuple,
@@ -27,45 +27,20 @@ class FewSparseDataset(BaseDataset, ABC):
         mode: DatasetModes,
         num_classes: int,
         resize_to: tuple[int, int],
-        max_items: int | None = None,
-        seed: int | None = None,
-        split_val_size: float = 0,
-        split_test_size: float = 0,
-        cache_data: bool = False,
-        dataset_name: str | None = None,
-        shot_options: ShotOptions = "all",
-        sparsity_options: SparsityOptions = [("random", "random")],
-        sparsity_params: dict | None = None,
-        shot_sparsity_permutation: bool = False,
-        homogen_support_batch: bool = False,
-        query_batch_size: int = 1,
-        split_query_size: float = 0,
-        split_query_fold: int = 0,
-        num_iterations: int | float = 1.0,
+        **kwargs: Unpack[FewSparseDatasetKwargs],
     ):
-        super().__init__(
-            mode,
-            num_classes,
-            resize_to,
-            max_items,
-            seed,
-            split_val_size,
-            0,
-            split_test_size,
-            0,
-            cache_data,
-            dataset_name,
-        )
+        super().__init__(mode, num_classes, resize_to, **kwargs)
 
-        # Initializing variables.
-        self.shot_options: ShotOptions = shot_options
-        self.sparsity_options: SparsityOptions = sparsity_options
-        self.sparsity_params = sparsity_params or {}
-        self.shot_sparsity_permutation = shot_sparsity_permutation
-        self.homogen_support_batch = homogen_support_batch or shot_sparsity_permutation
-        self.query_batch_size = query_batch_size
-        self.split_query_size = split_query_size
-        self.split_query_fold = split_query_fold
+        self.shot_options = kwargs.get("shot_options", "all")
+        self.sparsity_options = kwargs.get("sparsity_options", [("random", "random")])
+        self.sparsity_params = kwargs.get("sparsity_params") or {}
+        self.shot_sparsity_permutation = kwargs.get("shot_sparsity_permutation", False)
+        self.homogen_support_batch = (
+            kwargs.get("homogen_support_batch", False) or self.shot_sparsity_permutation
+        )
+        self.query_batch_size = kwargs.get("query_batch_size", 1)
+        self.split_query_size = kwargs.get("split_query_size", 0)
+        self.split_query_fold = kwargs.get("split_query_fold", 0)
 
         if self.shot_sparsity_permutation:
             (
@@ -74,10 +49,11 @@ class FewSparseDataset(BaseDataset, ABC):
                 self.support_sparsities,
             ) = self.permute_shot_sparsity_for_support()
         else:
+            num_iterations = kwargs.get("num_iterations", 1.0)
             if isinstance(num_iterations, float):
                 num_iterations = (
-                    round(num_iterations * len(self.items) * split_query_size)
-                    // query_batch_size
+                    round(num_iterations * len(self.items) * self.split_query_size)
+                    // self.query_batch_size
                 )
             self.num_iterations = num_iterations
             self.support_batches = self.make_support_batches()

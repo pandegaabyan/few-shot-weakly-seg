@@ -82,10 +82,11 @@ class SimpleDatasetKwargs(BaseDatasetKwargs):
     ...
 
 
-class FewSparseDatasetKwargs(BaseDatasetKwargs):
+class FewSparseDatasetKwargs(BaseDatasetKwargs, total=False):
     shot_options: ShotOptions
     sparsity_options: SparsityOptions
     sparsity_params: dict | None
+    shot_sparsity_permutation: bool
     homogen_support_batch: bool
     query_batch_size: int
     split_query_size: float

@@ -8,8 +8,9 @@ from numpy.typing import NDArray
 from skimage import transform
 from torch import Tensor
 from torch.utils.data import Dataset
+from typing_extensions import Unpack
 
-from data.typings import BaseDataTuple, DataPathList, DatasetModes, T
+from data.typings import BaseDatasetKwargs, BaseDataTuple, DataPathList, DatasetModes, T
 
 
 class BaseDataset(Dataset, ABC):
@@ -18,27 +19,20 @@ class BaseDataset(Dataset, ABC):
         mode: DatasetModes,
         num_classes: int,
         resize_to: tuple[int, int],
-        max_items: int | None = None,
-        seed: int | None = None,
-        split_val_size: float = 0,
-        split_val_fold: int = 0,
-        split_test_size: float = 0,
-        split_test_fold: int = 0,
-        cache_data: bool = False,
-        dataset_name: str | None = None,
+        **kwargs: Unpack[BaseDatasetKwargs],
     ):
         # Initializing variables.
         self.mode = mode
         self.num_classes = num_classes
         self.resize_to = resize_to
-        self.max_items = max_items
-        self.seed = seed
-        self.split_val_size = split_val_size
-        self.split_val_fold = split_val_fold
-        self.split_test_size = split_test_size
-        self.split_test_fold = split_test_fold
-        self.cache_data = cache_data
-        self.dataset_name = dataset_name or self.__class__.__name__
+        self.max_items = kwargs.get("max_items")
+        self.seed = kwargs.get("seed")
+        self.split_val_size = kwargs.get("split_val_size", 0)
+        self.split_val_fold = kwargs.get("split_val_fold", 0)
+        self.split_test_size = kwargs.get("split_test_size", 0)
+        self.split_test_fold = kwargs.get("split_test_fold", 0)
+        self.cache_data = kwargs.get("cache_data", False)
+        self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.class_labels = self.set_class_labels()
 
         # Creating list of paths.
