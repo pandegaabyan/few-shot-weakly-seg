@@ -1,8 +1,6 @@
-from typing import Generic, Type, TypedDict, TypeVar
-
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, optim
-from typing_extensions import Required
+from typing_extensions import Generic, Required, Type, TypedDict, TypeVar
 
 from config.config_type import (
     ConfigBase,
