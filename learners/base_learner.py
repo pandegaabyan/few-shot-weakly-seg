@@ -22,6 +22,7 @@ from learners.typings import (
     DatasetClass,
     DatasetKwargs,
 )
+from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
 from utils.logging import (
     check_mkdir,
     check_rmtree,
@@ -331,6 +332,10 @@ class BaseLearner(
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
+
+    def update_progress_bar_fields(self, task: ProgressBarTaskType, **kwargs):
+        if isinstance(self.trainer.progress_bar_callback, CustomRichProgressBar):
+            self.trainer.progress_bar_callback.update_fields(task, **kwargs)
 
     def log_configuration(self):
         def dictify_datasets(datasets: list[tuple[Type[DatasetClass], DatasetKwargs]]):

@@ -1,8 +1,13 @@
-from pytorch_lightning import Callback
+from typing import Literal
+
+from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
 from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
+from rich.progress import TextColumn
 
 from config.config_type import CallbacksConfig
+
+ProgressBarTaskType = Literal["train", "val", "test", "predict", "sanity"]
 
 
 class CustomRichProgressBar(RichProgressBar):
@@ -16,6 +21,37 @@ class CustomRichProgressBar(RichProgressBar):
             and trainer.state.fn == "fit"
         ):
             self.refresh()
+
+    def configure_columns(self, trainer: Trainer) -> list:
+        return super().configure_columns(trainer) + [
+            TextColumn(
+                "{task.fields}",
+                style=self.theme.description,
+            )
+        ]
+
+    def update_fields(self, task: ProgressBarTaskType, **kwargs):
+        if self.progress is None:
+            return
+
+        if task == "train":
+            task_id = self.train_progress_bar_id
+        elif task == "val":
+            task_id = self.val_progress_bar_id
+        elif task == "test":
+            task_id = self.test_progress_bar_id
+        elif task == "predict":
+            task_id = self.predict_progress_bar_id
+        elif task == "sanity":
+            task_id = self.val_sanity_progress_bar_id
+        else:
+            return
+
+        if task_id is None:
+            return
+
+        self.progress.update(task_id, **kwargs)
+        self.refresh()
 
 
 def make_callbacks(
