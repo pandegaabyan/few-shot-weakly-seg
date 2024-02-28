@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal
 
 import torch
+from lightning_fabric.utilities.types import LRScheduler
 from torch import Tensor
 from torch.utils.data import ConcatDataset, DataLoader
 
@@ -19,12 +20,20 @@ class MetaLearner(
 ):
     @abstractmethod
     def forward(
-        self,
-        supp_img: Tensor,
-        supp_msk: Tensor,
-        qry_img: Tensor,
-        loss_only: bool = False,
+        self, supp_image: Tensor, supp_mask: Tensor, qry_image: Tensor
+    ) -> Tensor:
+        pass
+
+    @abstractmethod
+    def training_process(
+        self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
+        pass
+
+    @abstractmethod
+    def evaluation_process(
+        self, type: Literal["VL", "TS"], batch: FewSparseDataTuple, batch_idx: int
+    ) -> tuple[Tensor, Tensor, list[tuple[str, float]]]:
         pass
 
     def make_dataloader(self, datasets: list[FewSparseDataset]):
@@ -51,19 +60,14 @@ class MetaLearner(
         num_channels = self.config["data"]["num_channels"]
         num_classes = self.config["data"]["num_classes"]
         resize_to = self.config["data"]["resize_to"]
-        supp_img_example = torch.rand(batch_size, num_channels, *resize_to)
-        supp_msk_example = torch.randint(-1, num_classes, (batch_size, 1, *resize_to))
-        qry_img_example = torch.rand(batch_size, num_channels, *resize_to)
-        return (supp_img_example, supp_msk_example, qry_img_example)
+        supp_image_example = torch.rand(batch_size, num_channels, *resize_to)
+        supp_mask_example = torch.randint(-1, num_classes, (batch_size, *resize_to))
+        qry_image_example = torch.rand(batch_size, num_channels, *resize_to)
+        return (supp_image_example, supp_mask_example, qry_image_example)
 
     def training_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        last_epoch = self.current_epoch == self.config["learn"]["num_epochs"] - 1
-
         support, query, dataset_name = batch
-        pred, loss = self(
-            support.images, support.masks, query.images, loss_only=not last_epoch
-        )
-
+        pred, loss = self.training_process(batch, batch_idx)
         self.training_step_losses.append(loss.item())
 
         self.log_to_table_metrics(
@@ -73,7 +77,7 @@ class MetaLearner(
             support,
         )
 
-        if last_epoch:
+        if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
             self.log_to_wandb_preds(
                 "TR",
                 batch_idx,
@@ -87,11 +91,8 @@ class MetaLearner(
 
     def validation_step(self, batch: FewSparseDataTuple, batch_idx: int):
         support, query, dataset_name = batch
-        pred, loss = self(support.images, support.masks, query.images)
-
+        pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
         self.validation_step_losses.append(loss.item())
-        score = self.metric(pred, query.masks)
-        score = self.metric.prepare_for_log(score)
 
         if self.trainer.sanity_checking:
             return loss
@@ -112,11 +113,8 @@ class MetaLearner(
 
     def test_step(self, batch: FewSparseDataTuple, batch_idx: int):
         support, query, dataset_name = batch
-        pred, loss = self(support.images, support.masks, query.images)
-
+        pred, loss, score = self.evaluation_process("TS", batch, batch_idx)
         self.test_step_losses.append(loss.item())
-        score = self.metric(pred, query.masks)
-        score = self.metric.prepare_for_log(score)
 
         self.log_to_table_metrics("TS", batch_idx, loss, support, score=score, epoch=0)
 
@@ -157,3 +155,34 @@ class MetaLearner(
             ),
             "metrics",
         )
+
+    def split_tensors(
+        self, tensors: list[Tensor], batch_size: int = -1
+    ) -> list[tuple[Tensor, ...]]:
+        if batch_size == -1:
+            batch_size = self.config["data"]["batch_size"]
+        return [t.split(batch_size) for t in tensors]
+
+    def manual_optimizer_step(self):
+        opt = self.optimizers()
+        if isinstance(opt, list):
+            for o in opt:
+                o.step()
+        else:
+            opt.step()
+
+    def manual_scheduler_step(self, metrics: float | int | Tensor | None = None):
+        sched = self.lr_schedulers()
+        if sched is None:
+            return
+        if isinstance(sched, list):
+            for s in sched:
+                if isinstance(s, LRScheduler):
+                    s.step()
+                elif metrics is not None:
+                    s.step(metrics)
+        else:
+            if isinstance(sched, LRScheduler):
+                sched.step()
+            elif metrics is not None:
+                sched.step(metrics)
