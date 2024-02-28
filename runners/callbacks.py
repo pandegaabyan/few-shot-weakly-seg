@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pytorch_lightning import Callback, Trainer
+from pytorch_lightning import Callback
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
 from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
 from rich.progress import TextColumn
@@ -11,10 +11,10 @@ ProgressBarTaskType = Literal["train", "val", "test", "predict", "sanity"]
 
 
 class CustomRichProgressBar(RichProgressBar):
-    def on_sanity_check_end(self, trainer, pl_module) -> None:
+    def on_sanity_check_end(self, trainer, pl_module):
         self.refresh()
 
-    def on_validation_epoch_end(self, trainer, pl_module) -> None:
+    def on_validation_epoch_end(self, trainer, pl_module):
         if (
             self.is_enabled
             and self.val_progress_bar_id is not None
@@ -22,13 +22,16 @@ class CustomRichProgressBar(RichProgressBar):
         ):
             self.refresh()
 
-    def configure_columns(self, trainer: Trainer) -> list:
+    def configure_columns(self, trainer):
         return super().configure_columns(trainer) + [
             TextColumn(
                 "{task.fields}",
                 style=self.theme.description,
             )
         ]
+
+    def _add_task(self, total_batches, description, visible=True):
+        return super()._add_task(total_batches, description, True)
 
     def update_fields(self, task: ProgressBarTaskType, **kwargs):
         if self.progress is None:
