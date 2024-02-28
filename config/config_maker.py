@@ -137,10 +137,12 @@ def make_config(
     use_wandb: bool = True,
     dummy: bool = False,
 ) -> ConfigUnion:
+    config_ref = deepcopy(config_base)
+
     if mode == "sweep" or mode == "sweep-cv":
         use_wandb = True
-        config_base["learn"]["tensorboard_graph"] = False
-        config_base["wandb"] = {
+        config_ref["learn"]["tensorboard_graph"] = False
+        config_ref["wandb"] = {
             "run_id": "",
             "tags": [],
             "job_type": mode,
@@ -152,9 +154,9 @@ def make_config(
             "save_test_preds": 0,
         }
     elif mode == "fit":
-        config_base["learn"]["tensorboard_graph"] = True
+        config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
@@ -166,9 +168,9 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "test":
-        config_base["learn"]["tensorboard_graph"] = False
+        config_ref["learn"]["tensorboard_graph"] = False
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
@@ -180,9 +182,9 @@ def make_config(
                 "save_test_preds": 20,
             }
     else:
-        config_base["learn"]["tensorboard_graph"] = True
+        config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
@@ -194,22 +196,22 @@ def make_config(
                 "save_test_preds": 20,
             }
 
-    save_train_preds = config_base.get("wandb", {}).get("save_train_preds", 0)
-    save_val_preds = config_base.get("wandb", {}).get("save_val_preds", 0)
-    save_test_preds = config_base.get("wandb", {}).get("save_test_preds", 0)
+    save_train_preds = config_ref.get("wandb", {}).get("save_train_preds", 0)
+    save_val_preds = config_ref.get("wandb", {}).get("save_val_preds", 0)
+    save_test_preds = config_ref.get("wandb", {}).get("save_test_preds", 0)
     if dummy:
-        config_base["learn"]["dummy"] = True
-        config_base["data"]["num_workers"] = 0
-        config_base["callbacks"]["ckpt_top_k"] = 3
+        config_ref["learn"]["dummy"] = True
+        config_ref["data"]["num_workers"] = 0
+        config_ref["callbacks"]["ckpt_top_k"] = 3
         save_train_preds //= 5
         save_val_preds //= 5
         save_test_preds //= 5
     else:
-        config_base["learn"]["dummy"] = False
-        config_base["data"]["num_workers"] = 3
+        config_ref["learn"]["dummy"] = False
+        config_ref["data"]["num_workers"] = 3
     if use_wandb:
-        assert "wandb" in config_base
-        config_base["wandb"].update(
+        assert "wandb" in config_ref
+        config_ref["wandb"].update(
             {
                 "save_train_preds": save_train_preds,
                 "save_val_preds": save_val_preds,
@@ -217,12 +219,12 @@ def make_config(
             }
         )
     else:
-        config_base.pop("wandb")
+        config_ref.pop("wandb")
 
-    config: ConfigUnion = deepcopy(config_base)
+    config: ConfigUnion = deepcopy(config_ref)
     if learner == "simple":
         config_simple: ConfigSimpleLearner = {
-            **config_base,
+            **config_ref,
             "simple_learner": simple_learner_config,
         }
         config_simple["learn"]["exp_name"] = "SL"
@@ -233,7 +235,7 @@ def make_config(
         config = config_simple
     elif learner == "meta":
         config_meta: ConfigMetaLearner = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
         }
         config_meta["learn"]["exp_name"] = "ML"
@@ -243,7 +245,7 @@ def make_config(
         config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "weasel": weasel_config,
         }
@@ -254,7 +256,7 @@ def make_config(
         config = config_weasel
     elif learner == "protoseg":
         config_protoseg: ConfigProtoSeg = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "protoseg": protoseg_config,
         }
@@ -265,7 +267,7 @@ def make_config(
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "guidednets": guidednets_config,
         }
