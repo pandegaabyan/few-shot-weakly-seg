@@ -132,7 +132,9 @@ class BaseLearner(
         self.cast_example_input_array()
         self.prepare_datasets()
         self.log_configuration()
+        self.log_model_onnx()
         self.log_tensorboard_graph()
+        self.wandb_log_model()
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
@@ -196,10 +198,6 @@ class BaseLearner(
                 return False
             self.create_log_and_ckpt_dir()
 
-        if not self.config["learn"].get("ref_ckpt_path"):
-            onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
-            self.to_onnx(onnx_path, export_params=False)
-
         self.wandb_init()
 
         self.print_initial_info()
@@ -242,11 +240,6 @@ class BaseLearner(
                 f"{parent_path}/{ckpt_name}:{ckpt_alias}", type="checkpoint"
             )
 
-        if wandb_config["log_model"]:
-            onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
-            model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
-            model_artifact.add_file(onnx_path)
-            wandb.log_artifact(model_artifact)
         if wandb_config["watch_model"]:
             wandb.watch(self, log_freq=1)
 
@@ -397,6 +390,12 @@ class BaseLearner(
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
 
+    def log_model_onnx(self):
+        if self.config["learn"].get("ref_ckpt_path"):
+            return
+        onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+        self.to_onnx(onnx_path, export_params=False)
+
     def log_table(
         self,
         data: list[tuple[str, Any]],
@@ -421,6 +420,14 @@ class BaseLearner(
             {prefix + k: v for k, v in data.items()}
             | ({"epoch": epoch_value} if use_epoch else {})
         )
+
+    def wandb_log_model(self):
+        if not self.config.get("wandb", {}).get("log_model"):
+            return
+        onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+        model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
+        model_artifact.add_file(onnx_path)
+        wandb.log_artifact(model_artifact)
 
     def wandb_log_table(
         self,
