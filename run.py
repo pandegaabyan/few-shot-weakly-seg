@@ -1,13 +1,15 @@
+import os
 import sys
 from copy import deepcopy
 
 import click
 from pytorch_lightning import Trainer
+from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 import wandb
 from config.config_maker import make_config, make_run_name
 from config.config_type import ConfigSimpleLearner, ConfigUnion, RunMode
-from config.constants import WANDB_SETTINGS
+from config.constants import FILENAMES, WANDB_SETTINGS
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
@@ -46,6 +48,26 @@ def rim_one_simple_dataset(
     return (RimOneSimpleDataset, rim_one_kwargs)
 
 
+def make_trainer(config: ConfigUnion) -> Trainer:
+    return Trainer(
+        max_epochs=config["learn"]["num_epochs"],
+        check_val_every_n_epoch=config["learn"].get("val_freq", 1),
+        callbacks=make_callbacks(
+            config["callbacks"],
+            os.path.join(
+                FILENAMES["checkpoint_folder"],
+                config["learn"]["exp_name"],
+                config["learn"]["run_name"],
+            ),
+            config["learn"].get("val_freq", 1),
+        ),
+        logger=False,
+        num_sanity_val_steps=0,
+        inference_mode=not config["learn"].get("manual_optim", False),
+        # profiler="simple"
+    )
+
+
 def make_learner_and_trainer(
     config: ConfigUnion,
     dummy: bool,
@@ -75,17 +97,7 @@ def make_learner_and_trainer(
     if not init_ok:
         return None, None
 
-    trainer = Trainer(
-        max_epochs=new_config["learn"]["num_epochs"],
-        check_val_every_n_epoch=new_config["learn"].get("val_freq", 1),
-        callbacks=make_callbacks(
-            new_config["callbacks"],
-            learner.ckpt_path,
-            new_config["learn"].get("val_freq", 1),
-        ),
-        logger=False,
-        # profiler="simple"
-    )
+    trainer = make_trainer(config)
 
     return (learner, trainer)
 
@@ -135,8 +147,13 @@ def run_fit_test(
 
     if not test_only:
         trainer.fit(learner, ckpt_path=ckpt_path if resume else None)
+
     if not fit_only:
-        trainer.test(learner, ckpt_path=ckpt_path if test_only else "best")
+        if not test_only:
+            assert isinstance(trainer.checkpoint_callback, ModelCheckpoint)
+            ckpt_path = trainer.checkpoint_callback.best_model_path
+            trainer = make_trainer(config)
+        trainer.test(learner, ckpt_path=ckpt_path)
 
     if use_wandb:
         wandb.finish()
