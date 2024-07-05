@@ -44,6 +44,7 @@ learn_config: LearnConfig = {
     "dummy": True,
     "val_freq": 1,
     "tensorboard_graph": True,
+    "manual_optim": False,
     "ref_ckpt_path": None,
 }
 
@@ -249,7 +250,7 @@ def make_config(
             "meta_learner": meta_learner_config,
             "weasel": weasel_config,
         }
-        config_weasel["learn"]["exp_name"] = "WS"
+        config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 13
             config_weasel["learn"]["num_epochs"] = 100

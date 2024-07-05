@@ -20,6 +20,7 @@ class LearnConfig(TypedDict):
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
     tensorboard_graph: NotRequired[bool]
+    manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
 
 
