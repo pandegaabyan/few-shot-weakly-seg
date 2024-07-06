@@ -19,6 +19,7 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
+    model_onnx: NotRequired[bool]
     tensorboard_graph: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
@@ -41,6 +42,7 @@ class CallbacksConfig(TypedDict, total=False):
     progress_leave: bool
     monitor: str
     monitor_mode: Literal["min", "max"]
+    ckpt_last: bool
     ckpt_top_k: int
     stop_patience: int
     stop_min_delta: float
@@ -51,7 +53,6 @@ class WandbConfig(TypedDict):
     run_id: str
     tags: list[str]
     job_type: str | None
-    log_model: bool
     watch_model: bool
     push_table_freq: int | None
     sweep_id: NotRequired[str]

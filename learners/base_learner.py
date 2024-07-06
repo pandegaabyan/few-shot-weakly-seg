@@ -417,6 +417,8 @@ class BaseLearner(
         tensorboard_writer.close()
 
     def log_model_onnx(self):
+        if not self.config["learn"].get("model_onnx"):
+            return
         if self.config["learn"].get("ref_ckpt_path"):
             return
         onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
@@ -448,9 +450,11 @@ class BaseLearner(
         )
 
     def wandb_log_model(self):
-        if not self.config.get("wandb", {}).get("log_model"):
+        if not self.config.get("wandb"):
             return
         onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+        if not os.path.isfile(onnx_path):
+            return
         model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
         model_artifact.add_file(onnx_path)
         wandb.log_artifact(model_artifact)

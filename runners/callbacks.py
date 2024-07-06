@@ -79,7 +79,7 @@ def make_callbacks(
         filename=ckpt_filename,
         monitor=monitor,
         mode=monitor_mode,
-        save_last=True,
+        save_last=config.get("ckpt_last", True),
         save_top_k=config.get("ckpt_top_k", 0),
         every_n_epochs=ckpt_every_n_epochs,
     )

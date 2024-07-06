@@ -42,6 +42,7 @@ learn_config: LearnConfig = {
     "run_name": "",
     "dummy": True,
     "val_freq": 1,
+    "model_onnx": True,
     "tensorboard_graph": True,
     "manual_optim": False,
     "ref_ckpt_path": None,
@@ -61,6 +62,7 @@ callbacks_config: CallbacksConfig = {
     "progress_leave": True,
     "monitor": "val_score",
     "monitor_mode": "max",
+    "ckpt_last": True,
     "ckpt_top_k": 5,
     "stop_patience": 5,
     "stop_min_delta": 0.0,
@@ -71,7 +73,6 @@ wandb_config: WandbConfig = {
     "run_id": "",
     "tags": [],
     "job_type": None,
-    "log_model": True,
     "watch_model": True,
     "push_table_freq": 5,
     "sweep_id": "",
@@ -138,12 +139,14 @@ def make_config(
 
     if mode == "sweep" or mode == "sweep-cv":
         use_wandb = True
+        config_ref["learn"]["model_onnx"] = False
         config_ref["learn"]["tensorboard_graph"] = False
+        config_ref["callbacks"]["ckpt_last"] = False
+        config_ref["callbacks"]["ckpt_top_k"] = 0
         config_ref["wandb"] = {
             "run_id": "",
             "tags": [],
             "job_type": mode,
-            "log_model": False,
             "watch_model": False,
             "push_table_freq": 20,
             "save_train_preds": 0,
@@ -151,13 +154,13 @@ def make_config(
             "save_test_preds": 0,
         }
     elif mode == "fit":
+        config_ref["learn"]["model_onnx"] = True
         config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
@@ -165,13 +168,13 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "test":
+        config_ref["learn"]["model_onnx"] = False
         config_ref["learn"]["tensorboard_graph"] = False
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": False,
                 "watch_model": False,
                 "push_table_freq": 1,
                 "save_train_preds": 0,
@@ -179,13 +182,13 @@ def make_config(
                 "save_test_preds": 20,
             }
     else:
+        config_ref["learn"]["model_onnx"] = True
         config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
@@ -199,7 +202,9 @@ def make_config(
     if dummy:
         config_ref["learn"]["dummy"] = True
         config_ref["data"]["num_workers"] = 0
-        config_ref["callbacks"]["ckpt_top_k"] = 3
+        config_ref["callbacks"]["ckpt_top_k"] = (
+            config_ref["callbacks"].get("ckpt_top_k", 5) // 2
+        )
         save_train_preds //= 5
         save_val_preds //= 5
         save_test_preds //= 5
