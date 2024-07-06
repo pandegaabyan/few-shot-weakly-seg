@@ -1,4 +1,4 @@
-from typing import Any
+from abc import ABC, abstractmethod
 
 import torch
 from torch import Tensor
@@ -6,7 +6,25 @@ from torchmetrics import Metric
 from torchmetrics.functional.classification import multiclass_jaccard_index
 
 
-class CustomMetric(Metric):
+class BaseMetric(Metric, ABC):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.state_info = self.set_state_info()
+
+    @abstractmethod
+    def set_state_info(self) -> dict[str, str | None]:
+        pass
+
+    @abstractmethod
+    def score_summary(self) -> float:
+        pass
+
+    @staticmethod
+    def prepare_for_log(score: dict[str, Tensor]) -> list[tuple[str, float]]:
+        return [(k, round(v.item(), 4)) for k, v in sorted(score.items())]
+
+
+class MultiIoUMetric(Metric):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.add_state("iou", default=torch.tensor(0), dist_reduce_fx="mean")
@@ -17,20 +35,10 @@ class CustomMetric(Metric):
     def compute(self) -> dict[str, Tensor]:
         return {"iou": self.iou}
 
-    def score_summary(self) -> float:
-        return self.iou.item()
-
-    def additional_params(self) -> dict[str, Any]:
+    def set_state_info(self) -> dict[str, str | None]:
         return {
             "iou": "mean",
         }
 
-    def params(self) -> dict:
-        return {
-            "training": self.training,
-            **self.additional_params(),
-        }
-
-    @staticmethod
-    def prepare_for_log(score: dict[str, Tensor]) -> list[tuple[str, float]]:
-        return [(k, round(v.item(), 4)) for k, v in sorted(score.items())]
+    def score_summary(self) -> float:
+        return self.iou.item()

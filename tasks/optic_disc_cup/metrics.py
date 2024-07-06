@@ -4,12 +4,12 @@ import torch
 from torch import Tensor
 from torchmetrics.functional.classification import binary_jaccard_index
 
-from learners.metrics import CustomMetric
+from learners.metrics import BaseMetric
 
 
-class DiscCupIoU(CustomMetric):
+class DiscCupIoU(BaseMetric):
     def __init__(self, **kwargs):
-        super(CustomMetric, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.add_state("iou_disc", default=torch.tensor(0), dist_reduce_fx="mean")
         self.add_state("iou_cup", default=torch.tensor(0), dist_reduce_fx="mean")
 

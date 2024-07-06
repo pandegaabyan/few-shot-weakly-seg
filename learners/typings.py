@@ -1,6 +1,7 @@
+from metrics import BaseMetric
 from pytorch_lightning.utilities.types import LRSchedulerPLType
-from torch import Tensor, optim
-from typing_extensions import Generic, Required, Type, TypedDict, TypeVar
+from torch import Tensor, nn, optim
+from typing_extensions import Any, Generic, Required, Type, TypedDict, TypeVar
 
 from config.config_type import (
     ConfigBase,
@@ -14,19 +15,15 @@ from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
-from learners.losses import CustomLoss
-from learners.metrics import CustomMetric
 
 ConfigType = TypeVar("ConfigType", bound=ConfigBase)
-
 ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)
-
 DatasetClass = TypeVar("DatasetClass", bound=BaseDataset)
-
 DatasetKwargs = TypeVar("DatasetKwargs", bound=BaseDatasetKwargs)
 
+Loss = nn.Module
+Metric = BaseMetric
 Optimizer = optim.Optimizer
-
 Scheduler = LRSchedulerPLType
 
 
@@ -37,8 +34,8 @@ class BaseLearnerKwargs(
     dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
     val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
     test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
-    loss: CustomLoss
-    metric: CustomMetric
+    loss: tuple[Type[Loss], dict[str, Any]]
+    metric: tuple[Type[Metric], dict[str, Any]]
     resume: bool
     force_clear_dir: bool
 

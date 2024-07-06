@@ -15,7 +15,7 @@ from config.config_type import ConfigUnion
 from config.constants import FILENAMES, WANDB_SETTINGS
 from data.typings import DatasetModes
 from learners.losses import CustomLoss
-from learners.metrics import CustomMetric
+from learners.metrics import MultiIoUMetric
 from learners.typings import (
     BaseLearnerKwargs,
     ConfigType,
@@ -65,8 +65,13 @@ class BaseLearner(
             "test", self.test_dataset_list or self.dataset_list
         )
 
-        self.loss = kwargs.get("loss") or CustomLoss()
-        self.metric = kwargs.get("metric") or CustomMetric()
+        (loss_class, loss_kwargs) = kwargs.get("loss") or (CustomLoss, {})
+        self.loss = loss_class(**loss_kwargs)
+        self.loss_kwargs = loss_kwargs
+        (metric_class, metric_kwargs) = kwargs.get("metric") or (MultiIoUMetric, {})
+        self.metric = metric_class(**metric_kwargs)
+        self.metric_kwargs = metric_kwargs
+
         self.resume = kwargs.get("resume", False)
         self.force_clear_dir = kwargs.get("force_clear_dir", False)
         self.use_wandb = self.config.get("wandb") is not None
@@ -349,10 +354,10 @@ class BaseLearner(
             configuration["test_datasets"] = dictify_datasets(self.test_dataset_list)
         configuration.update(
             {
-                "loss": get_name_from_instance(self.loss),
-                "loss_data": self.loss.params(),
-                "metric": get_name_from_instance(self.metric),
-                "metric_data": self.metric.params(),
+                "loss_class": get_name_from_instance(self.loss),
+                "loss_kwargs": self.loss_kwargs,
+                "metric_class": get_name_from_instance(self.metric),
+                "metric_data": self.metric_kwargs,
             }
         )
 
