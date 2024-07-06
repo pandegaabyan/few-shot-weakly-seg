@@ -5,6 +5,8 @@ from typing import Any, Generic, Literal, Type
 
 import numpy as np
 from pytorch_lightning import LightningModule
+from pytorch_lightning.core.optimizer import LightningOptimizer
+from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -301,6 +303,20 @@ class BaseLearner(
         elif isinstance(self.example_input_array, Tensor):
             self.example_input_array = self.example_input_array.to(self.device)
 
+    def get_optimizer_list(self) -> list[LightningOptimizer]:
+        opt = self.optimizers()
+        if isinstance(opt, list):
+            return opt
+        return [opt]
+
+    def get_scheduler_list(self) -> list[LRSchedulerPLType]:
+        sched = self.lr_schedulers()
+        if sched is None:
+            return []
+        if isinstance(sched, list):
+            return sched
+        return [sched]
+
     def check_log_and_ckpt_dir(self) -> bool:
         return os.path.exists(self.log_path) and os.path.exists(self.ckpt_path)
 
@@ -344,22 +360,27 @@ class BaseLearner(
                 for cls, kwargs in datasets
             ]
 
+        optimizer_classes = [
+            get_name_from_instance(opt) for opt in self.get_optimizer_list()
+        ]
+        scheduler_classes = [
+            get_name_from_instance(sched) for sched in self.get_scheduler_list()
+        ]
+
         configuration = {
-            "config": self.config,
+            **self.config,
+            "optimizer_classes": optimizer_classes,
+            "scheduler_classes": scheduler_classes,
+            "loss_class": get_name_from_instance(self.loss),
+            "loss_kwargs": self.loss_kwargs,
+            "metric_class": get_name_from_instance(self.metric),
+            "metric_data": self.metric_kwargs,
             "datasets": dictify_datasets(self.dataset_list),
         }
         if self.val_dataset_list is not None:
             configuration["val_datasets"] = dictify_datasets(self.val_dataset_list)
         if self.test_dataset_list is not None:
             configuration["test_datasets"] = dictify_datasets(self.test_dataset_list)
-        configuration.update(
-            {
-                "loss_class": get_name_from_instance(self.loss),
-                "loss_kwargs": self.loss_kwargs,
-                "metric_class": get_name_from_instance(self.metric),
-                "metric_data": self.metric_kwargs,
-            }
-        )
 
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
         if self.resume:
