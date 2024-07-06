@@ -14,8 +14,7 @@ class SimpleUnet(SimpleLearner):
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         adam_optimizer = make_optimizer_adam(
-            self.config["optimizer"],
-            self.net.named_parameters(),
+            self.config["optimizer"], self.net.named_parameters(), True
         )
 
         step_scheduler = make_scheduler_step(
