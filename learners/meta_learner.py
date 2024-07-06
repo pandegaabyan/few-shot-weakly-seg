@@ -164,24 +164,13 @@ class MetaLearner(
         return [t.split(batch_size) for t in tensors]
 
     def manual_optimizer_step(self):
-        opt = self.optimizers()
-        if isinstance(opt, list):
-            for o in opt:
-                o.step()
-        else:
+        opt_list = self.get_optimizer_list()
+        for opt in opt_list:
             opt.step()
 
     def manual_scheduler_step(self, metrics: float | int | Tensor | None = None):
-        sched = self.lr_schedulers()
-        if sched is None:
-            return
-        if isinstance(sched, list):
-            for s in sched:
-                if isinstance(s, LRScheduler):
-                    s.step()
-                elif metrics is not None:
-                    s.step(metrics)
-        else:
+        sched_list = self.get_scheduler_list()
+        for sched in sched_list:
             if isinstance(sched, LRScheduler):
                 sched.step()
             elif metrics is not None:
