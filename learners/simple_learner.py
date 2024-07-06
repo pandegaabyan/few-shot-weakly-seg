@@ -67,9 +67,7 @@ class SimpleLearner(
         self.log_to_table_metrics("TR", batch_idx, loss)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.log_to_wandb_preds(
-                "TR", batch_idx, mask, pred, file_names, dataset_names
-            )
+            self.wandb_log_preds("TR", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
 
@@ -88,9 +86,7 @@ class SimpleLearner(
         self.log_to_table_metrics("VL", batch_idx, loss, score=score)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.log_to_wandb_preds(
-                "VL", batch_idx, mask, pred, file_names, dataset_names
-            )
+            self.wandb_log_preds("VL", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
 
@@ -105,7 +101,7 @@ class SimpleLearner(
 
         self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
-        self.log_to_wandb_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
+        self.wandb_log_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
 

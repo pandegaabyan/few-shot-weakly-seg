@@ -519,7 +519,7 @@ class BaseLearner(
             )
             wandb.log_artifact(artifact, aliases=[alias])
 
-    def log_to_wandb_preds(
+    def wandb_log_preds(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,

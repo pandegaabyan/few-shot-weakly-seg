@@ -78,7 +78,7 @@ class MetaLearner(
         )
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.log_to_wandb_preds(
+            self.wandb_log_preds(
                 "TR",
                 batch_idx,
                 query.masks,
@@ -100,7 +100,7 @@ class MetaLearner(
         self.log_to_table_metrics("VL", batch_idx, loss, support, score=score)
 
         if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.log_to_wandb_preds(
+            self.wandb_log_preds(
                 "VL",
                 batch_idx,
                 query.masks,
@@ -118,7 +118,7 @@ class MetaLearner(
 
         self.log_to_table_metrics("TS", batch_idx, loss, support, score=score, epoch=0)
 
-        self.log_to_wandb_preds(
+        self.wandb_log_preds(
             "TS",
             batch_idx,
             query.masks,
