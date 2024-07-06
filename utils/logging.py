@@ -1,6 +1,6 @@
 from typing import Any, Callable, Iterable
 
-from utils.utils import convert_iso_timestamp_to_epoch
+from utils.time import convert_iso_timestamp_to_epoch
 
 
 def get_name_from_function(func: Callable) -> str:

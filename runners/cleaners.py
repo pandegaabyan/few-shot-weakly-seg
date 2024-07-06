@@ -4,7 +4,7 @@ from typing import Literal
 
 from config.constants import FILENAMES, WANDB_SETTINGS
 from utils.logging import check_rmtree, get_run_paths
-from utils.utils import convert_iso_timestamp_to_epoch
+from utils.time import convert_iso_timestamp_to_epoch
 from utils.wandb import wandb_get_runs
 
 

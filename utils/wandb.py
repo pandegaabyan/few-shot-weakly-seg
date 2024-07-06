@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 import wandb
 from config.constants import WANDB_SETTINGS
-from utils.utils import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
+from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 
 
 def wandb_login():
