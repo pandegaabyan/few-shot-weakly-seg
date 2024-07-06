@@ -15,7 +15,6 @@ from config.config_type import (
     DataConfig,
     GuidedNetsConfig,
     LearnConfig,
-    LossConfig,
     MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
@@ -47,8 +46,6 @@ learn_config: LearnConfig = {
     "manual_optim": False,
     "ref_ckpt_path": None,
 }
-
-loss_config: LossConfig = {"type": "ce", "ignored_index": -1}
 
 optimizer_config: OptimizerConfig = {
     "lr": 1e-3,
@@ -86,7 +83,6 @@ wandb_config: WandbConfig = {
 config_base: ConfigBase = {
     "data": data_config,
     "learn": learn_config,
-    "loss": loss_config,
     "optimizer": optimizer_config,
     "scheduler": scheduler_config,
     "callbacks": callbacks_config,

@@ -24,11 +24,6 @@ class LearnConfig(TypedDict):
     ref_ckpt_path: NotRequired[str | None]
 
 
-class LossConfig(TypedDict, total=False):
-    type: str
-    ignored_index: int
-
-
 class OptimizerConfig(TypedDict, total=False):
     lr: float
     lr_bias: float
@@ -92,7 +87,6 @@ class GuidedNetsConfig(TypedDict):
 class ConfigBase(TypedDict):
     data: DataConfig
     learn: LearnConfig
-    loss: LossConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
     callbacks: CallbacksConfig
