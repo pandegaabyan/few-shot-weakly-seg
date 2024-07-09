@@ -14,7 +14,7 @@ from typing_extensions import Unpack
 
 import wandb
 from config.config_type import ConfigUnion
-from config.constants import FILENAMES, WANDB_SETTINGS
+from config.constants import FILENAMES
 from data.typings import DatasetModes
 from learners.losses import CustomLoss
 from learners.metrics import MultiIoUMetric
@@ -25,6 +25,7 @@ from learners.typings import (
     DatasetKwargs,
 )
 from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
+from utils.diff_dict import diff_dict
 from utils.logging import (
     check_mkdir,
     check_rmtree,
@@ -34,14 +35,18 @@ from utils.logging import (
     get_short_git_hash,
     get_simple_stack_list,
     load_json,
-    prepare_ckpt_path_for_artifact,
     write_to_csv,
 )
+from utils.time import get_iso_timestamp_now
 from utils.utils import (
-    diff_dict,
-    get_iso_timestamp_now,
     mean,
     merge_dicts,
+)
+from utils.wandb import (
+    prepare_artifact_name,
+    prepare_ckpt_artifact_name,
+    wandb_download_file,
+    wandb_log_file,
 )
 
 
@@ -138,10 +143,10 @@ class BaseLearner(
 
         self.cast_example_input_array()
         self.prepare_datasets()
+
         self.log_configuration()
         self.log_model_onnx()
         self.log_tensorboard_graph()
-        self.wandb_log_model()
 
     def on_validation_epoch_end(self):
         super().on_validation_epoch_end()
@@ -220,12 +225,6 @@ class BaseLearner(
         wandb_config = self.config.get("wandb")
         assert wandb_config is not None
 
-        dummy = self.config["learn"].get("dummy")
-        parent_path = (
-            WANDB_SETTINGS["entity"]
-            + "/"
-            + WANDB_SETTINGS["dummy_project" if dummy else "project"]
-        )
         datasets: list[tuple[str, list[DatasetClass]]] = [
             ("train_dataset", self.train_datasets),
             ("val_dataset", self.val_datasets),
@@ -236,16 +235,16 @@ class BaseLearner(
                 continue
             for ds in dataset_list:
                 wandb.run.use_artifact(
-                    f"{parent_path}/{ds.dataset_name}:latest",
+                    f"{ds.dataset_name}:latest",
                     type="dataset",
                     use_as=use_as,
                 )
         ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
         if ref_ckpt_path:
-            ckpt_name, ckpt_alias = prepare_ckpt_path_for_artifact(ref_ckpt_path)
-            wandb.run.use_artifact(
-                f"{parent_path}/{ckpt_name}:{ckpt_alias}", type="checkpoint"
+            exp_run_name, ckpt_alias = prepare_ckpt_artifact_name(
+                *ref_ckpt_path.split("/")
             )
+            wandb.run.use_artifact(f"{exp_run_name}:{ckpt_alias}", type="checkpoint")
 
         if wandb_config["watch_model"]:
             wandb.watch(self, log_freq=1)
@@ -352,9 +351,9 @@ class BaseLearner(
             self.trainer.progress_bar_callback.update_fields(task, **kwargs)
 
     def log_configuration(self):
-        def dictify_datasets(datasets: list[tuple[Type[DatasetClass], DatasetKwargs]]):
-            if datasets is None:
-                return []
+        def serialize_datasets(
+            datasets: list[tuple[Type[DatasetClass], DatasetKwargs]],
+        ):
             return [
                 {"class": get_name_from_class(cls), "kwargs": kwargs}
                 for cls, kwargs in datasets
@@ -368,36 +367,65 @@ class BaseLearner(
         ]
 
         configuration = {
-            **self.config,
+            "config": self.config,
             "optimizer_classes": optimizer_classes,
             "scheduler_classes": scheduler_classes,
             "loss_class": get_name_from_instance(self.loss),
             "loss_kwargs": self.loss_kwargs,
             "metric_class": get_name_from_instance(self.metric),
             "metric_data": self.metric_kwargs,
-            "datasets": dictify_datasets(self.dataset_list),
+            "datasets": serialize_datasets(self.dataset_list),
         }
         if self.val_dataset_list is not None:
-            configuration["val_datasets"] = dictify_datasets(self.val_dataset_list)
+            configuration["val_datasets"] = serialize_datasets(self.val_dataset_list)
         if self.test_dataset_list is not None:
-            configuration["test_datasets"] = dictify_datasets(self.test_dataset_list)
+            configuration["test_datasets"] = serialize_datasets(self.test_dataset_list)
 
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
+        artifact_name = prepare_artifact_name(
+            self.config["learn"]["exp_name"], self.config["learn"]["run_name"], "conf"
+        )
         if self.resume:
+            if os.path.isfile(filepath) or (
+                wandb_download_file(
+                    wandb.run,
+                    artifact_name + ":base",
+                    self.log_path,
+                    "configuration",
+                    filepath,
+                )
+            ):
+                old_configuration = load_json(filepath)
+                assert isinstance(old_configuration, dict)
+            else:
+                raise FileNotFoundError(f"Configuration file not found: {filepath}")
+
             diff_filepath = os.path.join(self.log_path, FILENAMES["configuration_diff"])
-            old_configuration = load_json(filepath)
-            assert isinstance(old_configuration, dict)
-            if os.path.isfile(diff_filepath):
+            if os.path.isfile(diff_filepath) or (
+                wandb_download_file(
+                    wandb.run,
+                    artifact_name + ":latest",
+                    self.log_path,
+                    "configuration",
+                    diff_filepath,
+                )
+            ):
                 prev_diff_list = load_json(diff_filepath)
                 assert isinstance(prev_diff_list, list)
             else:
                 prev_diff_list = []
+
             new_diff = {"timestamp": get_iso_timestamp_now()}
             new_diff.update(diff_dict(old_configuration, configuration))
             new_diff_list = prev_diff_list + [new_diff]
+
             dump_json(diff_filepath, new_diff_list)
+            wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
         else:
             dump_json(filepath, configuration)
+            wandb_log_file(
+                wandb.run, artifact_name, filepath, "configuration", ["base"]
+            )
 
         if self.config["learn"].get("dummy") is True:
             dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
@@ -406,15 +434,22 @@ class BaseLearner(
     def log_tensorboard_graph(self):
         if not self.tensorboard_graph:
             return
+        exp_name = self.config["learn"]["exp_name"]
+        run_name = self.config["learn"]["run_name"]
         tensorboard_dir = os.path.join(
-            FILENAMES["tensorboard_folder"],
-            self.config["learn"]["exp_name"],
-            self.config["learn"]["run_name"],
+            FILENAMES["tensorboard_folder"], exp_name, run_name
         )
         check_rmtree(tensorboard_dir, True)
         tensorboard_writer = SummaryWriter(tensorboard_dir)
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
+        for file in os.listdir(tensorboard_dir):
+            wandb_log_file(
+                wandb.run,
+                prepare_artifact_name(exp_name, run_name, "tb"),
+                os.path.join(tensorboard_dir, file),
+                "tensorboard_graph",
+            )
 
     def log_model_onnx(self):
         if not self.config["learn"].get("model_onnx"):
@@ -423,6 +458,11 @@ class BaseLearner(
             return
         onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
         self.to_onnx(onnx_path, export_params=False)
+        artifact = wandb_log_file(
+            wandb.run, self.__class__.__name__, onnx_path, "model"
+        )
+        if artifact and wandb.run:
+            wandb.run.use_artifact(artifact)
 
     def log_table(
         self,
@@ -449,15 +489,23 @@ class BaseLearner(
             | ({"epoch": epoch_value} if use_epoch else {})
         )
 
-    def wandb_log_model(self):
-        if not self.config.get("wandb"):
+    def wandb_log_ckpt_files(self):
+        if self.current_epoch != self.config["learn"]["num_epochs"] - 1:
             return
-        onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
-        if not os.path.isfile(onnx_path):
-            return
-        model_artifact = wandb.Artifact(self.__class__.__name__, type="model")
-        model_artifact.add_file(onnx_path)
-        wandb.log_artifact(model_artifact)
+
+        for ckpt in os.listdir(self.ckpt_path):
+            if not ckpt.endswith(".ckpt"):
+                continue
+            name, alias = prepare_ckpt_artifact_name(
+                self.config["learn"]["exp_name"], self.config["learn"]["run_name"], ckpt
+            )
+            wandb_log_file(
+                wandb.run,
+                name,
+                os.path.join(self.ckpt_path, ckpt),
+                "checkpoint",
+                [alias],
+            )
 
     def wandb_log_table(
         self,
@@ -519,30 +567,6 @@ class BaseLearner(
         img_data = [("ground_truth", gt_img), ("prediction", pred_img)]
 
         self.wandb_log_table(img_data + data, group)
-
-    def wandb_log_ckpt_files(self):
-        if (
-            not self.use_wandb
-            or self.current_epoch != self.config["learn"]["num_epochs"] - 1
-        ):
-            return
-
-        for ckpt in os.listdir(self.ckpt_path):
-            if not ckpt.endswith(".ckpt"):
-                continue
-            ckpt_path = f"{self.config['learn']['exp_name']}/{self.config['learn']['run_name']}/{ckpt}"
-            name, alias = prepare_ckpt_path_for_artifact(ckpt_path)
-            artifact = wandb.Artifact(name, type="checkpoint")
-            artifact.add_reference(
-                "file://"
-                + os.path.join(
-                    os.getcwd().replace("\\", "/"),
-                    FILENAMES["checkpoint_folder"].removeprefix("./"),
-                    ckpt_path,
-                ),
-                checksum=False,
-            )
-            wandb.log_artifact(artifact, aliases=[alias])
 
     def wandb_log_preds(
         self,
