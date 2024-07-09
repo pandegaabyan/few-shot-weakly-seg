@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal
 
 import torch
-from lightning_fabric.utilities.types import LRScheduler
 from torch import Tensor
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import ConcatDataset, DataLoader
 
 from data.few_sparse_dataset import FewSparseDataset
@@ -171,7 +171,7 @@ class MetaLearner(
     def manual_scheduler_step(self, metrics: float | int | Tensor | None = None):
         sched_list = self.get_scheduler_list()
         for sched in sched_list:
-            if isinstance(sched, LRScheduler):
-                sched.step()
-            elif metrics is not None:
+            if isinstance(sched, ReduceLROnPlateau):
                 sched.step(metrics)
+            else:
+                sched.step()

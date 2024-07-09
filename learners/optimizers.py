@@ -3,13 +3,14 @@ from typing import Iterator
 from torch import nn, optim
 
 from config.config_type import OptimizerConfig, SchedulerConfig
+from learners.typings import Optimizer
 
 
 def make_optimizer_adam(
     config: OptimizerConfig,
     named_params: Iterator[tuple[str, nn.Parameter]],
     separate_bias: bool = False,
-) -> optim.Optimizer:
+) -> Optimizer:
     default_lr = 0.001
     default_betas = (0.9, 0.999)
 
@@ -47,7 +48,7 @@ def make_optimizer_adam(
 
 
 def make_scheduler_step(
-    optimizer: optim.Optimizer, config: SchedulerConfig
+    optimizer: Optimizer, config: SchedulerConfig
 ) -> optim.lr_scheduler.StepLR:
     default_step_size = 30
     default_gamma = 0.1

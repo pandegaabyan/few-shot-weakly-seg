@@ -6,7 +6,6 @@ from typing import Any, Generic, Literal, Type
 import numpy as np
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
-from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -23,6 +22,7 @@ from learners.typings import (
     ConfigType,
     DatasetClass,
     DatasetKwargs,
+    Scheduler,
 )
 from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
 from utils.diff_dict import diff_dict
@@ -308,7 +308,7 @@ class BaseLearner(
             return opt
         return [opt]
 
-    def get_scheduler_list(self) -> list[LRSchedulerPLType]:
+    def get_scheduler_list(self) -> list[Scheduler]:
         sched = self.lr_schedulers()
         if sched is None:
             return []
