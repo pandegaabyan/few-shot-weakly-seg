@@ -26,6 +26,7 @@ torchvision = "*"
 torchaudio = "*"
 click = "*"
 ipykernel = "*"
+optuna = "*"
 
 [dev-packages]
 
