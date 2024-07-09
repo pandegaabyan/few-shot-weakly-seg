@@ -79,8 +79,6 @@ class BaseLearner(
         self.metric = metric_class(**metric_kwargs)
         self.metric_kwargs = metric_kwargs
 
-        self.resume = kwargs.get("resume", False)
-        self.force_clear_dir = kwargs.get("force_clear_dir", False)
         self.use_wandb = self.config.get("wandb") is not None
         self.tensorboard_graph = self.config["learn"].get("tensorboard_graph", True)
 
@@ -114,6 +112,7 @@ class BaseLearner(
         )
 
         self.init_ok = False
+        self.resume = False
         self.example_input_array = self.make_input_example()
 
         self.wandb_tables: dict[str, wandb.Table] = {}
@@ -197,14 +196,15 @@ class BaseLearner(
     def test_dataloader(self) -> DataLoader:
         return self.make_dataloader(self.test_datasets)
 
-    def init(self) -> bool:
-        if self.resume:
+    def init(self, resume: bool = False, force_clear_dir: bool = False) -> bool:
+        self.resume = resume
+        if resume:
             ok = self.check_log_and_ckpt_dir()
             if not ok:
                 print("No data from previous learning")
                 return False
         else:
-            ok = self.clear_log_and_ckpt_dir()
+            ok = self.clear_log_and_ckpt_dir(force_clear_dir)
             if not ok:
                 print("Fit canceled")
                 return False
@@ -325,9 +325,9 @@ class BaseLearner(
         check_mkdir(FILENAMES["checkpoint_folder"])
         check_mkdir(self.ckpt_path)
 
-    def clear_log_and_ckpt_dir(self) -> bool:
-        log_ok = check_rmtree(self.log_path, self.force_clear_dir)
-        ckpt_ok = check_rmtree(self.ckpt_path, self.force_clear_dir)
+    def clear_log_and_ckpt_dir(self, force: bool = False) -> bool:
+        log_ok = check_rmtree(self.log_path, force)
+        ckpt_ok = check_rmtree(self.ckpt_path, force)
         return log_ok and ckpt_ok
 
     def print_initial_info(self):

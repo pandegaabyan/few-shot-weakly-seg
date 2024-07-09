@@ -52,7 +52,6 @@ def rim_one_simple_dataset(
 def make_learner_and_trainer(
     config: ConfigUnion,
     dummy: bool,
-    resume: bool = False,
     dataset_fold: int = 0,
     learner_ckpt: str | None = None,
 ) -> tuple[BaseLearner, Trainer]:
@@ -66,8 +65,6 @@ def make_learner_and_trainer(
         "dataset_list": dataset_list,
         "loss": (DiscCupLoss, {"mode": "ce"}),
         "metric": (DiscCupIoU, {}),
-        "resume": resume,
-        "force_clear_dir": True,
     }
     if learner_ckpt is None:
         learner = SimpleUnet(**kwargs)
@@ -161,7 +158,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
         learner, trainer = make_learner_and_trainer(
             config, dummy, dataset_fold=dataset_fold, learner_ckpt=ckpt_path
         )
-        if not learner.init():
+        if not learner.init(force_clear_dir=True):
             return None
 
         trainer.fit(learner)

@@ -36,8 +36,6 @@ class BaseLearnerKwargs(
     test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
     loss: tuple[Type[Loss], dict[str, Any]]
     metric: tuple[Type[Metric], dict[str, Any]]
-    resume: bool
-    force_clear_dir: bool
 
 
 SimpleLearnerKwargs = BaseLearnerKwargs[
