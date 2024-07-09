@@ -4,30 +4,31 @@ from copy import deepcopy
 
 import click
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 
 import wandb
 from config.config_maker import make_config, make_run_name
 from config.config_type import ConfigSimpleLearner, ConfigUnion, RunMode
-from config.constants import FILENAMES, WANDB_SETTINGS
+from config.constants import WANDB_SETTINGS
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import SimpleLearnerKwargs
-from runners.callbacks import make_callbacks
+from runners.runners import run_fit_test
 from runners.sweeps import SweepConfigBase, initialize_sweep
+from runners.trainer import make_trainer
 from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 from utils.logging import (
     check_git_clean,
-    get_configuration,
     get_full_ckpt_path,
 )
 from utils.utils import mean, parse_string
-from utils.wandb import reset_wandb_env, wandb_login
-from wandb import util as wandb_util
+from utils.wandb import (
+    reset_wandb_env,
+    wandb_download_ckpt,
+)
 from wandb.sdk import wandb_setup
 
 
@@ -48,115 +49,39 @@ def rim_one_simple_dataset(
     return (RimOneSimpleDataset, rim_one_kwargs)
 
 
-def make_trainer(config: ConfigUnion) -> Trainer:
-    return Trainer(
-        max_epochs=config["learn"]["num_epochs"],
-        check_val_every_n_epoch=config["learn"].get("val_freq", 1),
-        callbacks=make_callbacks(
-            config["callbacks"],
-            os.path.join(
-                FILENAMES["checkpoint_folder"],
-                config["learn"]["exp_name"],
-                config["learn"]["run_name"],
-            ),
-            config["learn"].get("val_freq", 1),
-        ),
-        logger=False,
-        num_sanity_val_steps=0,
-        inference_mode=not config["learn"].get("manual_optim", False),
-        # profiler="simple"
-    )
-
-
 def make_learner_and_trainer(
     config: ConfigUnion,
     dummy: bool,
     resume: bool = False,
     dataset_fold: int = 0,
     learner_ckpt: str | None = None,
-) -> tuple[BaseLearner | None, Trainer | None]:
+) -> tuple[BaseLearner, Trainer]:
     dataset_list = [rim_one_simple_dataset(dataset_fold)]
     for ds in dataset_list:
         ds[1]["max_items"] = 10 if dummy else None
 
-    new_config: ConfigSimpleLearner = config  # type: ignore
+    typed_config: ConfigSimpleLearner = config  # type: ignore
     kwargs: SimpleLearnerKwargs = {
-        "config": new_config,
+        "config": typed_config,
         "dataset_list": dataset_list,
-        "loss": DiscCupLoss("ce"),
-        "metric": DiscCupIoU(),
+        "loss": (DiscCupLoss, {"mode": "ce"}),
+        "metric": (DiscCupIoU, {}),
         "resume": resume,
         "force_clear_dir": True,
     }
     if learner_ckpt is None:
         learner = SimpleUnet(**kwargs)
     else:
+        if not os.path.isfile(learner_ckpt):
+            wandb_download_ckpt(learner_ckpt)
         learner = SimpleUnet.load_from_checkpoint(learner_ckpt, **kwargs)
-    learner.set_initial_messages(["Command " + " ".join(sys.argv)])
-    init_ok = learner.init()
-    if not init_ok:
-        return None, None
 
-    trainer = make_trainer(config)
+    learner.set_initial_messages(["Command " + " ".join(sys.argv)])
+
+    trainer_kwargs = {}
+    trainer = make_trainer(typed_config, **trainer_kwargs)
 
     return (learner, trainer)
-
-
-def run_fit_test(
-    config: ConfigUnion,
-    dummy: bool,
-    resume: bool = False,
-    fit_only: bool = False,
-    test_only: bool = False,
-):
-    exp_name = config["learn"]["exp_name"]
-    run_name = config["learn"]["run_name"]
-
-    use_wandb = config.get("wandb") is not None
-    if use_wandb:
-        assert "wandb" in config
-        wandb_login()
-        if resume:
-            prev_config = get_configuration(exp_name, run_name)
-            run_id = prev_config["config"]["wandb"]["run_id"]
-        else:
-            run_id = wandb_util.generate_id()
-        wandb.init(
-            config=dict(config),
-            id=run_id,
-            tags=config["wandb"]["tags"],
-            project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
-            group=exp_name,
-            name=run_name,
-            job_type=config["wandb"]["job_type"],
-            resume="must" if resume else None,
-        )
-        config["wandb"]["run_id"] = run_id
-
-    ref_ckpt_path = config["learn"].get("ref_ckpt_path")
-    if (resume and not test_only) or (test_only and ref_ckpt_path is None):
-        ckpt_path = get_full_ckpt_path(exp_name, run_name, "last.ckpt")
-    else:
-        ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
-
-    learner, trainer = make_learner_and_trainer(
-        config, dummy, resume=resume, learner_ckpt=ckpt_path
-    )
-    if learner is None or trainer is None:
-        return
-
-    if not test_only:
-        trainer.fit(learner, ckpt_path=ckpt_path if resume else None)
-
-    if not fit_only:
-        if not test_only:
-            assert isinstance(trainer.checkpoint_callback, ModelCheckpoint)
-            ckpt_path = trainer.checkpoint_callback.best_model_path
-            trainer = make_trainer(config)
-        trainer.test(learner, ckpt_path=ckpt_path)
-
-    if use_wandb:
-        wandb.finish()
 
 
 def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int = 3):
@@ -236,7 +161,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
         learner, trainer = make_learner_and_trainer(
             config, dummy, dataset_fold=dataset_fold, learner_ckpt=ckpt_path
         )
-        if learner is None or trainer is None:
+        if not learner.init():
             return None
 
         trainer.fit(learner)
@@ -324,16 +249,18 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    if mode == "fit-test":
-        run_fit_test(config, dummy, resume=resume)
-    elif mode == "fit":
-        run_fit_test(config, dummy, resume=resume, fit_only=True)
-    elif mode == "test":
-        run_fit_test(config, dummy, resume=resume, test_only=True)
-    elif mode == "sweep":
-        run_sweep(config, dummy, count=sweep_count)
-    elif mode == "sweep-cv":
-        run_sweep(config, dummy, use_cv=True, count=sweep_count)
+    if mode in ["fit-test", "fit", "test"]:
+        run_fit_test(
+            config,
+            dummy,
+            make_learner_and_trainer,
+            resume=resume,
+            fit_only=mode == "fit",
+            test_only=mode == "test",
+        )
+
+    if mode in ["sweep", "sweep-cv"]:
+        run_sweep(config, dummy, count=sweep_count, use_cv=mode == "sweep-cv")
 
 
 if __name__ == "__main__":
