@@ -55,13 +55,6 @@ def get_count_as_text(data: Iterable) -> str:
     return " ".join([f"{key}({count})" for key, count in counted.items()])
 
 
-def prepare_ckpt_path_for_artifact(ckpt_path: str) -> tuple[str, str]:
-    exp_name, run_name, ckpt_name = ckpt_path.split("/")
-    run_name = run_name.replace("-", "").replace(" ", "-")
-    ckpt_name = ckpt_name.replace(" ", "-").replace("=", "_").removesuffix(".ckpt")
-    return f"{exp_name}-{run_name}", ckpt_name
-
-
 def check_mkdir(dir_name: str):
     import os
 
@@ -83,6 +76,15 @@ def check_rmtree(dir_name: str, force: bool = False) -> bool:
         shutil.rmtree(dir_name)
 
     return True
+
+
+def split_path(path: str) -> list[str]:
+    import os
+
+    if path == "":
+        return []
+    head, tail = os.path.split(path)
+    return split_path(head) + [tail]
 
 
 def load_json(path: str) -> dict | list:
