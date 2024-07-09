@@ -286,7 +286,7 @@ class FewSparseDataset(BaseDataset, ABC):
             np.max(new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
-            seed=bseed,
+            rng=bseed,
         )
         blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
 
