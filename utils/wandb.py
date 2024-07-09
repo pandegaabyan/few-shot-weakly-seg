@@ -4,7 +4,9 @@ from dotenv import load_dotenv
 
 import wandb
 from config.constants import WANDB_SETTINGS
+from utils.logging import split_path
 from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
+from wandb.sdk.wandb_run import Run
 
 
 def wandb_login():
@@ -39,6 +41,60 @@ def wandb_get_runs(
         + WANDB_SETTINGS["dummy_project" if dummy else "project"]
     )
     return wandb.Api().runs(wandb_path, filters=filter_dict)
+
+
+def prepare_artifact_name(exp_name: str, run_name: str, suffix: str) -> str:
+    run_name = run_name.replace("-", "").replace(" ", "-")
+    return f"{exp_name}-{run_name}-{suffix}"
+
+
+def prepare_ckpt_artifact_name(
+    exp_name: str, run_name: str, ckpt_name: str
+) -> tuple[str, str]:
+    exp_run_name = prepare_artifact_name(exp_name, run_name, "ckpt")
+    ckpt_alias = ckpt_name.replace(" ", "-").replace("=", "_").removesuffix(".ckpt")
+    return exp_run_name, ckpt_alias
+
+
+def wandb_log_file(
+    run: Run | None,
+    name: str,
+    path: str,
+    type: str,
+    aliases: list[str] = ["latest"],
+) -> wandb.Artifact | None:
+    if run is None:
+        return
+    artifact = wandb.Artifact(name, type=type)
+    artifact.add_file(path)
+    run.log_artifact(artifact, aliases=aliases)
+    return artifact
+
+
+def wandb_download_file(
+    run: Run | None, name: str, root: str, type: str, expected_path: str = ""
+) -> bool:
+    if run is None:
+        return False
+    try:
+        artifact: wandb.Artifact = run.use_artifact(name, type=type)
+        artifact.download(root)
+    except Exception as e:
+        print(e)
+        return False
+    if expected_path and not os.path.isfile(expected_path):
+        return False
+    return True
+
+
+def wandb_download_ckpt(ckpt_path: str):
+    exp_run_name, ckpt_alias = prepare_ckpt_artifact_name(*split_path(ckpt_path)[1:])
+    wandb_download_file(
+        wandb.run,
+        f"{exp_run_name}:{ckpt_alias}",
+        os.path.split(ckpt_path)[0],
+        "checkpoints",
+    )
 
 
 def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):
