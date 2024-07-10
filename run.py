@@ -1,4 +1,3 @@
-import os
 import sys
 from copy import deepcopy
 
@@ -69,8 +68,7 @@ def make_learner_and_trainer(
     if learner_ckpt is None:
         learner = SimpleUnet(**kwargs)
     else:
-        if not os.path.isfile(learner_ckpt):
-            wandb_download_ckpt(learner_ckpt)
+        wandb_download_ckpt(learner_ckpt)
         learner = SimpleUnet.load_from_checkpoint(learner_ckpt, **kwargs)
 
     learner.set_initial_messages(["Command " + " ".join(sys.argv)])

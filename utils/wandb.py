@@ -71,20 +71,11 @@ def wandb_log_file(
     return artifact
 
 
-def wandb_download_file(
-    run: Run | None, name: str, root: str, type: str, expected_path: str = ""
-) -> bool:
+def wandb_download_file(run: Run | None, name: str, root: str, type: str):
     if run is None:
-        return False
-    try:
-        artifact: wandb.Artifact = run.use_artifact(name, type=type)
-        artifact.download(root)
-    except Exception as e:
-        print(e)
-        return False
-    if expected_path and not os.path.isfile(expected_path):
-        return False
-    return True
+        return
+    artifact: wandb.Artifact = run.use_artifact(name, type=type)
+    artifact.download(root)
 
 
 def wandb_download_ckpt(ckpt_path: str):
@@ -94,6 +85,21 @@ def wandb_download_ckpt(ckpt_path: str):
         f"{exp_run_name}:{ckpt_alias}",
         os.path.split(ckpt_path)[0],
         "checkpoint",
+    )
+
+
+def wandb_download_config(artifact_name: str, root: str):
+    wandb_download_file(
+        wandb.run,
+        artifact_name + ":base",
+        root,
+        "configuration",
+    )
+    wandb_download_file(
+        wandb.run,
+        artifact_name + ":latest",
+        root,
+        "configuration",
     )
 
 

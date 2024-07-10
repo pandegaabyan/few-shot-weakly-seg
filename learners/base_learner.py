@@ -45,7 +45,7 @@ from utils.utils import (
 from utils.wandb import (
     prepare_artifact_name,
     prepare_ckpt_artifact_name,
-    wandb_download_file,
+    wandb_download_config,
     wandb_log_file,
 )
 
@@ -380,30 +380,17 @@ class BaseLearner(
             self.config["learn"]["exp_name"], self.config["learn"]["run_name"], "conf"
         )
         if self.resume:
-            if os.path.isfile(filepath) or (
-                wandb_download_file(
-                    wandb.run,
-                    artifact_name + ":base",
-                    self.log_path,
-                    "configuration",
-                    filepath,
-                )
-            ):
+            if self.use_wandb:
+                wandb_download_config(artifact_name, self.log_path)
+
+            if os.path.isfile(filepath):
                 old_configuration = load_json(filepath)
                 assert isinstance(old_configuration, dict)
             else:
                 raise FileNotFoundError(f"Configuration file not found: {filepath}")
 
             diff_filepath = os.path.join(self.log_path, FILENAMES["configuration_diff"])
-            if os.path.isfile(diff_filepath) or (
-                wandb_download_file(
-                    wandb.run,
-                    artifact_name + ":latest",
-                    self.log_path,
-                    "configuration",
-                    diff_filepath,
-                )
-            ):
+            if os.path.isfile(diff_filepath):
                 prev_diff_list = load_json(diff_filepath)
                 assert isinstance(prev_diff_list, list)
             else:
