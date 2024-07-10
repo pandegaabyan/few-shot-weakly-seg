@@ -1,10 +1,6 @@
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from utils.time import convert_iso_timestamp_to_epoch
-
-
-def get_name_from_function(func: Callable) -> str:
-    return f"<function {func.__module__}.{func.__name__}>"
 
 
 def get_name_from_class(cls: object) -> str:
@@ -46,13 +42,6 @@ def get_simple_stack_list(start: int = 0, end: int | None = None) -> list[str]:
         )
         simple_stack_list.append(simple_stack)
     return simple_stack_list
-
-
-def get_count_as_text(data: Iterable) -> str:
-    from collections import Counter
-
-    counted = Counter(data)
-    return " ".join([f"{key}({count})" for key, count in counted.items()])
 
 
 def check_mkdir(dir_name: str):
