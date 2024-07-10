@@ -27,6 +27,7 @@ torchaudio = "*"
 click = "*"
 ipykernel = "*"
 optuna = "*"
+nanoid = "*"
 
 [dev-packages]
 
