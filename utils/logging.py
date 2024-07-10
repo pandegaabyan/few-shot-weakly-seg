@@ -119,36 +119,6 @@ def write_to_csv(filename: str, row: list[tuple[str, Any]]):
             writer.writerow(rowdict)
 
 
-def read_recent_runs(exp_name: str) -> list[str]:
-    import os
-
-    from config.constants import FILENAMES
-
-    recent_runs_path = os.path.join(
-        FILENAMES["log_folder"], exp_name, FILENAMES["recent_runs"]
-    )
-    recent_runs = []
-    if os.path.isfile(recent_runs_path):
-        with open(recent_runs_path, "r") as f:
-            recent_runs = f.read().split("\n")
-    return recent_runs
-
-
-def write_recent_runs(exp_name: str, recent_runs: list[str], new_run: str):
-    import os
-
-    from config.constants import FILENAMES
-
-    recent_runs_path = os.path.join(
-        FILENAMES["log_folder"], exp_name, FILENAMES["recent_runs"]
-    )
-    recent_runs.append(new_run)
-    while len(recent_runs) > 50:
-        recent_runs.pop(0)
-    with open(recent_runs_path, "w") as f:
-        f.write("\n".join(recent_runs))
-
-
 def get_configuration(exp_name: str = "", run_name: str = "") -> dict:
     import os
 

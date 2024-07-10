@@ -1,7 +1,8 @@
 import datetime
-import os
 from copy import deepcopy
 from typing import Literal
+
+import nanoid
 
 from config.config_type import (
     CallbacksConfig,
@@ -24,9 +25,6 @@ from config.config_type import (
     WandbConfig,
     WeaselConfig,
 )
-from config.constants import FILENAMES
-from utils.logging import read_recent_runs, write_recent_runs
-from utils.utils import generate_char
 
 data_config: DataConfig = {
     "num_classes": 3,
@@ -108,24 +106,12 @@ protoseg_config: ProtoSegConfig = {
 guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
 
 
-def make_run_name(exp_name: str) -> str:
-    run_name_ori = (
+def make_run_name() -> str:
+    timestamp_text = (
         datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
     )
-    exp_path = os.path.join(FILENAMES["log_folder"], exp_name)
-    if not os.path.exists(exp_path):
-        return run_name_ori
-
-    recent_runs = read_recent_runs(exp_name)
-
-    i = 0
-    run_name = run_name_ori
-    while run_name in recent_runs:
-        run_name = run_name_ori + " " + generate_char(i)
-
-    write_recent_runs(exp_name, recent_runs, run_name)
-
-    return run_name
+    random_id = nanoid.generate(size=3)
+    return f"{timestamp_text} {random_id}"
 
 
 def make_config(
@@ -284,6 +270,6 @@ def make_config(
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
     if "sweep" not in mode:
-        config["learn"]["run_name"] = make_run_name(exp_name)
+        config["learn"]["run_name"] = make_run_name()
 
     return config

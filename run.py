@@ -132,7 +132,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
             project = WANDB_SETTINGS["dummy_project" if dummy else "project"]
             update_config_from_ref(config, ref_config)
         else:
-            run_name = make_run_name(config["learn"]["exp_name"])
+            run_name = make_run_name()
             project = None
         config["learn"]["run_name"] = run_name
 
@@ -171,7 +171,7 @@ def run_sweep(config: ConfigUnion, dummy: bool, use_cv: bool = False, count: int
 
         assert "wandb" in config
 
-        config["learn"]["run_name"] = make_run_name(config["learn"]["exp_name"])
+        config["learn"]["run_name"] = make_run_name()
 
         wandb.init(
             tags=config["wandb"]["tags"] + ["sweep-parent"],

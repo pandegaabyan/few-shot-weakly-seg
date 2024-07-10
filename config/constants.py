@@ -9,7 +9,6 @@ class FilenamesDict(TypedDict):
     configuration: str
     configuration_diff: str
     sweep_config: str
-    recent_runs: str
     dummy_file: str
 
 
@@ -21,7 +20,6 @@ FILENAMES: FilenamesDict = {
     "configuration": "configuration.json",
     "configuration_diff": "configuration_diff.json",
     "sweep_config": "sweep_config.json",
-    "recent_runs": "recent_runs.txt",
     "dummy_file": "dummy_sign",
 }
 
