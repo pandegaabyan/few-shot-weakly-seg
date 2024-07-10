@@ -239,12 +239,6 @@ class BaseLearner(
                     type="dataset",
                     use_as=use_as,
                 )
-        ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
-        if ref_ckpt_path:
-            exp_run_name, ckpt_alias = prepare_ckpt_artifact_name(
-                *ref_ckpt_path.split("/")
-            )
-            wandb.run.use_artifact(f"{exp_run_name}:{ckpt_alias}", type="checkpoint")
 
         if wandb_config["watch_model"]:
             wandb.watch(self, log_freq=1)

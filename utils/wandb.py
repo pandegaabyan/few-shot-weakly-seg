@@ -93,7 +93,7 @@ def wandb_download_ckpt(ckpt_path: str):
         wandb.run,
         f"{exp_run_name}:{ckpt_alias}",
         os.path.split(ckpt_path)[0],
-        "checkpoints",
+        "checkpoint",
     )
 
 
