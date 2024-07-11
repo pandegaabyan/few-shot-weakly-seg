@@ -73,7 +73,6 @@ wandb_config: WandbConfig = {
     "job_type": None,
     "watch_model": True,
     "push_table_freq": 5,
-    "sweep_id": "",
     "save_train_preds": 0,
     "save_val_preds": 0,
     "save_test_preds": 0,
@@ -85,7 +84,6 @@ config_base: ConfigBase = {
     "optimizer": optimizer_config,
     "scheduler": scheduler_config,
     "callbacks": callbacks_config,
-    "wandb": wandb_config,
 }
 
 simple_learner_config: SimpleLearnerConfig = {}
@@ -123,22 +121,22 @@ def make_config(
 ) -> ConfigUnion:
     config_ref = deepcopy(config_base)
 
-    if mode == "sweep" or mode == "sweep-cv":
-        use_wandb = True
+    if mode == "study":
         config_ref["learn"]["model_onnx"] = False
         config_ref["learn"]["tensorboard_graph"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 0
-        config_ref["wandb"] = {
-            "run_id": "",
-            "tags": [],
-            "job_type": mode,
-            "watch_model": False,
-            "push_table_freq": 20,
-            "save_train_preds": 0,
-            "save_val_preds": 0,
-            "save_test_preds": 0,
-        }
+        if use_wandb:
+            config_ref["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
+                "watch_model": False,
+                "push_table_freq": 20,
+                "save_train_preds": 0,
+                "save_val_preds": 0,
+                "save_test_preds": 0,
+            }
     elif mode == "fit":
         config_ref["learn"]["model_onnx"] = True
         config_ref["learn"]["tensorboard_graph"] = True
@@ -182,32 +180,21 @@ def make_config(
                 "save_test_preds": 20,
             }
 
-    save_train_preds = config_ref.get("wandb", {}).get("save_train_preds", 0)
-    save_val_preds = config_ref.get("wandb", {}).get("save_val_preds", 0)
-    save_test_preds = config_ref.get("wandb", {}).get("save_test_preds", 0)
     if dummy:
         config_ref["learn"]["dummy"] = True
         config_ref["data"]["num_workers"] = 0
         config_ref["callbacks"]["ckpt_top_k"] = (
             config_ref["callbacks"].get("ckpt_top_k", 5) // 2
         )
-        save_train_preds //= 5
-        save_val_preds //= 5
-        save_test_preds //= 5
     else:
         config_ref["learn"]["dummy"] = False
         config_ref["data"]["num_workers"] = 3
-    if use_wandb:
+
+    if dummy and use_wandb:
         assert "wandb" in config_ref
-        config_ref["wandb"].update(
-            {
-                "save_train_preds": save_train_preds,
-                "save_val_preds": save_val_preds,
-                "save_test_preds": save_test_preds,
-            }
-        )
-    else:
-        config_ref.pop("wandb")
+        for key in ["save_train_preds", "save_val_preds", "save_test_preds"]:
+            if key in config_ref["wandb"]:
+                config_ref["wandb"][key] //= 5
 
     config: ConfigUnion = deepcopy(config_ref)
     if learner == "simple":
@@ -269,7 +256,7 @@ def make_config(
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
-    if "sweep" not in mode:
+    if mode != "study":
         config["learn"]["run_name"] = make_run_name()
 
     return config

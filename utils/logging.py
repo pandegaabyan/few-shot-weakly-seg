@@ -135,6 +135,17 @@ def get_full_ckpt_path(*paths: str, extension: str = ".ckpt") -> str:
     return path
 
 
+def get_optuna_db_path(dummy: bool = False, use_wandb: bool = False) -> str:
+    from config.constants import FILENAMES
+
+    storage = FILENAMES["optuna"]
+    if dummy:
+        storage.replace("optuna", "dummy_optuna")
+    if use_wandb:
+        storage.replace("optuna", "local_optuna")
+    return storage
+
+
 def get_run_paths(
     start_time: float | str | None = None,
     end_time: float | str | None = None,

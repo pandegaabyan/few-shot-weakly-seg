@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal, Type
 
 import numpy as np
+import optuna
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from torch import Tensor
@@ -78,6 +79,8 @@ class BaseLearner(
         (metric_class, metric_kwargs) = kwargs.get("metric") or (MultiIoUMetric, {})
         self.metric = metric_class(**metric_kwargs)
         self.metric_kwargs = metric_kwargs
+
+        self.optuna_trial = kwargs.get("optuna_trial")
 
         self.use_wandb = self.config.get("wandb") is not None
         self.tensorboard_graph = self.config["learn"].get("tensorboard_graph", True)
@@ -164,6 +167,7 @@ class BaseLearner(
             "summary/val_",
         )
         self.log_monitor(score_summary)
+        self.optuna_log_and_prune(score_summary)
 
     def on_train_epoch_end(self):
         super().on_train_epoch_end()
@@ -580,3 +584,10 @@ class BaseLearner(
                 ],
                 "preds",
             )
+
+    def optuna_log_and_prune(self, value: float):
+        if self.optuna_trial is None:
+            return
+        self.optuna_trial.report(value, self.current_epoch)
+        if self.optuna_trial.should_prune():
+            raise optuna.TrialPruned()

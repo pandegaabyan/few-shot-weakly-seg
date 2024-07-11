@@ -2,7 +2,10 @@ from typing import Literal, Union
 
 from typing_extensions import NotRequired, TypedDict
 
-RunMode = Literal["fit-test", "fit", "test", "sweep", "sweep-cv"]
+RunMode = Literal["fit-test", "fit", "test", "study"]
+
+OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
+OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
 
 
 class DataConfig(TypedDict):
@@ -23,6 +26,7 @@ class LearnConfig(TypedDict):
     tensorboard_graph: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
+    optuna_study_name: NotRequired[str]
 
 
 class OptimizerConfig(TypedDict, total=False):
@@ -55,8 +59,6 @@ class WandbConfig(TypedDict):
     job_type: str | None
     watch_model: bool
     push_table_freq: int | None
-    sweep_id: NotRequired[str]
-    sweep_parent: NotRequired[str]
     save_train_preds: NotRequired[int]
     save_val_preds: NotRequired[int]
     save_test_preds: NotRequired[int]

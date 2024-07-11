@@ -1,3 +1,4 @@
+import optuna
 from metrics import BaseMetric
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, nn, optim
@@ -36,6 +37,7 @@ class BaseLearnerKwargs(
     test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
     loss: tuple[Type[Loss], dict[str, Any]]
     metric: tuple[Type[Metric], dict[str, Any]]
+    optuna_trial: optuna.Trial | None
 
 
 SimpleLearnerKwargs = BaseLearnerKwargs[

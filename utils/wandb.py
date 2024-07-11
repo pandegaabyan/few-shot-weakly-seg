@@ -71,7 +71,17 @@ def wandb_log_file(
     return artifact
 
 
-def wandb_download_file(run: Run | None, name: str, root: str, type: str):
+def wandb_download_file(name: str, root: str, type: str, dummy: bool = False):
+    wandb_path = (
+        WANDB_SETTINGS["entity"]
+        + "/"
+        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+    )
+    artifact: wandb.Artifact = wandb.Api().artifact(f"{wandb_path}/{name}", type=type)
+    artifact.download(root)
+
+
+def wandb_use_and_download_file(run: Run | None, name: str, root: str, type: str):
     if run is None:
         return
     artifact: wandb.Artifact = run.use_artifact(name, type=type)
@@ -80,7 +90,7 @@ def wandb_download_file(run: Run | None, name: str, root: str, type: str):
 
 def wandb_download_ckpt(ckpt_path: str):
     exp_run_name, ckpt_alias = prepare_ckpt_artifact_name(*split_path(ckpt_path)[1:])
-    wandb_download_file(
+    wandb_use_and_download_file(
         wandb.run,
         f"{exp_run_name}:{ckpt_alias}",
         os.path.split(ckpt_path)[0],
@@ -89,13 +99,13 @@ def wandb_download_ckpt(ckpt_path: str):
 
 
 def wandb_download_config(artifact_name: str, root: str):
-    wandb_download_file(
+    wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":base",
         root,
         "configuration",
     )
-    wandb_download_file(
+    wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":latest",
         root,
@@ -130,14 +140,3 @@ def wandb_delete_old_tables(run_id: str | None, dummy: bool = False):
     for artifact in run.logged_artifacts():
         if artifact.type == "run_table" and "latest" not in artifact.aliases:
             artifact.delete(delete_aliases=True)
-
-
-def reset_wandb_env():
-    exclude = {
-        "WANDB_PROJECT",
-        "WANDB_ENTITY",
-        "WANDB_API_KEY",
-    }
-    for key in os.environ.keys():
-        if key.startswith("WANDB_") and key not in exclude:
-            del os.environ[key]
