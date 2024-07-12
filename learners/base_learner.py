@@ -66,6 +66,7 @@ class BaseLearner(
         self.dataset_list = kwargs["dataset_list"]
         self.val_dataset_list = kwargs.get("val_dataset_list")
         self.test_dataset_list = kwargs.get("test_dataset_list")
+        self.optuna_trial = kwargs.get("optuna_trial")
 
         self.train_datasets = self.make_dataset("train", self.dataset_list)
         self.val_datasets = self.make_dataset(
@@ -82,19 +83,14 @@ class BaseLearner(
         self.metric = metric_class(**metric_kwargs)
         self.metric_kwargs = metric_kwargs
 
-        self.optuna_trial = kwargs.get("optuna_trial")
-
-        self.use_wandb = self.config.get("wandb") is not None
-
-        self.initial_messages: list[str] = []
-        if self.optuna_trial:
-            self.log_path = ""
-        else:
+        if any(lv for lv in self.config["log"].values()):
             self.log_path = os.path.join(
                 FILENAMES["log_folder"],
                 self.config["learn"]["exp_name"],
                 self.config["learn"]["run_name"],
             )
+        else:
+            self.log_path = ""
 
         wandb_config = self.config.get("wandb", {})
         self.train_indices_to_save = self.make_indices_to_save(
@@ -113,11 +109,13 @@ class BaseLearner(
             ]
         )
 
-        self.init_ok = False
-        self.resume = False
+        self.use_wandb = self.config.get("wandb") is not None
         self.example_input_array = self.make_input_example()
         self.configuration = self.get_configuration()
 
+        self.init_ok = False
+        self.resume = False
+        self.initial_messages: list[str] = []
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
         self.validation_step_losses: list[float] = []
@@ -202,7 +200,7 @@ class BaseLearner(
 
     def init(self, resume: bool = False, force_clear_dir: bool = False) -> bool:
         self.resume = resume
-        if self.optuna_trial:
+        if self.log_path == "":
             pass
         elif resume:
             if self.use_wandb:
@@ -384,6 +382,7 @@ class BaseLearner(
                     f"{prepare_study_artifact_name(self.optuna_trial.study.study_name)}:latest",
                     type="study",
                 )
+        if not self.config["log"].get("configuration"):
             return
 
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
@@ -406,20 +405,22 @@ class BaseLearner(
             new_diff_list = prev_diff_list + [new_diff]
 
             dump_json(diff_filepath, new_diff_list)
-            wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
-            wandb_delete_file(artifact_name, "configuration", False)
+            if self.use_wandb:
+                wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
+                wandb_delete_file(artifact_name, "configuration", False)
         else:
             dump_json(filepath, self.configuration)
-            wandb_log_file(
-                wandb.run, artifact_name, filepath, "configuration", ["base"]
-            )
+            if self.use_wandb:
+                wandb_log_file(
+                    wandb.run, artifact_name, filepath, "configuration", ["base"]
+                )
 
         if self.config["learn"].get("dummy") is True:
             dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
             dummy_file.close()
 
     def log_tensorboard_graph(self):
-        if self.optuna_trial or not self.config["learn"].get("tensorboard_graph"):
+        if not self.config["log"].get("tensorboard_graph"):
             return
         exp_name = self.config["learn"]["exp_name"]
         run_name = self.config["learn"]["run_name"]
@@ -427,30 +428,32 @@ class BaseLearner(
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
         tb_files = sorted(filter(lambda x: "tfevents" in x, os.listdir(self.log_path)))
-        wandb_log_file(
-            wandb.run,
-            prepare_artifact_name(exp_name, run_name, "tb"),
-            os.path.join(self.log_path, tb_files[-1]),
-            "tensorboard_graph",
-        )
+        if self.use_wandb:
+            wandb_log_file(
+                wandb.run,
+                prepare_artifact_name(exp_name, run_name, "tb"),
+                os.path.join(self.log_path, tb_files[-1]),
+                "tensorboard_graph",
+            )
 
     def log_model_onnx(self):
-        if self.optuna_trial or not self.config["learn"].get("model_onnx"):
+        if not self.config["log"].get("model_onnx"):
             return
         onnx_path = os.path.join(self.log_path, FILENAMES["model_onnx"])
         self.to_onnx(onnx_path, export_params=False)
-        artifact = wandb_log_file(
-            wandb.run, self.__class__.__name__, onnx_path, "model"
-        )
-        if artifact and wandb.run:
-            wandb.run.use_artifact(artifact)
+        if self.use_wandb:
+            artifact = wandb_log_file(
+                wandb.run, self.__class__.__name__, onnx_path, "model"
+            )
+            if artifact and wandb.run:
+                wandb.run.use_artifact(artifact)
 
     def log_table(
         self,
         data: list[tuple[str, Any]],
         group: str,
     ):
-        if self.optuna_trial:
+        if not self.config["log"].get("tables"):
             return
 
         self.wandb_log_table(data, group)
@@ -475,7 +478,7 @@ class BaseLearner(
 
     def wandb_log_ckpt_files(self):
         if (
-            self.optuna_trial
+            not self.use_wandb
             or self.current_epoch != self.config["learn"]["num_epochs"] - 1
         ):
             return
@@ -526,6 +529,9 @@ class BaseLearner(
         group: str,
         image: Tensor | None = None,
     ):
+        if not self.use_wandb:
+            return
+
         gt_arr = gt.cpu().numpy()
         pred_arr = pred.argmax(0).cpu().numpy()
         if image is not None:
@@ -564,6 +570,9 @@ class BaseLearner(
         file_name: str | list[str],
         dataset: str | list[str],
     ):
+        if not self.use_wandb:
+            return
+
         match type:
             case "TR":
                 indices_to_save = self.train_indices_to_save

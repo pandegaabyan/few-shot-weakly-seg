@@ -40,6 +40,13 @@ class SchedulerConfig(TypedDict, total=False):
     gamma: float
 
 
+class LogConfig(TypedDict, total=False):
+    configuration: bool
+    table: bool
+    model_onnx: bool
+    tensorboard_graph: bool
+
+
 class CallbacksConfig(TypedDict, total=False):
     progress: bool
     monitor: str | None
@@ -90,6 +97,7 @@ class ConfigBase(TypedDict):
     learn: LearnConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
+    log: LogConfig
     callbacks: CallbacksConfig
     wandb: NotRequired[WandbConfig]
 

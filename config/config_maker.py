@@ -16,6 +16,7 @@ from config.config_type import (
     DataConfig,
     GuidedNetsConfig,
     LearnConfig,
+    LogConfig,
     MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
@@ -40,8 +41,6 @@ learn_config: LearnConfig = {
     "run_name": "",
     "dummy": True,
     "val_freq": 1,
-    "model_onnx": True,
-    "tensorboard_graph": True,
     "manual_optim": False,
     "ref_ckpt_path": None,
     "optuna_study_name": None,
@@ -56,6 +55,13 @@ optimizer_config: OptimizerConfig = {
 }
 
 scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
+
+log_config: LogConfig = {
+    "configuration": True,
+    "table": True,
+    "model_onnx": True,
+    "tensorboard_graph": True,
+}
 
 callbacks_config: CallbacksConfig = {
     "progress": True,
@@ -84,6 +90,7 @@ config_base: ConfigBase = {
     "learn": learn_config,
     "optimizer": optimizer_config,
     "scheduler": scheduler_config,
+    "log": log_config,
     "callbacks": callbacks_config,
 }
 
@@ -123,8 +130,10 @@ def make_config(
     config_ref = deepcopy(config_base)
 
     if mode == "study":
-        config_ref["learn"]["model_onnx"] = False
-        config_ref["learn"]["tensorboard_graph"] = False
+        config_ref["log"]["configuration"] = False
+        config_ref["log"]["table"] = False
+        config_ref["log"]["model_onnx"] = False
+        config_ref["log"]["tensorboard_graph"] = False
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 0
@@ -140,8 +149,6 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "fit":
-        config_ref["learn"]["model_onnx"] = True
-        config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
@@ -154,8 +161,8 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "test":
-        config_ref["learn"]["model_onnx"] = False
-        config_ref["learn"]["tensorboard_graph"] = False
+        config_ref["log"]["model_onnx"] = False
+        config_ref["log"]["tensorboard_graph"] = False
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
@@ -168,8 +175,6 @@ def make_config(
                 "save_test_preds": 20,
             }
     else:
-        config_ref["learn"]["model_onnx"] = True
-        config_ref["learn"]["tensorboard_graph"] = True
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
