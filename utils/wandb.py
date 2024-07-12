@@ -56,6 +56,19 @@ def prepare_ckpt_artifact_name(
     return exp_run_name, ckpt_alias
 
 
+def prepare_study_artifact_name(study_name: str) -> str:
+    exp_name, run_name = study_name.split(" ", 1)
+    return prepare_artifact_name(exp_name, run_name, "study")
+
+
+def wandb_delete_file(name: str, type: str, delete_aliases: bool = False):
+    arts = wandb.Api().artifacts(type, name)
+    for art in arts:
+        art: wandb.Artifact = art
+        if len(art.aliases) == 0 or delete_aliases:
+            art.delete(delete_aliases)
+
+
 def wandb_log_file(
     run: Run | None,
     name: str,
@@ -124,19 +137,3 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
     dataset_artifact.add_reference(f"file://{dataset_path}")
     wandb.log_artifact(dataset_artifact)
     wandb.finish()
-
-
-def wandb_delete_old_tables(run_id: str | None, dummy: bool = False):
-    if run_id is None:
-        return
-    wandb_path = (
-        WANDB_SETTINGS["entity"]
-        + "/"
-        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
-        + "/"
-        + run_id
-    )
-    run = wandb.Api().run(wandb_path)
-    for artifact in run.logged_artifacts():
-        if artifact.type == "run_table" and "latest" not in artifact.aliases:
-            artifact.delete(delete_aliases=True)
