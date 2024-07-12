@@ -46,6 +46,8 @@ from utils.utils import (
 from utils.wandb import (
     prepare_artifact_name,
     prepare_ckpt_artifact_name,
+    prepare_study_artifact_name,
+    wandb_delete_file,
     wandb_download_config,
     wandb_log_file,
 )
@@ -83,19 +85,22 @@ class BaseLearner(
         self.optuna_trial = kwargs.get("optuna_trial")
 
         self.use_wandb = self.config.get("wandb") is not None
-        self.tensorboard_graph = self.config["learn"].get("tensorboard_graph", True)
 
         self.initial_messages: list[str] = []
-        self.log_path = os.path.join(
-            FILENAMES["log_folder"],
-            self.config["learn"]["exp_name"],
-            self.config["learn"]["run_name"],
-        )
-        self.ckpt_path = os.path.join(
-            FILENAMES["checkpoint_folder"],
-            self.config["learn"]["exp_name"],
-            self.config["learn"]["run_name"],
-        )
+        if self.optuna_trial:
+            self.log_path = ""
+            self.ckpt_path = ""
+        else:
+            self.log_path = os.path.join(
+                FILENAMES["log_folder"],
+                self.config["learn"]["exp_name"],
+                self.config["learn"]["run_name"],
+            )
+            self.ckpt_path = os.path.join(
+                FILENAMES["checkpoint_folder"],
+                self.config["learn"]["exp_name"],
+                self.config["learn"]["run_name"],
+            )
 
         wandb_config = self.config.get("wandb", {})
         self.train_indices_to_save = self.make_indices_to_save(
@@ -117,6 +122,7 @@ class BaseLearner(
         self.init_ok = False
         self.resume = False
         self.example_input_array = self.make_input_example()
+        self.configuration = self.get_configuration()
 
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
@@ -202,7 +208,16 @@ class BaseLearner(
 
     def init(self, resume: bool = False, force_clear_dir: bool = False) -> bool:
         self.resume = resume
-        if resume:
+        if self.optuna_trial:
+            pass
+        elif resume:
+            if self.use_wandb:
+                artifact_name = prepare_artifact_name(
+                    self.config["learn"]["exp_name"],
+                    self.config["learn"]["run_name"],
+                    "conf",
+                )
+                wandb_download_config(artifact_name, self.log_path)
             ok = self.check_log_and_ckpt_dir()
             if not ok:
                 print("No data from previous learning")
@@ -348,7 +363,7 @@ class BaseLearner(
         if isinstance(self.trainer.progress_bar_callback, CustomRichProgressBar):
             self.trainer.progress_bar_callback.update_fields(task, **kwargs)
 
-    def log_configuration(self):
+    def get_configuration(self) -> dict:
         def serialize_datasets(
             datasets: list[tuple[Type[DatasetClass], DatasetKwargs]],
         ):
@@ -379,19 +394,24 @@ class BaseLearner(
         if self.test_dataset_list is not None:
             configuration["test_datasets"] = serialize_datasets(self.test_dataset_list)
 
+        return configuration
+
+    def log_configuration(self):
+        if self.optuna_trial:
+            if self.use_wandb and wandb.run:
+                wandb.run.use_artifact(
+                    f"{prepare_study_artifact_name(self.optuna_trial.study.study_name)}:latest",
+                    type="study",
+                )
+            return
+
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
         artifact_name = prepare_artifact_name(
             self.config["learn"]["exp_name"], self.config["learn"]["run_name"], "conf"
         )
         if self.resume:
-            if self.use_wandb:
-                wandb_download_config(artifact_name, self.log_path)
-
-            if os.path.isfile(filepath):
-                old_configuration = load_json(filepath)
-                assert isinstance(old_configuration, dict)
-            else:
-                raise FileNotFoundError(f"Configuration file not found: {filepath}")
+            old_configuration = load_json(filepath)
+            assert isinstance(old_configuration, dict)
 
             diff_filepath = os.path.join(self.log_path, FILENAMES["configuration_diff"])
             if os.path.isfile(diff_filepath):
@@ -401,13 +421,14 @@ class BaseLearner(
                 prev_diff_list = []
 
             new_diff = {"timestamp": get_iso_timestamp_now()}
-            new_diff.update(diff_dict(old_configuration, configuration))
+            new_diff.update(diff_dict(old_configuration, self.configuration))
             new_diff_list = prev_diff_list + [new_diff]
 
             dump_json(diff_filepath, new_diff_list)
             wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
+            wandb_delete_file(artifact_name, "configuration", False)
         else:
-            dump_json(filepath, configuration)
+            dump_json(filepath, self.configuration)
             wandb_log_file(
                 wandb.run, artifact_name, filepath, "configuration", ["base"]
             )
@@ -417,29 +438,26 @@ class BaseLearner(
             dummy_file.close()
 
     def log_tensorboard_graph(self):
-        if not self.tensorboard_graph:
+        if self.optuna_trial or not self.config["learn"].get("tensorboard_graph"):
             return
         exp_name = self.config["learn"]["exp_name"]
         run_name = self.config["learn"]["run_name"]
         tensorboard_dir = os.path.join(
             FILENAMES["tensorboard_folder"], exp_name, run_name
         )
-        check_rmtree(tensorboard_dir, True)
         tensorboard_writer = SummaryWriter(tensorboard_dir)
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
-        for file in os.listdir(tensorboard_dir):
-            wandb_log_file(
-                wandb.run,
-                prepare_artifact_name(exp_name, run_name, "tb"),
-                os.path.join(tensorboard_dir, file),
-                "tensorboard_graph",
-            )
+        tb_file = sorted(os.listdir(tensorboard_dir))[-1]
+        wandb_log_file(
+            wandb.run,
+            prepare_artifact_name(exp_name, run_name, "tb"),
+            os.path.join(tensorboard_dir, tb_file),
+            "tensorboard_graph",
+        )
 
     def log_model_onnx(self):
-        if not self.config["learn"].get("model_onnx"):
-            return
-        if self.config["learn"].get("ref_ckpt_path"):
+        if self.optuna_trial or not self.config["learn"].get("model_onnx"):
             return
         onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
         self.to_onnx(onnx_path, export_params=False)
@@ -454,6 +472,9 @@ class BaseLearner(
         data: list[tuple[str, Any]],
         group: str,
     ):
+        if self.optuna_trial:
+            return
+
         self.wandb_log_table(data, group)
 
         csv_filename = os.path.join(self.log_path, f"{group}.csv")
@@ -475,7 +496,10 @@ class BaseLearner(
         )
 
     def wandb_log_ckpt_files(self):
-        if self.current_epoch != self.config["learn"]["num_epochs"] - 1:
+        if (
+            self.optuna_trial
+            or self.current_epoch != self.config["learn"]["num_epochs"] - 1
+        ):
             return
 
         for ckpt in os.listdir(self.ckpt_path):
