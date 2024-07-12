@@ -1,11 +1,8 @@
 from typing import Literal
 
-from pytorch_lightning import Callback
-from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, RichProgressBar
+from pytorch_lightning.callbacks import RichProgressBar
 from pytorch_lightning.callbacks.progress.rich_progress import RichProgressBarTheme
 from rich.progress import TextColumn
-
-from config.config_type import CallbacksConfig
 
 ProgressBarTaskType = Literal["train", "val", "test", "predict", "sanity"]
 
@@ -64,50 +61,3 @@ custom_rich_progress_bar_theme = RichProgressBarTheme(
     processing_speed="#6206E0",
     metrics="#6206E0",
 )
-
-
-def make_callbacks(
-    config: CallbacksConfig, ckpt_path: str, ckpt_every_n_epochs: int = 1
-) -> list[Callback]:
-    callbacks = []
-
-    if config.get("progress"):
-        callbacks.append(
-            CustomRichProgressBar(
-                leave=config.get("progress_leave", False),
-                theme=custom_rich_progress_bar_theme,
-            )
-        )
-
-    monitor = config.get("monitor", None)
-    monitor_mode = config.get("monitor_mode", "min")
-
-    save_last = config.get("ckpt_last", False)
-    save_top_k = config.get("ckpt_top_k", 1)
-    ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
-    if save_last or save_top_k:
-        callbacks.append(
-            ModelCheckpoint(
-                dirpath=ckpt_path,
-                filename=ckpt_filename,
-                monitor=monitor,
-                mode=monitor_mode,
-                save_last=config.get("ckpt_last", True),
-                save_top_k=config.get("ckpt_top_k", 0),
-                every_n_epochs=ckpt_every_n_epochs,
-            )
-        )
-
-    if monitor:
-        callbacks.append(
-            EarlyStopping(
-                monitor=monitor,
-                mode=monitor_mode,
-                verbose=True,
-                patience=config.get("stop_patience", 3),
-                min_delta=config.get("stop_min_delta", 0.0),
-                stopping_threshold=config.get("stop_threshold", None),
-            )
-        )
-
-    return callbacks
