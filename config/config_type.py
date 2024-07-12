@@ -43,6 +43,7 @@ class SchedulerConfig(TypedDict, total=False):
 
 
 class CallbacksConfig(TypedDict, total=False):
+    progress: bool
     progress_leave: bool
     monitor: str
     monitor_mode: Literal["min", "max"]

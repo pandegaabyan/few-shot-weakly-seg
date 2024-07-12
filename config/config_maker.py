@@ -57,6 +57,7 @@ optimizer_config: OptimizerConfig = {
 scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
 
 callbacks_config: CallbacksConfig = {
+    "progress": True,
     "progress_leave": True,
     "monitor": "val_score",
     "monitor_mode": "max",
@@ -124,6 +125,7 @@ def make_config(
     if mode == "study":
         config_ref["learn"]["model_onnx"] = False
         config_ref["learn"]["tensorboard_graph"] = False
+        config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 0
         if use_wandb:
