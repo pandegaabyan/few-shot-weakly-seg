@@ -89,15 +89,9 @@ class BaseLearner(
         self.initial_messages: list[str] = []
         if self.optuna_trial:
             self.log_path = ""
-            self.ckpt_path = ""
         else:
             self.log_path = os.path.join(
                 FILENAMES["log_folder"],
-                self.config["learn"]["exp_name"],
-                self.config["learn"]["run_name"],
-            )
-            self.ckpt_path = os.path.join(
-                FILENAMES["checkpoint_folder"],
                 self.config["learn"]["exp_name"],
                 self.config["learn"]["run_name"],
             )
@@ -218,16 +212,17 @@ class BaseLearner(
                     "conf",
                 )
                 wandb_download_config(artifact_name, self.log_path)
-            ok = self.check_log_and_ckpt_dir()
+            ok = os.path.exists(self.log_path)
             if not ok:
                 print("No data from previous learning")
                 return False
         else:
-            ok = self.clear_log_and_ckpt_dir(force_clear_dir)
+            ok = check_rmtree(self.log_path, force_clear_dir)
             if not ok:
                 print("Fit canceled")
                 return False
-            self.create_log_and_ckpt_dir()
+            check_mkdir(FILENAMES["log_folder"])
+            check_mkdir(self.log_path)
 
         self.wandb_init()
 
@@ -329,20 +324,6 @@ class BaseLearner(
             return sched
         return [sched]
 
-    def check_log_and_ckpt_dir(self) -> bool:
-        return os.path.exists(self.log_path) and os.path.exists(self.ckpt_path)
-
-    def create_log_and_ckpt_dir(self):
-        check_mkdir(FILENAMES["log_folder"])
-        check_mkdir(self.log_path)
-        check_mkdir(FILENAMES["checkpoint_folder"])
-        check_mkdir(self.ckpt_path)
-
-    def clear_log_and_ckpt_dir(self, force: bool = False) -> bool:
-        log_ok = check_rmtree(self.log_path, force)
-        ckpt_ok = check_rmtree(self.ckpt_path, force)
-        return log_ok and ckpt_ok
-
     def print_initial_info(self):
         print("-" * 30)
         print("Git hash: " + get_short_git_hash())
@@ -442,24 +423,21 @@ class BaseLearner(
             return
         exp_name = self.config["learn"]["exp_name"]
         run_name = self.config["learn"]["run_name"]
-        tensorboard_dir = os.path.join(
-            FILENAMES["tensorboard_folder"], exp_name, run_name
-        )
-        tensorboard_writer = SummaryWriter(tensorboard_dir)
+        tensorboard_writer = SummaryWriter(self.log_path)
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
-        tb_file = sorted(os.listdir(tensorboard_dir))[-1]
+        tb_files = sorted(filter(lambda x: "tfevents" in x, os.listdir(self.log_path)))
         wandb_log_file(
             wandb.run,
             prepare_artifact_name(exp_name, run_name, "tb"),
-            os.path.join(tensorboard_dir, tb_file),
+            os.path.join(self.log_path, tb_files[-1]),
             "tensorboard_graph",
         )
 
     def log_model_onnx(self):
         if self.optuna_trial or not self.config["learn"].get("model_onnx"):
             return
-        onnx_path = os.path.join(self.ckpt_path, FILENAMES["model_onnx"])
+        onnx_path = os.path.join(self.log_path, FILENAMES["model_onnx"])
         self.to_onnx(onnx_path, export_params=False)
         artifact = wandb_log_file(
             wandb.run, self.__class__.__name__, onnx_path, "model"
@@ -502,7 +480,7 @@ class BaseLearner(
         ):
             return
 
-        for ckpt in os.listdir(self.ckpt_path):
+        for ckpt in os.listdir(self.log_path):
             if not ckpt.endswith(".ckpt"):
                 continue
             name, alias = prepare_ckpt_artifact_name(
@@ -511,7 +489,7 @@ class BaseLearner(
             wandb_log_file(
                 wandb.run,
                 name,
-                os.path.join(self.ckpt_path, ckpt),
+                os.path.join(self.log_path, ckpt),
                 "checkpoint",
                 [alias],
             )

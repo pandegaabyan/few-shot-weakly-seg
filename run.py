@@ -30,7 +30,7 @@ class MyRunner(Runner):
         config: ConfigUnion,
         dummy: bool,
         dataset_fold: int = 0,
-        learner_ckpt: str | None = None,
+        ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
     ) -> BaseLearner:
         dataset_list = self.make_dataset_list(dataset_fold)
@@ -45,11 +45,11 @@ class MyRunner(Runner):
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        if learner_ckpt is None:
+        if ckpt_path is None:
             learner = SimpleUnet(**kwargs)
         else:
-            wandb_download_ckpt(learner_ckpt)
-            learner = SimpleUnet.load_from_checkpoint(learner_ckpt, **kwargs)
+            wandb_download_ckpt(ckpt_path)
+            learner = SimpleUnet.load_from_checkpoint(ckpt_path, **kwargs)
 
         learner.set_initial_messages(["Command " + " ".join(sys.argv)])
 

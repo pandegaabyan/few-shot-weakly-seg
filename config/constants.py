@@ -2,9 +2,7 @@ from typing import TypedDict
 
 
 class FilenamesDict(TypedDict):
-    checkpoint_folder: str
     log_folder: str
-    tensorboard_folder: str
     model_onnx: str
     configuration: str
     configuration_diff: str
@@ -13,9 +11,7 @@ class FilenamesDict(TypedDict):
 
 
 FILENAMES: FilenamesDict = {
-    "checkpoint_folder": "./ckpt/",
     "log_folder": "./logs/",
-    "tensorboard_folder": "./tensorboard/",
     "model_onnx": "model.onnx",
     "configuration": "configuration.json",
     "configuration_diff": "configuration_diff.json",

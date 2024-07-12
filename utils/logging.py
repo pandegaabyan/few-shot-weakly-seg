@@ -129,7 +129,7 @@ def get_full_ckpt_path(*paths: str, extension: str = ".ckpt") -> str:
 
     from config.constants import FILENAMES
 
-    path = os.path.join(FILENAMES["checkpoint_folder"], *paths)
+    path = os.path.join(FILENAMES["log_folder"], *paths)
     if not path.endswith(extension):
         path += extension
     return path

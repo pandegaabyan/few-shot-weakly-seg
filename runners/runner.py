@@ -67,7 +67,7 @@ class Runner:
         config: ConfigUnion,
         dummy: bool,
         dataset_fold: int = 0,
-        learner_ckpt: str | None = None,
+        ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
     ) -> BaseLearner:
         raise NotImplementedError
@@ -113,7 +113,7 @@ class Runner:
             ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
         trainer = self.make_trainer()
-        learner = self.make_learner(self.config, self.dummy, learner_ckpt=ckpt_path)
+        learner = self.make_learner(self.config, self.dummy, ckpt_path=ckpt_path)
         if not learner.init(resume=self.resume, force_clear_dir=True):
             return
 
@@ -271,14 +271,12 @@ class Runner:
 
         save_last = cb_config.get("ckpt_last", False)
         save_top_k = cb_config.get("ckpt_top_k", 1)
-        ckpt_path = os.path.join(
-            FILENAMES["checkpoint_folder"], self.exp_name, self.run_name
-        )
+        log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
         ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
         if save_last or save_top_k:
             callbacks.append(
                 ModelCheckpoint(
-                    dirpath=ckpt_path,
+                    dirpath=log_path,
                     filename=ckpt_filename,
                     monitor=monitor,
                     mode=monitor_mode,
