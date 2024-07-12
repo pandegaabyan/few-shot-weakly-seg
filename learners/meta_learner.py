@@ -46,12 +46,12 @@ class MetaLearner(
         )
 
     def make_indices_to_save(
-        self, datasets: list[FewSparseDataset], sample_size: int | None
+        self, datasets: list[FewSparseDataset], sample_size: int
     ) -> list[list[int]]:
         batch_size = min(ds.query_batch_size for ds in datasets)
         return make_batch_sample_indices(
             sum(ds.num_iterations for ds in datasets) * batch_size,
-            sample_size or 0,
+            sample_size,
             batch_size,
         )
 

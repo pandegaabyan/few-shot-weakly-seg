@@ -98,13 +98,13 @@ class BaseLearner(
 
         wandb_config = self.config.get("wandb", {})
         self.train_indices_to_save = self.make_indices_to_save(
-            self.train_datasets, wandb_config.get("save_train_preds")
+            self.train_datasets, wandb_config.get("save_train_preds", 0)
         )
         self.val_indices_to_save = self.make_indices_to_save(
-            self.val_datasets, wandb_config.get("save_val_preds")
+            self.val_datasets, wandb_config.get("save_val_preds", 0)
         )
         self.test_indices_to_save = self.make_indices_to_save(
-            self.test_datasets, wandb_config.get("save_test_preds")
+            self.test_datasets, wandb_config.get("save_test_preds", 0)
         )
         self.class_labels = merge_dicts(
             [
@@ -129,7 +129,7 @@ class BaseLearner(
 
     @abstractmethod
     def make_indices_to_save(
-        self, datasets: list[DatasetClass], sample_size: int | None
+        self, datasets: list[DatasetClass], sample_size: int
     ) -> list[list[int]]:
         pass
 

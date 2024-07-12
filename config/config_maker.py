@@ -44,6 +44,7 @@ learn_config: LearnConfig = {
     "tensorboard_graph": True,
     "manual_optim": False,
     "ref_ckpt_path": None,
+    "optuna_study_name": None,
 }
 
 optimizer_config: OptimizerConfig = {
@@ -58,12 +59,11 @@ scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
 
 callbacks_config: CallbacksConfig = {
     "progress": True,
-    "progress_leave": True,
     "monitor": "val_score",
     "monitor_mode": "max",
     "ckpt_last": True,
-    "ckpt_top_k": 5,
-    "stop_patience": 5,
+    "ckpt_top_k": 2,
+    "stop_patience": 2,
     "stop_min_delta": 0.0,
     "stop_threshold": None,
 }
@@ -71,6 +71,7 @@ callbacks_config: CallbacksConfig = {
 wandb_config: WandbConfig = {
     "run_id": "",
     "tags": [],
+    "job_type": None,
     "watch_model": True,
     "push_table_freq": 5,
     "save_train_preds": 0,
@@ -93,7 +94,7 @@ meta_learner_config: MetaLearnerConfig = {}
 weasel_config: WeaselConfig = {
     "use_first_order": False,
     "update_param_step_size": 0.3,
-    "tune_epochs": 10,
+    "tune_epochs": 3,
     "tune_val_freq": 1,
 }
 
@@ -181,15 +182,12 @@ def make_config(
                 "save_test_preds": 20,
             }
 
-    if dummy:
-        config_ref["learn"]["dummy"] = True
-        config_ref["data"]["num_workers"] = 0
-        config_ref["callbacks"]["ckpt_top_k"] = (
-            config_ref["callbacks"].get("ckpt_top_k", 5) // 2
-        )
-    else:
-        config_ref["learn"]["dummy"] = False
+    if not dummy:
         config_ref["data"]["num_workers"] = 3
+        config_ref["learn"]["dummy"] = False
+        config_ref["learn"]["num_epochs"] = 100
+        config_ref["callbacks"]["ckpt_top_k"] = 5
+        config_ref["callbacks"]["stop_patience"] = 10
 
     if dummy and use_wandb:
         assert "wandb" in config_ref
@@ -206,7 +204,7 @@ def make_config(
         config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
             config_simple["data"]["batch_size"] = 16
-            config_simple["learn"]["num_epochs"] = 300
+            config_simple["learn"]["num_epochs"] = 200
             config_simple["callbacks"]["stop_patience"] = 15
         config = config_simple
     elif learner == "meta":
@@ -217,7 +215,6 @@ def make_config(
         config_meta["learn"]["exp_name"] = "ML"
         if not dummy:
             config_meta["data"]["batch_size"] = 13
-            config_meta["learn"]["num_epochs"] = 100
         config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
@@ -228,7 +225,7 @@ def make_config(
         config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 13
-            config_weasel["learn"]["num_epochs"] = 100
+            config_weasel["weasel"]["tune_epochs"] = 10
         config = config_weasel
     elif learner == "protoseg":
         config_protoseg: ConfigProtoSeg = {
@@ -239,7 +236,6 @@ def make_config(
         config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
             config_protoseg["data"]["batch_size"] = 32
-            config_protoseg["learn"]["num_epochs"] = 100
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
@@ -250,7 +246,6 @@ def make_config(
         config_guidednets["learn"]["exp_name"] = "GN"
         if not dummy:
             config_guidednets["data"]["batch_size"] = 8
-            config_guidednets["learn"]["num_epochs"] = 100
         config = config_guidednets
 
     exp_name = config["learn"]["exp_name"]

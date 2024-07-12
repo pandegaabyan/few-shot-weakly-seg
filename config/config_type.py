@@ -1,13 +1,11 @@
 from typing import Literal, Union
 
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study"]
 
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
-
-# SEPARATE LOG RELATED CONFIG ?
 
 
 class DataConfig(TypedDict):
@@ -24,11 +22,9 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
-    model_onnx: NotRequired[bool]
-    tensorboard_graph: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
-    optuna_study_name: NotRequired[str]
+    optuna_study_name: NotRequired[str | None]
 
 
 class OptimizerConfig(TypedDict, total=False):
@@ -46,8 +42,7 @@ class SchedulerConfig(TypedDict, total=False):
 
 class CallbacksConfig(TypedDict, total=False):
     progress: bool
-    progress_leave: bool
-    monitor: str
+    monitor: str | None
     monitor_mode: Literal["min", "max"]
     ckpt_last: bool
     ckpt_top_k: int
@@ -56,15 +51,15 @@ class CallbacksConfig(TypedDict, total=False):
     stop_threshold: float | None
 
 
-class WandbConfig(TypedDict):
-    run_id: str
-    tags: NotRequired[list[str]]
-    job_type: NotRequired[str]
-    watch_model: NotRequired[bool]
-    push_table_freq: NotRequired[int]
-    save_train_preds: NotRequired[int]
-    save_val_preds: NotRequired[int]
-    save_test_preds: NotRequired[int]
+class WandbConfig(TypedDict, total=False):
+    run_id: Required[str]
+    tags: list[str]
+    job_type: str | None
+    watch_model: bool
+    push_table_freq: int | None
+    save_train_preds: int
+    save_val_preds: int
+    save_test_preds: int
 
 
 class SimpleLearnerConfig(TypedDict):
