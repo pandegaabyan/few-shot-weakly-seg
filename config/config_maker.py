@@ -71,7 +71,6 @@ callbacks_config: CallbacksConfig = {
 wandb_config: WandbConfig = {
     "run_id": "",
     "tags": [],
-    "job_type": None,
     "watch_model": True,
     "push_table_freq": 5,
     "save_train_preds": 0,

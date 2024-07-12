@@ -7,6 +7,8 @@ RunMode = Literal["fit-test", "fit", "test", "study"]
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
 
+# SEPARATE LOG RELATED CONFIG ?
+
 
 class DataConfig(TypedDict):
     num_classes: int
@@ -56,10 +58,10 @@ class CallbacksConfig(TypedDict, total=False):
 
 class WandbConfig(TypedDict):
     run_id: str
-    tags: list[str]
-    job_type: str | None
-    watch_model: bool
-    push_table_freq: int | None
+    tags: NotRequired[list[str]]
+    job_type: NotRequired[str]
+    watch_model: NotRequired[bool]
+    push_table_freq: NotRequired[int]
     save_train_preds: NotRequired[int]
     save_val_preds: NotRequired[int]
     save_test_preds: NotRequired[int]

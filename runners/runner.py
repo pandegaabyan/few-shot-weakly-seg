@@ -305,10 +305,10 @@ class Runner:
         wandb.init(
             config=dict(self.config),
             id=run_id,
-            tags=self.config["wandb"]["tags"],
+            tags=self.config["wandb"].get("tags", []),
             project=WANDB_SETTINGS["dummy_project" if self.dummy else "project"],
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
-            job_type=self.config["wandb"]["job_type"],
+            job_type=self.config["wandb"].get("job_type"),
             resume="must" if self.resume else None,
         )

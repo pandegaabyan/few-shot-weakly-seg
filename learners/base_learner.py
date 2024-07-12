@@ -254,7 +254,7 @@ class BaseLearner(
                     use_as=use_as,
                 )
 
-        if wandb_config["watch_model"]:
+        if wandb_config.get("watch_model"):
             wandb.watch(self, log_freq=1)
 
         wandb.define_metric("epoch")
