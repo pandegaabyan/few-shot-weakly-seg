@@ -258,33 +258,22 @@ class Runner:
         callbacks = []
         cb_config = self.config["callbacks"]
 
-        if cb_config.get("progress"):
-            callbacks.append(
-                CustomRichProgressBar(
-                    leave=cb_config.get("progress_leave", False),
-                    theme=custom_rich_progress_bar_theme,
-                )
-            )
-
-        monitor = cb_config.get("monitor", None)
+        monitor = cb_config.get("monitor")
         monitor_mode = cb_config.get("monitor_mode", "min")
 
-        save_last = cb_config.get("ckpt_last", False)
-        save_top_k = cb_config.get("ckpt_top_k", 1)
         log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
         ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
-        if save_last or save_top_k:
-            callbacks.append(
-                ModelCheckpoint(
-                    dirpath=log_path,
-                    filename=ckpt_filename,
-                    monitor=monitor,
-                    mode=monitor_mode,
-                    save_last=cb_config.get("ckpt_last", True),
-                    save_top_k=cb_config.get("ckpt_top_k", 0),
-                    every_n_epochs=self.config["learn"].get("val_freq", 1),
-                )
+        callbacks.append(
+            ModelCheckpoint(
+                dirpath=log_path,
+                filename=ckpt_filename,
+                monitor=monitor,
+                mode=monitor_mode,
+                save_last=cb_config.get("ckpt_last", False),
+                save_top_k=cb_config.get("ckpt_top_k", 1),
+                every_n_epochs=self.config["learn"].get("val_freq", 1),
             )
+        )
 
         if monitor:
             callbacks.append(
@@ -294,7 +283,15 @@ class Runner:
                     verbose=True,
                     patience=cb_config.get("stop_patience", 3),
                     min_delta=cb_config.get("stop_min_delta", 0.0),
-                    stopping_threshold=cb_config.get("stop_threshold", None),
+                    stopping_threshold=cb_config.get("stop_threshold"),
+                )
+            )
+
+        if cb_config.get("progress"):
+            callbacks.append(
+                CustomRichProgressBar(
+                    leave=True,
+                    theme=custom_rich_progress_bar_theme,
                 )
             )
 
