@@ -12,6 +12,7 @@ from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
     OptunaConfig,
     default_optuna_config,
+    get_optuna_storage,
     pruner_classes,
     sampler_classes,
 )
@@ -21,13 +22,10 @@ from utils.logging import (
     dump_json,
     get_configuration,
     get_full_ckpt_path,
-    get_optuna_db_path,
 )
 from utils.utils import mean
 from utils.wandb import (
     prepare_study_artifact_name,
-    wandb_delete_file,
-    wandb_download_file,
     wandb_log_file,
     wandb_login,
 )
@@ -145,16 +143,13 @@ class Runner:
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
-        optuna_db = get_optuna_db_path(self.dummy, self.config.get("wandb") is not None)
         if self.optuna_config["study_name"] == "":
             exp_name = self.config["learn"]["exp_name"]
             self.optuna_config["study_name"] = f"{exp_name} {make_run_name()}"
 
-        wandb_download_file(optuna_db.split(".")[0], "", "optuna", self.dummy)
-
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
-            "storage": f"sqlite:///{optuna_db}",
+            "storage": get_optuna_storage(self.dummy),
             "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
             "pruner": pruner_class(**self.optuna_config.get("pruner_params")),
         }
@@ -228,11 +223,6 @@ class Runner:
         trainer.fit(learner)
 
         if self.use_wandb:
-            if trial is not None:
-                optuna_db = get_optuna_db_path(self.dummy, True)
-                artifact_name = optuna_db.split(".")[0]
-                wandb_log_file(wandb.run, artifact_name, optuna_db, "optuna")
-                wandb_delete_file(artifact_name, "optuna", False)
             wandb.finish()
 
         assert isinstance(trainer.checkpoint_callback, ModelCheckpoint)

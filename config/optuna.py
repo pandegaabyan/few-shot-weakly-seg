@@ -1,6 +1,9 @@
+import os
 from typing import Any, Literal, Type
 
 import optuna
+from constants import FILENAMES
+from dotenv import load_dotenv
 from typing_extensions import NotRequired, TypedDict
 
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
@@ -46,3 +49,15 @@ default_optuna_config: OptunaConfig = {
     "sampler_params": {},
     "pruner_params": {},
 }
+
+
+def get_optuna_storage(dummy: bool = False) -> optuna.storages.BaseStorage:
+    if dummy:
+        log_dir = FILENAMES["log_folder"]
+        db_url = f"sqlite:///{log_dir}/optuna_dummy.sqlite3"
+    else:
+        load_dotenv()
+        db_url = os.getenv("OPTUNA_DB_URL")
+        if not db_url:
+            raise ValueError("OPTUNA_DB_URL is not set")
+    return optuna.storages.RDBStorage(url=db_url)

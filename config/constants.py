@@ -6,7 +6,6 @@ class FilenamesDict(TypedDict):
     model_onnx: str
     configuration: str
     configuration_diff: str
-    optuna: str
     dummy_file: str
 
 
@@ -15,7 +14,6 @@ FILENAMES: FilenamesDict = {
     "model_onnx": "model.onnx",
     "configuration": "configuration.json",
     "configuration_diff": "configuration_diff.json",
-    "optuna": "optuna.sqlite3",
     "dummy_file": "dummy_sign",
 }
 
