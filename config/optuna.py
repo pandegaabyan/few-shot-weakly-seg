@@ -1,7 +1,10 @@
-from typing import Any, Literal
+from typing import Any, Literal, Type
 
-from config_type import OptunaPruner, OptunaSampler
+import optuna
 from typing_extensions import NotRequired, TypedDict
+
+OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
+OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
 
 
 class OptunaConfig(TypedDict):
@@ -14,6 +17,23 @@ class OptunaConfig(TypedDict):
     timeout_sec: NotRequired[int]
     sampler_params: NotRequired[dict[str, Any]]
     pruner_params: NotRequired[dict[str, Any]]
+
+
+sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {
+    "random": optuna.samplers.RandomSampler,
+    "tpe": optuna.samplers.TPESampler,
+    "cmaes": optuna.samplers.CmaEsSampler,
+    "qmc": optuna.samplers.QMCSampler,
+    "gp": optuna.samplers.GPSampler,
+}
+pruner_classes: dict[OptunaPruner, Type[optuna.pruners.BasePruner]] = {
+    "none": optuna.pruners.NopPruner,
+    "median": optuna.pruners.MedianPruner,
+    "percentile": optuna.pruners.PercentilePruner,
+    "asha": optuna.pruners.SuccessiveHalvingPruner,
+    "hyperband": optuna.pruners.HyperbandPruner,
+    "threshold": optuna.pruners.ThresholdPruner,
+}
 
 
 default_optuna_config: OptunaConfig = {

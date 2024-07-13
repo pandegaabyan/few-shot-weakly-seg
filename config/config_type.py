@@ -4,9 +4,6 @@ from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study"]
 
-OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
-OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
-
 
 class DataConfig(TypedDict):
     num_classes: int
