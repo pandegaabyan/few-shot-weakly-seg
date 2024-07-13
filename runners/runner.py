@@ -1,5 +1,4 @@
 import os
-from typing import Type
 
 import optuna
 from pytorch_lightning import Callback, Trainer
@@ -8,9 +7,14 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import wandb
 import wandb.util
 from config.config_maker import make_run_name
-from config.config_type import ConfigUnion, OptunaPruner, OptunaSampler
+from config.config_type import ConfigUnion
 from config.constants import FILENAMES, WANDB_SETTINGS
-from config.optuna import OptunaConfig, default_optuna_config
+from config.optuna import (
+    OptunaConfig,
+    default_optuna_config,
+    pruner_classes,
+    sampler_classes,
+)
 from learners.base_learner import BaseLearner
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
 from utils.logging import (
@@ -36,31 +40,15 @@ class Runner:
         dummy: bool,
         resume: bool = False,
     ):
-        self.config = config
         self.dummy = dummy
         self.resume = resume
+
+        self.config = self.update_config(config)
+        self.optuna_config = self.make_optuna_config()
 
         self.use_wandb = self.config.get("wandb") is not None
         self.exp_name = self.config["learn"]["exp_name"]
         self.run_name = self.config["learn"]["run_name"]
-
-        self.optuna_config = self.make_optuna_config()
-
-        self.sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {
-            "random": optuna.samplers.RandomSampler,
-            "tpe": optuna.samplers.TPESampler,
-            "cmaes": optuna.samplers.CmaEsSampler,
-            "qmc": optuna.samplers.QMCSampler,
-            "gp": optuna.samplers.GPSampler,
-        }
-        self.pruner_classes: dict[OptunaPruner, Type[optuna.pruners.BasePruner]] = {
-            "none": optuna.pruners.NopPruner,
-            "median": optuna.pruners.MedianPruner,
-            "percentile": optuna.pruners.PercentilePruner,
-            "asha": optuna.pruners.SuccessiveHalvingPruner,
-            "hyperband": optuna.pruners.HyperbandPruner,
-            "threshold": optuna.pruners.ThresholdPruner,
-        }
 
     def make_learner(
         self,
@@ -69,14 +57,14 @@ class Runner:
         dataset_fold: int = 0,
         ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
-    ) -> BaseLearner:
+    ) -> tuple[BaseLearner, dict]:
         raise NotImplementedError
+
+    def update_config(self, config: ConfigUnion) -> ConfigUnion:
+        return config
 
     def make_optuna_config(self) -> OptunaConfig:
-        raise NotImplementedError
-
-    def update_trial_config(self, trial: optuna.Trial, config: ConfigUnion):
-        raise NotImplementedError
+        return default_optuna_config
 
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
@@ -112,11 +100,14 @@ class Runner:
         else:
             ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
-        trainer = self.make_trainer()
-        learner = self.make_learner(self.config, self.dummy, ckpt_path=ckpt_path)
+        learner, important_config = self.make_learner(
+            self.config, self.dummy, ckpt_path=ckpt_path
+        )
+        wandb.config.update(important_config)
         if not learner.init(resume=self.resume, force_clear_dir=True):
             return
 
+        trainer = self.make_trainer()
         if not test_only:
             trainer.fit(learner, ckpt_path=ckpt_path if self.resume else None)
 
@@ -131,14 +122,9 @@ class Runner:
             wandb.finish()
 
     def run_study(self):
-        assert self.optuna_config is not None
-
         def objective(trial: optuna.Trial) -> float:
-            assert self.optuna_config is not None
-
             scores = []
             trial_config = self.config
-            self.update_trial_config(trial, trial_config)
             trial_config["learn"]["run_name"] = make_run_name()
             trial_config["learn"]["optuna_study_name"] = self.optuna_config[
                 "study_name"
@@ -156,30 +142,28 @@ class Runner:
 
             return mean(scores)
 
-        used_optuna_config = {**default_optuna_config, **self.optuna_config}
-
-        sampler_class = self.sampler_classes[used_optuna_config["sampler"]]
-        pruner_class = self.pruner_classes[used_optuna_config["pruner"]]
+        sampler_class = sampler_classes[self.optuna_config["sampler"]]
+        pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
         optuna_db = get_optuna_db_path(self.dummy, self.config.get("wandb") is not None)
-        if used_optuna_config["study_name"] == "":
+        if self.optuna_config["study_name"] == "":
             exp_name = self.config["learn"]["exp_name"]
-            used_optuna_config["study_name"] = f"{exp_name} {make_run_name()}"
+            self.optuna_config["study_name"] = f"{exp_name} {make_run_name()}"
 
         wandb_download_file(optuna_db.split(".")[0], "", "optuna", self.dummy)
 
         study_kwargs = {
-            "study_name": used_optuna_config["study_name"],
+            "study_name": self.optuna_config["study_name"],
             "storage": f"sqlite:///{optuna_db}",
-            "sampler": sampler_class(**used_optuna_config["sampler_params"]),
-            "pruner": pruner_class(**used_optuna_config["pruner_params"]),
+            "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
+            "pruner": pruner_class(**self.optuna_config.get("pruner_params")),
         }
 
         if self.resume:
             study = optuna.load_study(**study_kwargs)
         else:
             study = optuna.create_study(
-                direction=used_optuna_config["direction"], **study_kwargs
+                direction=self.optuna_config["direction"], **study_kwargs
             )
 
         for key, value in self.optuna_config.items():
@@ -187,8 +171,8 @@ class Runner:
 
         study.optimize(
             objective,
-            n_trials=used_optuna_config.get("num_trials"),
-            timeout=used_optuna_config.get("timeout_sec", 3600),
+            n_trials=self.optuna_config.get("num_trials"),
+            timeout=self.optuna_config.get("timeout_sec", 3600),
             gc_after_trial=True,
         )
 
@@ -198,7 +182,7 @@ class Runner:
         trial_config: ConfigUnion,
         dataset_fold: int,
     ) -> float | None:
-        learner = self.make_learner(
+        learner, important_config = self.make_learner(
             trial_config,
             self.dummy,
             dataset_fold=dataset_fold,
@@ -237,6 +221,7 @@ class Runner:
         if self.use_wandb:
             run_id = wandb.util.generate_id()
             self.wandb_init(run_id)
+            wandb.config.update(important_config)
 
         trainer = self.make_trainer()
         learner.init()
@@ -300,7 +285,6 @@ class Runner:
     def wandb_init(self, run_id: str):
         assert "wandb" in self.config
         wandb.init(
-            config=dict(self.config),
             id=run_id,
             tags=self.config["wandb"].get("tags", []),
             project=WANDB_SETTINGS["dummy_project" if self.dummy else "project"],

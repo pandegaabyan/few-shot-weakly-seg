@@ -5,7 +5,6 @@ import optuna
 
 from config.config_maker import make_config
 from config.config_type import ConfigSimpleLearner, ConfigUnion, RunMode
-from config.optuna import OptunaConfig
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
@@ -32,7 +31,7 @@ class MyRunner(Runner):
         dataset_fold: int = 0,
         ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
-    ) -> BaseLearner:
+    ) -> tuple[BaseLearner, dict]:
         dataset_list = self.make_dataset_list(dataset_fold)
         for ds in dataset_list:
             ds[1]["max_items"] = 10 if dummy else None
@@ -53,13 +52,7 @@ class MyRunner(Runner):
 
         learner.set_initial_messages(["Command " + " ".join(sys.argv)])
 
-        return learner
-
-    def make_optuna_config(self) -> OptunaConfig:
-        ...
-
-    def update_trial_config(self, trial: optuna.Trial, config: ConfigUnion):
-        ...
+        return learner, {}
 
     def make_dataset_list(
         self,
