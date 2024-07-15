@@ -46,7 +46,6 @@ default_optuna_config: OptunaConfig = {
     "sampler": "tpe",
     "pruner": "hyperband",
     "num_folds": 1,
-    "timeout_sec": 600,
     "sampler_params": {},
     "pruner_params": {},
 }

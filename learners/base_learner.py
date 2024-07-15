@@ -83,7 +83,11 @@ class BaseLearner(
         self.metric = metric_class(**metric_kwargs)
         self.metric_kwargs = metric_kwargs
 
-        if any(lv for lv in self.config["log"].values()):
+        if (
+            any(lv for lv in self.config["log"].values())
+            or self.config["callbacks"].get("ckpt_last")
+            or self.config["callbacks"].get("ckpt_top_k")
+        ):
             self.log_path = os.path.join(
                 FILENAMES["log_folder"],
                 self.config["learn"]["exp_name"],

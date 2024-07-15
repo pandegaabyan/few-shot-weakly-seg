@@ -66,14 +66,19 @@ class Runner:
 
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
-        default_kwargs: dict = {"num_sanity_val_steps": 0}
+        deterministic = self.config["learn"].get("deterministic", True)
+        progress = self.config["callbacks"].get("progress", True)
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
             callbacks=callbacks,
+            deterministic="warn" if deterministic else False,
+            benchmark=not deterministic,
             logger=False,
+            enable_progress_bar=progress,
+            enable_model_summary=progress,
             inference_mode=not self.config["learn"].get("manual_optim", False),
-            **(default_kwargs | kwargs),
+            **kwargs,
         )
 
     def run_fit_test(
@@ -128,7 +133,9 @@ class Runner:
         def objective(trial: optuna.Trial) -> float:
             scores = []
             trial_config = self.config
-            trial_config["learn"]["run_name"] = make_run_name()
+            run_name = make_run_name()
+            self.run_name = run_name
+            trial_config["learn"]["run_name"] = run_name
             trial_config["learn"]["optuna_study_name"] = self.optuna_config[
                 "study_name"
             ]
@@ -169,10 +176,14 @@ class Runner:
         for key, value in self.optuna_config.items():
             study.set_user_attr(key, value)
 
+        n_trials = self.optuna_config.get("num_trials")
+        timeout = self.optuna_config.get("timeout_sec", 3600)
+        if n_trials is None and timeout is None:
+            timeout = 120
         study.optimize(
             objective,
-            n_trials=self.optuna_config.get("num_trials"),
-            timeout=self.optuna_config.get("timeout_sec", 3600),
+            n_trials=n_trials,
+            timeout=timeout,
             gc_after_trial=True,
         )
 
@@ -230,9 +241,7 @@ class Runner:
         if self.use_wandb:
             wandb.finish()
 
-        assert isinstance(trainer.checkpoint_callback, ModelCheckpoint)
-        best_score = trainer.checkpoint_callback.best_model_score
-        return best_score if best_score is None else best_score.item()
+        return learner.best_monitor_value
 
     def make_callbacks(self) -> list[Callback]:
         callbacks = []

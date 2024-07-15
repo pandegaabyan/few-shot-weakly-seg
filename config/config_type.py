@@ -19,6 +19,7 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
+    deterministic: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
     optuna_study_name: NotRequired[str | None]
