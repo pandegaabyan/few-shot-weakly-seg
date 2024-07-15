@@ -2,9 +2,10 @@ import os
 from typing import Any, Literal, Type
 
 import optuna
-from constants import FILENAMES
 from dotenv import load_dotenv
 from typing_extensions import NotRequired, TypedDict
+
+from config.constants import FILENAMES
 
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]

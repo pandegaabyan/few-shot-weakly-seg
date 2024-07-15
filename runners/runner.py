@@ -93,7 +93,8 @@ class Runner:
             self.config["wandb"]["run_id"] = run_id
 
         ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
-        if (self.resume and not test_only) or (test_only and ref_ckpt_path is None):
+        test_only_by_resuming = test_only and ref_ckpt_path is None
+        if (self.resume and not test_only) or test_only_by_resuming:
             ckpt_path = get_full_ckpt_path(self.exp_name, self.run_name, "last.ckpt")
         else:
             ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
@@ -101,8 +102,12 @@ class Runner:
         learner, important_config = self.make_learner(
             self.config, self.dummy, ckpt_path=ckpt_path
         )
-        wandb.config.update(important_config)
-        if not learner.init(resume=self.resume, force_clear_dir=True):
+        if self.use_wandb:
+            wandb.config.update(important_config)
+        init_ok = learner.init(
+            resume=self.resume or test_only_by_resuming, force_clear_dir=True
+        )
+        if not init_ok:
             return
 
         trainer = self.make_trainer()
@@ -197,7 +202,7 @@ class Runner:
                 job_type="study",
             )
 
-            ref_configuration = learner.configuration
+            ref_configuration = learner.get_configuration()
             ref_configuration["optuna"] = self.optuna_config
             ref_conf_path = os.path.join(
                 FILENAMES["log_folder"], exp_name, f"study {run_name}.json"

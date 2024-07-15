@@ -1,5 +1,4 @@
 import optuna
-from metrics import BaseMetric
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, nn, optim
 from typing_extensions import Any, Generic, Required, Type, TypedDict, TypeVar
@@ -16,6 +15,7 @@ from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
+from learners.metrics import BaseMetric
 
 ConfigType = TypeVar("ConfigType", bound=ConfigBase)
 ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)

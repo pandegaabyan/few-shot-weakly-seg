@@ -47,7 +47,8 @@ class MyRunner(Runner):
         if ckpt_path is None:
             learner = SimpleUnet(**kwargs)
         else:
-            wandb_download_ckpt(ckpt_path)
+            if self.use_wandb:
+                wandb_download_ckpt(ckpt_path)
             learner = SimpleUnet.load_from_checkpoint(ckpt_path, **kwargs)
 
         learner.set_initial_messages(["Command " + " ".join(sys.argv)])

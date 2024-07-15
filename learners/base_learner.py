@@ -18,6 +18,7 @@ from config.constants import FILENAMES
 from data.typings import DatasetModes
 from learners.losses import CustomLoss
 from learners.metrics import MultiIoUMetric
+from learners.optimizers import get_optimizer_and_scheduler_names
 from learners.typings import (
     BaseLearnerKwargs,
     ConfigType,
@@ -111,10 +112,10 @@ class BaseLearner(
 
         self.use_wandb = self.config.get("wandb") is not None
         self.example_input_array = self.make_input_example()
-        self.configuration = self.get_configuration()
 
         self.init_ok = False
         self.resume = False
+        self.configuration_logged = False
         self.initial_messages: list[str] = []
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
@@ -176,6 +177,11 @@ class BaseLearner(
 
         self.wandb_push_table()
         self.wandb_log_ckpt_files()
+
+    def on_test_start(self) -> None:
+        super().on_test_start()
+
+        self.log_configuration()
 
     def on_test_end(self) -> None:
         super().on_test_end()
@@ -351,12 +357,9 @@ class BaseLearner(
                 for cls, kwargs in datasets
             ]
 
-        optimizer_classes = [
-            get_name_from_instance(opt) for opt in self.get_optimizer_list()
-        ]
-        scheduler_classes = [
-            get_name_from_instance(sched) for sched in self.get_scheduler_list()
-        ]
+        optimizer_classes, scheduler_classes = get_optimizer_and_scheduler_names(
+            self.configure_optimizers()
+        )
 
         configuration = {
             "config": self.config,
@@ -382,9 +385,10 @@ class BaseLearner(
                     f"{prepare_study_artifact_name(self.optuna_trial.study.study_name)}:latest",
                     type="study",
                 )
-        if not self.config["log"].get("configuration"):
+        if not self.config["log"].get("configuration") or self.configuration_logged:
             return
 
+        configuration = self.get_configuration()
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
         artifact_name = prepare_artifact_name(
             self.config["learn"]["exp_name"], self.config["learn"]["run_name"], "conf"
@@ -401,7 +405,7 @@ class BaseLearner(
                 prev_diff_list = []
 
             new_diff = {"timestamp": get_iso_timestamp_now()}
-            new_diff.update(diff_dict(old_configuration, self.configuration))
+            new_diff.update(diff_dict(old_configuration, configuration))
             new_diff_list = prev_diff_list + [new_diff]
 
             dump_json(diff_filepath, new_diff_list)
@@ -409,7 +413,7 @@ class BaseLearner(
                 wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
                 wandb_delete_file(artifact_name, "configuration", False)
         else:
-            dump_json(filepath, self.configuration)
+            dump_json(filepath, configuration)
             if self.use_wandb:
                 wandb_log_file(
                     wandb.run, artifact_name, filepath, "configuration", ["base"]
@@ -418,6 +422,8 @@ class BaseLearner(
         if self.config["learn"].get("dummy") is True:
             dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
             dummy_file.close()
+
+        self.configuration_logged = True
 
     def log_tensorboard_graph(self):
         if not self.config["log"].get("tensorboard_graph"):
@@ -453,7 +459,7 @@ class BaseLearner(
         data: list[tuple[str, Any]],
         group: str,
     ):
-        if not self.config["log"].get("tables"):
+        if not self.config["log"].get("table"):
             return
 
         self.wandb_log_table(data, group)

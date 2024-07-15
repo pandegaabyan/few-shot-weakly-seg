@@ -9,11 +9,6 @@ from torchmetrics.functional.classification import multiclass_jaccard_index
 class BaseMetric(Metric, ABC):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.state_info = self.set_state_info()
-
-    @abstractmethod
-    def set_state_info(self) -> dict[str, str | None]:
-        pass
 
     @abstractmethod
     def score_summary(self) -> float:
