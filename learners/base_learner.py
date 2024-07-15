@@ -35,7 +35,6 @@ from utils.logging import (
     get_name_from_class,
     get_name_from_instance,
     get_short_git_hash,
-    get_simple_stack_list,
     load_json,
     write_to_csv,
 )
@@ -293,17 +292,15 @@ class BaseLearner(
         ]
 
     def prepare_datasets(self):
-        self.print("Preparing train datasets ... ")
         start_time = time.perf_counter()
         for ds in self.train_datasets:
             ds.fill_cached_items_data()
         inter_time = time.perf_counter()
-        self.print(f"train preparation done in {(inter_time - start_time):.2f} s")
-        self.print("Preparing val datasets ... ")
+        self.print(f"train datasets prep done in {(inter_time - start_time):.2f} s")
         for ds in self.val_datasets:
             ds.fill_cached_items_data()
         end_time = time.perf_counter()
-        self.print(f"val preparation done in {(end_time - inter_time):.2f} s")
+        self.print(f"val datasets prep done in {(end_time - inter_time):.2f} s")
 
     def cast_example_input_array(self):
         if isinstance(self.example_input_array, tuple):
@@ -331,12 +328,6 @@ class BaseLearner(
     def print_initial_info(self):
         print("-" * 30)
         print("Git hash: " + get_short_git_hash())
-        stack_list = get_simple_stack_list(end=-3)
-        if any("ipykernel" in sl for sl in stack_list):
-            print("Call stack: (called in jupyter notebook)")
-        else:
-            for i, stack in enumerate(stack_list):
-                print(f"Call stack ({i}): {stack}")
         for msg in self.initial_messages:
             print("Note: " + msg)
         print("")
