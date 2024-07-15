@@ -115,6 +115,7 @@ class BaseLearner(
         self.init_ok = False
         self.resume = False
         self.configuration_logged = False
+        self.best_monitor_value = 0.0
         self.initial_messages: list[str] = []
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
@@ -330,7 +331,6 @@ class BaseLearner(
         print("Git hash: " + get_short_git_hash())
         for msg in self.initial_messages:
             print("Note: " + msg)
-        print("")
 
     def set_initial_messages(self, messages: list[str]):
         self.initial_messages = messages
@@ -459,6 +459,12 @@ class BaseLearner(
         write_to_csv(csv_filename, data)
 
     def log_monitor(self, value: float):
+        monitor_mode = self.config["callbacks"].get("monitor_mode", "min")
+        if (monitor_mode == "min" and value < self.best_monitor_value) or (
+            monitor_mode == "max" and value > self.best_monitor_value
+        ):
+            self.best_monitor_value = value
+
         name = self.config["callbacks"].get("monitor")
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
