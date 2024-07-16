@@ -28,11 +28,13 @@ class SimpleLearner(
         pass
 
     def make_dataloader(self, datasets: list[SimpleDataset]):
+        num_workers = self.config["data"]["num_workers"]
         return DataLoader(
             ConcatDataset(datasets),
             batch_size=self.config["data"]["batch_size"],
             shuffle=datasets[0].mode == "train",
-            num_workers=self.config["data"]["num_workers"],
+            num_workers=num_workers,
+            persistent_workers=num_workers > 0,
             pin_memory=self.device.type != "cpu",
         )
 
