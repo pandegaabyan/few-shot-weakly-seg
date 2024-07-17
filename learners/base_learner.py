@@ -24,6 +24,7 @@ from learners.typings import (
     ConfigType,
     DatasetClass,
     DatasetKwargs,
+    PredictionDataDict,
     Scheduler,
 )
 from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
@@ -45,10 +46,10 @@ from utils.utils import (
 )
 from utils.wandb import (
     prepare_artifact_name,
+    prepare_ckpt_artifact_alias,
     prepare_ckpt_artifact_name,
     prepare_study_artifact_name,
     wandb_delete_file,
-    wandb_download_config,
     wandb_log_file,
 )
 
@@ -125,6 +126,7 @@ class BaseLearner(
         self.training_step_losses: list[float] = []
         self.validation_step_losses: list[float] = []
         self.test_step_losses: list[float] = []
+        self.prediction_data: PredictionDataDict = {}
 
     @abstractmethod
     def make_dataloader(self, datasets: list[DatasetClass]) -> DataLoader:
@@ -180,6 +182,12 @@ class BaseLearner(
         self.wandb_log({"loss": train_loss}, "summary/train_")
 
         self.wandb_push_table()
+
+    def on_fit_end(self):
+        super().on_fit_end()
+
+        self.wandb_add_preds()
+        self.wandb_push_table(force=True)
         self.wandb_log_ckpt_files()
 
     def on_test_start(self) -> None:
@@ -197,6 +205,7 @@ class BaseLearner(
 
         self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
 
+        self.wandb_add_preds()
         self.wandb_push_table(force=True)
 
     def train_dataloader(self) -> DataLoader:
@@ -213,13 +222,6 @@ class BaseLearner(
         if self.log_path == "":
             pass
         elif resume:
-            if self.use_wandb:
-                artifact_name = prepare_artifact_name(
-                    self.config["learn"]["exp_name"],
-                    self.config["learn"]["run_name"],
-                    "conf",
-                )
-                wandb_download_config(artifact_name, self.log_path)
             ok = os.path.exists(self.log_path)
             if not ok:
                 print("No data from previous learning")
@@ -382,6 +384,7 @@ class BaseLearner(
                 )
         if not self.config["log"].get("configuration") or self.configuration_logged:
             return
+        dummy = self.config["learn"].get("dummy") is True
 
         configuration = self.get_configuration()
         filepath = os.path.join(self.log_path, FILENAMES["configuration"])
@@ -405,8 +408,13 @@ class BaseLearner(
 
             dump_json(diff_filepath, new_diff_list)
             if self.use_wandb:
+                wandb_delete_file(
+                    artifact_name,
+                    "configuration",
+                    excluded_aliases=["base"],
+                    dummy=dummy,
+                )
                 wandb_log_file(wandb.run, artifact_name, diff_filepath, "configuration")
-                wandb_delete_file(artifact_name, "configuration", False)
         else:
             dump_json(filepath, configuration)
             if self.use_wandb:
@@ -414,7 +422,7 @@ class BaseLearner(
                     wandb.run, artifact_name, filepath, "configuration", ["base"]
                 )
 
-        if self.config["learn"].get("dummy") is True:
+        if dummy:
             dummy_file = open(os.path.join(self.log_path, FILENAMES["dummy_file"]), "w")
             dummy_file.close()
 
@@ -457,7 +465,7 @@ class BaseLearner(
         if not self.config["log"].get("table"):
             return
 
-        self.wandb_log_table(data, group)
+        self.wandb_add_table(data, group)
 
         csv_filename = os.path.join(self.log_path, f"{group}.csv")
         write_to_csv(csv_filename, data)
@@ -484,27 +492,32 @@ class BaseLearner(
         )
 
     def wandb_log_ckpt_files(self):
-        if (
-            not self.use_wandb
-            or self.current_epoch != self.config["learn"]["num_epochs"] - 1
-        ):
+        if not self.use_wandb:
             return
 
-        for ckpt in os.listdir(self.log_path):
-            if not ckpt.endswith(".ckpt"):
-                continue
-            name, alias = prepare_ckpt_artifact_name(
-                self.config["learn"]["exp_name"], self.config["learn"]["run_name"], ckpt
-            )
-            wandb_log_file(
-                wandb.run,
-                name,
-                os.path.join(self.log_path, ckpt),
+        artifact_name = prepare_ckpt_artifact_name(
+            self.config["learn"]["exp_name"], self.config["learn"]["run_name"]
+        )
+        if self.resume:
+            wandb_delete_file(
+                artifact_name,
                 "checkpoint",
-                [alias],
+                dummy=self.config["learn"].get("dummy") is True,
             )
 
-    def wandb_log_table(
+        for ckpt in sorted(os.listdir(self.log_path)):
+            if not ckpt.endswith(".ckpt"):
+                continue
+            artifact_alias = prepare_ckpt_artifact_alias(ckpt)
+            wandb_log_file(
+                wandb.run,
+                artifact_name,
+                os.path.join(self.log_path, ckpt),
+                "checkpoint",
+                [artifact_alias],
+            )
+
+    def wandb_add_table(
         self,
         data: list[tuple[str, Any]],
         group: str,
@@ -518,17 +531,14 @@ class BaseLearner(
 
     def wandb_push_table(self, force: bool = False):
         push_table_freq = self.config.get("wandb", {}).get("push_table_freq")
-        last_epoch = self.current_epoch == self.config["learn"]["num_epochs"] - 1
-        if push_table_freq and (
-            self.current_epoch % push_table_freq == 0 or last_epoch or force
-        ):
-            wandb.log(self.wandb_tables)
+        if push_table_freq and (self.current_epoch % push_table_freq == 0 or force):
+            wandb.log({k: t for k, t in self.wandb_tables.items() if len(t.data) > 0})
             for group in self.wandb_tables:
                 self.wandb_tables[group] = wandb.Table(
                     columns=self.wandb_tables[group].columns
                 )
 
-    def wandb_log_mask(
+    def wandb_add_mask(
         self,
         gt: Tensor,
         pred: Tensor,
@@ -566,9 +576,9 @@ class BaseLearner(
         )
         img_data = [("ground_truth", gt_img), ("prediction", pred_img)]
 
-        self.wandb_log_table(img_data + data, group)
+        self.wandb_add_table(img_data + data, group)
 
-    def wandb_log_preds(
+    def wandb_handle_preds(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
@@ -587,21 +597,29 @@ class BaseLearner(
                 indices_to_save = self.val_indices_to_save
             case "TS":
                 indices_to_save = self.test_indices_to_save
+        if batch_idx == 0:
+            self.prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
             if isinstance(file_name, list):
                 file_name = file_name[i]
             if isinstance(dataset, list):
                 dataset = dataset[i]
-            self.wandb_log_mask(
-                gt[i],
-                pred[i],
-                [
-                    ("type", "TR"),
-                    ("file_name", file_name[i]),
-                    ("dataset", dataset[i]),
-                ],
-                "preds",
-            )
+            self.prediction_data[type].append((gt[i], pred[i], file_name, dataset))
+
+    def wandb_add_preds(self):
+        for type, data in self.prediction_data.items():
+            for gt, pred, file_name, dataset in data:
+                self.wandb_add_mask(
+                    gt,
+                    pred,
+                    [
+                        ("type", type),
+                        ("file_name", file_name),
+                        ("dataset", dataset),
+                    ],
+                    "preds",
+                )
+        self.prediction_data = {}
 
     def optuna_log_and_prune(self, value: float):
         if self.optuna_trial is None:

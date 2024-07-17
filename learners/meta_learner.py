@@ -79,15 +79,14 @@ class MetaLearner(
             support,
         )
 
-        if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.wandb_log_preds(
-                "TR",
-                batch_idx,
-                query.masks,
-                pred,
-                query.file_names,
-                dataset_name,
-            )
+        self.wandb_handle_preds(
+            "TR",
+            batch_idx,
+            query.masks,
+            pred,
+            query.file_names,
+            dataset_name,
+        )
 
         return loss
 
@@ -101,15 +100,14 @@ class MetaLearner(
 
         self.log_to_table_metrics("VL", batch_idx, loss, support, score=score)
 
-        if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            self.wandb_log_preds(
-                "VL",
-                batch_idx,
-                query.masks,
-                pred,
-                query.file_names,
-                dataset_name,
-            )
+        self.wandb_handle_preds(
+            "VL",
+            batch_idx,
+            query.masks,
+            pred,
+            query.file_names,
+            dataset_name,
+        )
 
         return loss
 
@@ -120,7 +118,7 @@ class MetaLearner(
 
         self.log_to_table_metrics("TS", batch_idx, loss, support, score=score, epoch=0)
 
-        self.wandb_log_preds(
+        self.wandb_handle_preds(
             "TS",
             batch_idx,
             query.masks,
