@@ -18,9 +18,6 @@ from utils.logging import (
     check_git_clean,
 )
 from utils.utils import parse_string
-from utils.wandb import (
-    wandb_download_ckpt,
-)
 
 
 class MyRunner(Runner):
@@ -34,7 +31,7 @@ class MyRunner(Runner):
     ) -> tuple[BaseLearner, dict]:
         dataset_list = self.make_dataset_list(dataset_fold)
         for ds in dataset_list:
-            ds[1]["max_items"] = 10 if dummy else None
+            ds[1]["max_items"] = 6 if dummy else None
 
         typed_config: ConfigSimpleLearner = config  # type: ignore
         kwargs: SimpleLearnerKwargs = {
@@ -47,8 +44,6 @@ class MyRunner(Runner):
         if ckpt_path is None:
             learner = SimpleUnet(**kwargs)
         else:
-            if self.use_wandb:
-                wandb_download_ckpt(ckpt_path)
             learner = SimpleUnet.load_from_checkpoint(ckpt_path, **kwargs)
 
         learner.set_initial_messages(["Command " + " ".join(sys.argv)])

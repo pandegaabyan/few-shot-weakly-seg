@@ -20,12 +20,14 @@ from learners.base_learner import BaseLearner
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
 from utils.logging import (
     dump_json,
-    get_configuration,
     get_full_ckpt_path,
 )
 from utils.utils import mean
 from utils.wandb import (
     prepare_study_artifact_name,
+    wandb_download_ckpt,
+    wandb_download_config,
+    wandb_get_run_id_by_name,
     wandb_log_file,
     wandb_login,
 )
@@ -86,17 +88,6 @@ class Runner:
         fit_only: bool = False,
         test_only: bool = False,
     ):
-        if self.use_wandb:
-            wandb_login()
-            if self.resume:
-                prev_config = get_configuration(self.exp_name, self.run_name)
-                run_id = prev_config["config"]["wandb"]["run_id"]
-            else:
-                run_id = wandb.util.generate_id()
-            self.wandb_init(run_id)
-            assert "wandb" in self.config
-            self.config["wandb"]["run_id"] = run_id
-
         ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
         test_only_by_resuming = test_only and ref_ckpt_path is None
         if (self.resume and not test_only) or test_only_by_resuming:
@@ -104,9 +95,24 @@ class Runner:
         else:
             ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
 
+        if self.use_wandb:
+            wandb_login()
+            if self.resume or test_only_by_resuming:
+                run_id = wandb_get_run_id_by_name(self.run_name, dummy=self.dummy)
+            else:
+                run_id = wandb.util.generate_id()
+            assert "wandb" in self.config
+            self.config["wandb"]["run_id"] = run_id
+            self.wandb_init(run_id, resume=self.resume or test_only_by_resuming)
+            if ckpt_path is not None:
+                wandb_download_ckpt(ckpt_path)
+            if self.resume or test_only_by_resuming:
+                wandb_download_config(self.exp_name, self.run_name)
+
         learner, important_config = self.make_learner(
             self.config, self.dummy, ckpt_path=ckpt_path
         )
+
         if self.use_wandb:
             wandb.config.update(important_config)
         init_ok = learner.init(
@@ -118,7 +124,6 @@ class Runner:
         trainer = self.make_trainer()
         if not test_only:
             trainer.fit(learner, ckpt_path=ckpt_path if self.resume else None)
-
         if not fit_only:
             if not test_only:
                 assert isinstance(trainer.checkpoint_callback, ModelCheckpoint)
@@ -193,6 +198,11 @@ class Runner:
         trial_config: ConfigUnion,
         dataset_fold: int,
     ) -> float | None:
+        if self.use_wandb:
+            run_id = wandb.util.generate_id()
+            assert "wandb" in trial_config
+            trial_config["wandb"]["run_id"] = run_id
+
         learner, important_config = self.make_learner(
             trial_config,
             self.dummy,
@@ -230,12 +240,11 @@ class Runner:
             wandb.finish()
 
         if self.use_wandb:
-            run_id = wandb.util.generate_id()
             self.wandb_init(run_id)
             wandb.config.update(important_config)
+        learner.init()
 
         trainer = self.make_trainer()
-        learner.init()
         trainer.fit(learner)
 
         if self.use_wandb:
@@ -286,7 +295,7 @@ class Runner:
 
         return callbacks
 
-    def wandb_init(self, run_id: str):
+    def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config
         wandb.init(
             id=run_id,
@@ -295,5 +304,5 @@ class Runner:
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
-            resume="must" if self.resume else None,
+            resume="must" if resume else None,
         )
