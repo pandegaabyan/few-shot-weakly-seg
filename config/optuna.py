@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from typing_extensions import NotRequired, TypedDict
 
 from config.constants import FILENAMES
+from utils.logging import check_mkdir
 
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
@@ -54,6 +55,7 @@ default_optuna_config: OptunaConfig = {
 def get_optuna_storage(dummy: bool = False) -> optuna.storages.BaseStorage:
     if dummy:
         log_dir = FILENAMES["log_folder"]
+        check_mkdir(log_dir)
         db_url = f"sqlite:///{log_dir}/optuna_dummy.sqlite3"
     else:
         load_dotenv()

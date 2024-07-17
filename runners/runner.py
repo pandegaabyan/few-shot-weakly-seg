@@ -1,5 +1,6 @@
 import os
 
+import nanoid
 import optuna
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -19,8 +20,10 @@ from config.optuna import (
 from learners.base_learner import BaseLearner
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
 from utils.logging import (
+    check_mkdir,
     dump_json,
     get_full_ckpt_path,
+    get_short_git_hash,
 )
 from utils.utils import mean
 from utils.wandb import (
@@ -114,7 +117,7 @@ class Runner:
         )
 
         if self.use_wandb:
-            wandb.config.update(important_config)
+            wandb.config.update({"git": get_short_git_hash(), **important_config})
         init_ok = learner.init(
             resume=self.resume or test_only_by_resuming, force_clear_dir=True
         )
@@ -160,9 +163,8 @@ class Runner:
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
-        if self.optuna_config["study_name"] == "":
-            exp_name = self.config["learn"]["exp_name"]
-            self.optuna_config["study_name"] = f"{exp_name} {make_run_name()}"
+        self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
+        self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
 
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
@@ -211,37 +213,44 @@ class Runner:
         )
 
         if self.use_wandb and not self.resume and trial and trial.number == 0:
-            study_name = trial.study.study_name
-            exp_name, run_name = study_name.split(" ", 1)
+            study_id = trial.study.study_name.split(" ")[-1]
 
             wandb_login()
             wandb.init(
                 tags=["helper"],
                 project=WANDB_SETTINGS["dummy_project" if self.dummy else "project"],
-                group=exp_name,
-                name=f"study {run_name}",
+                group=self.exp_name,
+                name=f"log study-ref {study_id}",
                 job_type="study",
             )
 
             ref_configuration = learner.get_configuration()
             ref_configuration["optuna"] = self.optuna_config
-            ref_conf_path = os.path.join(
-                FILENAMES["log_folder"], exp_name, f"study {run_name}.json"
-            )
+            exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
+            check_mkdir(exp_path)
+            ref_conf_path = os.path.join(exp_path, f"{study_id} study-ref.json")
             dump_json(ref_conf_path, ref_configuration)
 
             wandb_log_file(
                 wandb.run,
-                prepare_study_artifact_name(study_name),
+                prepare_study_artifact_name(study_id),
                 ref_conf_path,
-                "study",
+                "study-reference",
             )
 
             wandb.finish()
 
         if self.use_wandb:
             self.wandb_init(run_id)
-            wandb.config.update(important_config)
+            study_name = trial_config["learn"].get("optuna_study_name")
+            assert study_name is not None
+            wandb.config.update(
+                {
+                    "git": get_short_git_hash(),
+                    "study": study_name.split(" ")[-1],
+                    **important_config,
+                }
+            )
         learner.init()
 
         trainer = self.make_trainer()
