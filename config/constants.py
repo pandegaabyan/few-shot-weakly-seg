@@ -10,7 +10,7 @@ class FilenamesDict(TypedDict):
 
 
 FILENAMES: FilenamesDict = {
-    "log_folder": "./logs/",
+    "log_folder": "logs",
     "model_onnx": "model.onnx",
     "configuration": "configuration.json",
     "configuration_diff": "configuration_diff.json",
