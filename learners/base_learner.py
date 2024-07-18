@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal, Type
@@ -121,7 +122,6 @@ class BaseLearner(
         self.resume = False
         self.configuration_logged = False
         self.best_monitor_value = 0.0
-        self.initial_messages: list[str] = []
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
         self.validation_step_losses: list[float] = []
@@ -334,12 +334,8 @@ class BaseLearner(
 
     def print_initial_info(self):
         print("-" * 30)
-        print("Git hash: " + get_short_git_hash())
-        for msg in self.initial_messages:
-            print("Note: " + msg)
-
-    def set_initial_messages(self, messages: list[str]):
-        self.initial_messages = messages
+        print("Git hash:", get_short_git_hash())
+        print("Command:", " ".join(sys.argv))
 
     def update_progress_bar_fields(self, task: ProgressBarTaskType, **kwargs):
         if isinstance(self.trainer.progress_bar_callback, CustomRichProgressBar):

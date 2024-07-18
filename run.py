@@ -1,5 +1,3 @@
-import sys
-
 import click
 import optuna
 
@@ -45,8 +43,6 @@ class MyRunner(Runner):
             learner = SimpleUnet(**kwargs)
         else:
             learner = SimpleUnet.load_from_checkpoint(ckpt_path, **kwargs)
-
-        learner.set_initial_messages(["Command " + " ".join(sys.argv)])
 
         return learner, {}
 
