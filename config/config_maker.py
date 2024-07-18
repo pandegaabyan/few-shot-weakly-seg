@@ -1,7 +1,8 @@
 import datetime
-import os
 from copy import deepcopy
 from typing import Literal
+
+import nanoid
 
 from config.config_type import (
     CallbacksConfig,
@@ -15,7 +16,7 @@ from config.config_type import (
     DataConfig,
     GuidedNetsConfig,
     LearnConfig,
-    LossConfig,
+    LogConfig,
     MetaLearnerConfig,
     OptimizerConfig,
     ProtoSegConfig,
@@ -25,9 +26,6 @@ from config.config_type import (
     WandbConfig,
     WeaselConfig,
 )
-from config.constants import FILENAMES
-from utils.logging import read_recent_runs, write_recent_runs
-from utils.utils import generate_char
 
 data_config: DataConfig = {
     "num_classes": 3,
@@ -43,28 +41,35 @@ learn_config: LearnConfig = {
     "run_name": "",
     "dummy": True,
     "val_freq": 1,
-    "tensorboard_graph": True,
+    "deterministic": True,
+    "manual_optim": False,
     "ref_ckpt_path": None,
+    "optuna_study_name": None,
 }
-
-loss_config: LossConfig = {"type": "ce", "ignored_index": -1}
 
 optimizer_config: OptimizerConfig = {
     "lr": 1e-3,
-    "lr_bias": 2e-3,
+    "lr_bias_mult": 1,
     "weight_decay": 5e-5,
-    "weight_decay_bias": 0,
     "betas": (0.9, 0.99),
 }
 
-scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
+scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
+
+log_config: LogConfig = {
+    "configuration": True,
+    "table": True,
+    "model_onnx": True,
+    "tensorboard_graph": True,
+}
 
 callbacks_config: CallbacksConfig = {
-    "progress_leave": True,
+    "progress": True,
     "monitor": "val_score",
     "monitor_mode": "max",
-    "ckpt_top_k": 5,
-    "stop_patience": 5,
+    "ckpt_last": True,
+    "ckpt_top_k": 2,
+    "stop_patience": 2,
     "stop_min_delta": 0.0,
     "stop_threshold": None,
 }
@@ -73,10 +78,8 @@ wandb_config: WandbConfig = {
     "run_id": "",
     "tags": [],
     "job_type": None,
-    "log_model": True,
     "watch_model": True,
     "push_table_freq": 5,
-    "sweep_id": "",
     "save_train_preds": 0,
     "save_val_preds": 0,
     "save_test_preds": 0,
@@ -85,11 +88,10 @@ wandb_config: WandbConfig = {
 config_base: ConfigBase = {
     "data": data_config,
     "learn": learn_config,
-    "loss": loss_config,
     "optimizer": optimizer_config,
     "scheduler": scheduler_config,
+    "log": log_config,
     "callbacks": callbacks_config,
-    "wandb": wandb_config,
 }
 
 simple_learner_config: SimpleLearnerConfig = {}
@@ -99,7 +101,7 @@ meta_learner_config: MetaLearnerConfig = {}
 weasel_config: WeaselConfig = {
     "use_first_order": False,
     "update_param_step_size": 0.3,
-    "tune_epochs": 10,
+    "tune_epochs": 3,
     "tune_val_freq": 1,
 }
 
@@ -110,24 +112,12 @@ protoseg_config: ProtoSegConfig = {
 guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
 
 
-def make_run_name(exp_name: str) -> str:
-    run_name_ori = (
+def make_run_name() -> str:
+    timestamp_text = (
         datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
     )
-    exp_path = os.path.join(FILENAMES["log_folder"], exp_name)
-    if not os.path.exists(exp_path):
-        return run_name_ori
-
-    recent_runs = read_recent_runs(exp_name)
-
-    i = 0
-    run_name = run_name_ori
-    while run_name in recent_runs:
-        run_name = run_name_ori + " " + generate_char(i)
-
-    write_recent_runs(exp_name, recent_runs, run_name)
-
-    return run_name
+    random_id = nanoid.generate(size=3)
+    return f"{timestamp_text} {random_id}"
 
 
 def make_config(
@@ -137,28 +127,34 @@ def make_config(
     use_wandb: bool = True,
     dummy: bool = False,
 ) -> ConfigUnion:
-    if mode == "sweep" or mode == "sweep-cv":
-        use_wandb = True
-        config_base["learn"]["tensorboard_graph"] = False
-        config_base["wandb"] = {
-            "run_id": "",
-            "tags": [],
-            "job_type": mode,
-            "log_model": False,
-            "watch_model": False,
-            "push_table_freq": 20,
-            "save_train_preds": 0,
-            "save_val_preds": 0,
-            "save_test_preds": 0,
-        }
-    elif mode == "fit":
-        config_base["learn"]["tensorboard_graph"] = True
+    config_ref = deepcopy(config_base)
+
+    if mode == "study":
+        config_ref["learn"]["deterministic"] = False
+        config_ref["log"]["configuration"] = False
+        config_ref["log"]["table"] = False
+        config_ref["log"]["model_onnx"] = False
+        config_ref["log"]["tensorboard_graph"] = False
+        config_ref["callbacks"]["progress"] = False
+        config_ref["callbacks"]["ckpt_last"] = False
+        config_ref["callbacks"]["ckpt_top_k"] = 0
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": True,
+                "watch_model": False,
+                "push_table_freq": 20,
+                "save_train_preds": 0,
+                "save_val_preds": 0,
+                "save_test_preds": 0,
+            }
+    elif mode == "fit":
+        if use_wandb:
+            config_ref["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
                 "watch_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
@@ -166,13 +162,13 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "test":
-        config_base["learn"]["tensorboard_graph"] = False
+        config_ref["log"]["model_onnx"] = False
+        config_ref["log"]["tensorboard_graph"] = False
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": False,
                 "watch_model": False,
                 "push_table_freq": 1,
                 "save_train_preds": 0,
@@ -180,13 +176,11 @@ def make_config(
                 "save_test_preds": 20,
             }
     else:
-        config_base["learn"]["tensorboard_graph"] = True
         if use_wandb:
-            config_base["wandb"] = {
+            config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
-                "log_model": True,
                 "watch_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
@@ -194,92 +188,77 @@ def make_config(
                 "save_test_preds": 20,
             }
 
-    save_train_preds = config_base.get("wandb", {}).get("save_train_preds", 0)
-    save_val_preds = config_base.get("wandb", {}).get("save_val_preds", 0)
-    save_test_preds = config_base.get("wandb", {}).get("save_test_preds", 0)
-    if dummy:
-        config_base["learn"]["dummy"] = True
-        config_base["data"]["num_workers"] = 0
-        config_base["callbacks"]["ckpt_top_k"] = 3
-        save_train_preds //= 5
-        save_val_preds //= 5
-        save_test_preds //= 5
-    else:
-        config_base["learn"]["dummy"] = False
-        config_base["data"]["num_workers"] = 3
-    if use_wandb:
-        assert "wandb" in config_base
-        config_base["wandb"].update(
-            {
-                "save_train_preds": save_train_preds,
-                "save_val_preds": save_val_preds,
-                "save_test_preds": save_test_preds,
-            }
-        )
-    else:
-        config_base.pop("wandb")
+    if not dummy:
+        config_ref["data"]["num_workers"] = 3
+        config_ref["learn"]["dummy"] = False
+        config_ref["learn"]["num_epochs"] = 100
+        config_ref["callbacks"]["ckpt_top_k"] = 5
+        config_ref["callbacks"]["stop_patience"] = 10
 
-    config: ConfigUnion = deepcopy(config_base)
+    if dummy and use_wandb:
+        assert "wandb" in config_ref
+        for key in ["save_train_preds", "save_val_preds", "save_test_preds"]:
+            if key in config_ref["wandb"]:
+                config_ref["wandb"][key] //= 5
+
+    config: ConfigUnion = deepcopy(config_ref)
     if learner == "simple":
         config_simple: ConfigSimpleLearner = {
-            **config_base,
+            **config_ref,
             "simple_learner": simple_learner_config,
         }
         config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
             config_simple["data"]["batch_size"] = 16
-            config_simple["learn"]["num_epochs"] = 300
+            config_simple["learn"]["num_epochs"] = 200
             config_simple["callbacks"]["stop_patience"] = 15
         config = config_simple
     elif learner == "meta":
         config_meta: ConfigMetaLearner = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
         }
         config_meta["learn"]["exp_name"] = "ML"
         if not dummy:
             config_meta["data"]["batch_size"] = 13
-            config_meta["learn"]["num_epochs"] = 100
         config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "weasel": weasel_config,
         }
-        config_weasel["learn"]["exp_name"] = "WS"
+        config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 13
-            config_weasel["learn"]["num_epochs"] = 100
+            config_weasel["weasel"]["tune_epochs"] = 10
         config = config_weasel
     elif learner == "protoseg":
         config_protoseg: ConfigProtoSeg = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "protoseg": protoseg_config,
         }
         config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
             config_protoseg["data"]["batch_size"] = 32
-            config_protoseg["learn"]["num_epochs"] = 100
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
-            **config_base,
+            **config_ref,
             "meta_learner": meta_learner_config,
             "guidednets": guidednets_config,
         }
         config_guidednets["learn"]["exp_name"] = "GN"
         if not dummy:
             config_guidednets["data"]["batch_size"] = 8
-            config_guidednets["learn"]["num_epochs"] = 100
         config = config_guidednets
 
     exp_name = config["learn"]["exp_name"]
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
-    if "sweep" not in mode:
-        config["learn"]["run_name"] = make_run_name(exp_name)
+    if mode != "study":
+        config["learn"]["run_name"] = make_run_name()
 
     return config

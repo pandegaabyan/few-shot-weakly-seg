@@ -3,8 +3,10 @@ import os
 from dotenv import load_dotenv
 
 import wandb
-from config.constants import WANDB_SETTINGS
-from utils.utils import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
+from config.constants import FILENAMES, WANDB_SETTINGS
+from utils.logging import split_path
+from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
+from wandb.sdk.wandb_run import Run
 
 
 def wandb_login():
@@ -15,10 +17,25 @@ def wandb_login():
     wandb.login(key=wandb_api_key)
 
 
+def wandb_path(dummy: bool) -> str:
+    return (
+        WANDB_SETTINGS["entity"]
+        + "/"
+        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+    )
+
+
+def wandb_get_run_id_by_name(run_name: str, dummy: bool = False) -> str:
+    run = wandb.Api().runs(wandb_path(dummy), {"display_name": run_name})
+    if len(run) == 0:
+        raise ValueError(f"Run {run_name} not found")
+    return run[0].id
+
+
 def wandb_get_runs(
     start_time: float | str | None = None,
     end_time: float | str | None = None,
-    dummy: bool = True,
+    dummy: bool = False,
 ):
     filter_dict = {}
     if start_time is not None:
@@ -33,12 +50,107 @@ def wandb_get_runs(
         elif isinstance(end_time, str):
             end_time = convert_local_iso_to_utc_iso(end_time)
         filter_dict.update({"created_at": {"$lte": end_time}})
-    wandb_path = (
-        WANDB_SETTINGS["entity"]
-        + "/"
-        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
+    return wandb.Api().runs(wandb_path(dummy), filters=filter_dict)
+
+
+def prepare_artifact_name(exp_name: str, run_name: str, suffix: str) -> str:
+    run_name = run_name.replace("-", "").replace(" ", "-")
+    return f"{exp_name}-{run_name}-{suffix}"
+
+
+def prepare_ckpt_artifact_name(exp_name: str, run_name: str) -> str:
+    return prepare_artifact_name(exp_name, run_name, "ckpt")
+
+
+def prepare_ckpt_artifact_alias(ckpt_name: str) -> str:
+    return ckpt_name.replace(" ", "-").replace("=", "_").removesuffix(".ckpt")
+
+
+def prepare_study_artifact_name(study_id: str) -> str:
+    return f"{study_id}-study-ref"
+
+
+def wandb_delete_file(
+    name: str,
+    type: str,
+    excluded_aliases: list[str] | None = None,
+    dummy: bool = False,
+):
+    arts = wandb.Api().artifacts(type, f"{wandb_path(dummy)}/{name}")
+    for art in arts:
+        art: wandb.Artifact = art
+        if len(art.aliases) == 0:
+            art.delete(False)
+        else:
+            for alias in art.aliases:
+                if excluded_aliases is None or alias not in excluded_aliases:
+                    art.delete(True)
+
+
+def wandb_log_file(
+    run: Run | None,
+    name: str,
+    path: str,
+    type: str,
+    aliases: list[str] = ["latest"],
+) -> wandb.Artifact | None:
+    if run is None:
+        return
+    artifact = wandb.Artifact(name, type=type)
+    artifact.add_file(path)
+    run.log_artifact(artifact, aliases=aliases)
+    return artifact
+
+
+def wandb_download_file(name: str, root: str, type: str, dummy: bool = False):
+    artifact: wandb.Artifact = wandb.Api().artifact(
+        f"{wandb_path(dummy)}/{name}", type=type
     )
-    return wandb.Api().runs(wandb_path, filters=filter_dict)
+    artifact.download(root)
+
+
+def wandb_use_and_download_file(run: Run | None, name: str, root: str, type: str):
+    if run is None:
+        return
+    artifact: wandb.Artifact = run.use_artifact(name, type=type)
+    artifact.download(root)
+
+
+def wandb_download_ckpt(ckpt_path: str):
+    splitted_path = split_path(ckpt_path)
+    ckpt_name = prepare_ckpt_artifact_name(*splitted_path[1:-1])
+    ckpt_alias = prepare_ckpt_artifact_alias(splitted_path[-1])
+    wandb_use_and_download_file(
+        wandb.run,
+        f"{ckpt_name}:{ckpt_alias}",
+        os.path.split(ckpt_path)[0],
+        "checkpoint",
+    )
+
+
+def wandb_download_config(exp_name: str, run_name: str):
+    artifact_name = prepare_artifact_name(
+        exp_name,
+        run_name,
+        "conf",
+    )
+    root = os.path.join(
+        FILENAMES["log_folder"],
+        exp_name,
+        run_name,
+    )
+    wandb_use_and_download_file(
+        wandb.run,
+        artifact_name + ":base",
+        root,
+        "configuration",
+    )
+    wandb_use_and_download_file(
+        wandb.run,
+        artifact_name + ":latest",
+        root,
+        "configuration",
+    )
 
 
 def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):
@@ -52,30 +164,3 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
     dataset_artifact.add_reference(f"file://{dataset_path}")
     wandb.log_artifact(dataset_artifact)
     wandb.finish()
-
-
-def wandb_delete_old_tables(run_id: str | None, dummy: bool = False):
-    if run_id is None:
-        return
-    wandb_path = (
-        WANDB_SETTINGS["entity"]
-        + "/"
-        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
-        + "/"
-        + run_id
-    )
-    run = wandb.Api().run(wandb_path)
-    for artifact in run.logged_artifacts():
-        if artifact.type == "run_table" and "latest" not in artifact.aliases:
-            artifact.delete(delete_aliases=True)
-
-
-def reset_wandb_env():
-    exclude = {
-        "WANDB_PROJECT",
-        "WANDB_ENTITY",
-        "WANDB_API_KEY",
-    }
-    for key in os.environ.keys():
-        if key.startswith("WANDB_") and key not in exclude:
-            del os.environ[key]

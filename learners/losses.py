@@ -1,84 +1,102 @@
-import torch
 import torch.nn as nn
-from torch import Tensor, device
+from torch import Tensor
 from torch.nn import functional
 
 
 class CustomLoss(nn.Module):
-    def __init__(self):
-        super(CustomLoss, self).__init__()
-        self.loss_type = "ce"
-        self.ignored_index = -1
-        self.mce_weights = None
-        self.iou_smooth = 1
+    def __init__(
+        self,
+        mode: str = "ce",
+        ignored_index: int = -1,
+        ce_weights: Tensor | None = None,
+    ):
+        super().__init__()
+        if mode not in self.valid_modes():
+            raise ValueError(f"Invalid loss type: {mode}")
+        self.mode = mode
+        self.ignored_index = ignored_index
+        self.ce_weights = ce_weights
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
-        if self.loss_type == "bce":
-            return self.bce_loss(inputs, targets, ignore_index=self.ignored_index)
-
-        if self.loss_type == "mce":
-            return self.mce_loss(
-                inputs,
-                targets,
-                ignore_index=self.ignored_index,
-                weight=self.mce_weights,
+        if self.mode == "bce":
+            return self.bce_loss(
+                inputs, targets, ignore_index=self.ignored_index, weight=self.ce_weights
             )
 
-        if self.loss_type == "iou":
-            return self.iou_loss(inputs, targets, smooth=self.iou_smooth)
+        if self.mode == "biou":
+            return self.biou_loss(inputs, targets, ignore_index=self.ignored_index)
 
-        return self.ce_loss(inputs, targets, ignore_index=self.ignored_index)
-
-    def params(self) -> dict:
-        mce_weights = (
-            self.mce_weights.tolist() if self.mce_weights is not None else None
-        )
-        return {
-            "loss_type": self.loss_type,
-            "ignored_index": self.ignored_index,
-            "mce_weights": mce_weights,
-            "iou_smooth": self.iou_smooth,
-        }
-
-    @staticmethod
-    def ce_loss(inputs: Tensor, targets: Tensor, ignore_index: int = -1):
-        return functional.cross_entropy(inputs, targets, ignore_index=ignore_index)
-
-    @staticmethod
-    def bce_loss(inputs: Tensor, targets: Tensor, ignore_index: int = -1):
-        expanded_inputs = torch.stack([inputs, 1 - inputs], dim=1)
-        return functional.cross_entropy(
-            expanded_inputs, targets, ignore_index=ignore_index
+        return self.ce_loss(
+            inputs, targets, ignore_index=self.ignored_index, weight=self.ce_weights
         )
 
+    def valid_modes(self) -> list[str]:
+        return ["ce", "bce", "biou"]
+
     @staticmethod
-    def mce_loss(
+    def ce_loss(
         inputs: Tensor,
         targets: Tensor,
         ignore_index: int = -1,
         weight: Tensor | None = None,
     ):
         return functional.cross_entropy(
-            inputs, targets, reduction="mean", ignore_index=ignore_index, weight=weight
+            inputs, targets, ignore_index=ignore_index, weight=weight
         )
 
     @staticmethod
-    def iou_loss(inputs: Tensor, targets: Tensor, smooth: int = 1):
-        intersection = (inputs * targets).sum()
-        union = (inputs + targets).sum() - intersection
+    def bce_loss(
+        inputs: Tensor,
+        targets: Tensor,
+        ignore_index: int = -1,
+        weight: Tensor | None = None,
+    ):
+        new_inputs, new_targets = CustomLoss.validate_and_filter_binary(
+            inputs, targets, ignore_index
+        )
+        return functional.binary_cross_entropy_with_logits(
+            new_inputs, new_targets, weight=weight
+        )
+
+    @staticmethod
+    def biou_loss(
+        inputs: Tensor, targets: Tensor, ignore_index: int = -1, smooth: int = 1
+    ):
+        new_inputs, new_targets = CustomLoss.validate_and_filter_binary(
+            inputs, targets, ignore_index
+        )
+        new_inputs = functional.sigmoid(new_inputs)
+
+        intersection = (new_inputs * new_targets).sum()
+        union = (new_inputs + new_targets).sum() - intersection
         iou = (intersection + smooth) / (union + smooth)
         return 1 - iou
 
-    def set_mce_weights_from_target(
-        self, targets: Tensor, num_classes: int, device: device
+    @staticmethod
+    def validate_and_filter_binary(
+        inputs: Tensor, targets: Tensor, ignore_index: int = -1
     ):
-        weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])
-        if torch.any(weights == 0):
-            weights = torch.Tensor([1 for _ in range(num_classes)])
-        else:
-            weights = weights / weights.max()
-        weights = weights.to(device=device)
-        self.mce_weights = weights
+        in_size = inputs.size()
+        tg_size = targets.size()
+        if in_size != tg_size:
+            if in_size[1] == 1 and in_size[-2:] == tg_size[-2:]:
+                inputs = inputs[:, 0]
+            else:
+                raise ValueError(
+                    f"Inputs and targets must have compatible shape, got {in_size} and {tg_size}"
+                )
 
-    def set_iou_smooth(self, smooth: int = 1):
-        self.iou_smooth = smooth
+        filtered_inputs = inputs[targets != ignore_index]
+        filtered_targets = targets[targets != ignore_index]
+        return filtered_inputs, filtered_targets
+
+    # def set_ce_weights_from_target(
+    #     self, targets: Tensor, num_classes: int, device: device
+    # ):
+    #     weights = torch.Tensor([torch.sum(targets == c) for c in range(num_classes)])
+    #     if torch.any(weights == 0):
+    #         weights = torch.Tensor([1 for _ in range(num_classes)])
+    #     else:
+    #         weights = weights / weights.max()
+    #     weights = weights.to(device=device)
+    #     self.ce_weights = weights

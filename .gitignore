@@ -8,7 +8,6 @@
 
 .env
 
-ckpt
+archive
 logs
-tensorboard
 wandb

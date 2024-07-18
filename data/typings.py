@@ -51,7 +51,8 @@ class SupportDataTuple(NamedTuple):
     images: Tensor
     masks: Tensor
     file_names: list[str]
-    sparsity: Union[SparsityTuple, list[SparsityTuple]]
+    sparsity_mode: Union[SparsityMode, list[SparsityMode]]
+    sparsity_value: Union[SparsityValue, list[SparsityValue]]
 
 
 class QueryDataTuple(NamedTuple):
@@ -81,10 +82,11 @@ class SimpleDatasetKwargs(BaseDatasetKwargs):
     ...
 
 
-class FewSparseDatasetKwargs(BaseDatasetKwargs):
+class FewSparseDatasetKwargs(BaseDatasetKwargs, total=False):
     shot_options: ShotOptions
     sparsity_options: SparsityOptions
     sparsity_params: dict | None
+    shot_sparsity_permutation: bool
     homogen_support_batch: bool
     query_batch_size: int
     split_query_size: float

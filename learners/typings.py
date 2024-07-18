@@ -1,40 +1,64 @@
-from typing import NamedTuple, Type, TypedDict, TypeVar
-
+import optuna
 from pytorch_lightning.utilities.types import LRSchedulerPLType
-from torch import Tensor, optim
-from typing_extensions import Required
+from torch import Tensor, nn, optim
+from typing_extensions import Any, Generic, Required, Type, TypedDict, TypeVar
 
-from config.config_type import ConfigBase, ConfigSimpleLearner
+from config.config_type import (
+    ConfigBase,
+    ConfigGuidedNets,
+    ConfigMetaLearner,
+    ConfigProtoSeg,
+    ConfigSimpleLearner,
+    ConfigWeasel,
+)
 from data.base_dataset import BaseDataset
+from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import BaseDatasetKwargs, SimpleDatasetKwargs
-from learners.losses import CustomLoss
-from learners.metrics import CustomMetric
+from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
+from learners.metrics import BaseMetric
 
 ConfigType = TypeVar("ConfigType", bound=ConfigBase)
-
+ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)
 DatasetClass = TypeVar("DatasetClass", bound=BaseDataset)
-
 DatasetKwargs = TypeVar("DatasetKwargs", bound=BaseDatasetKwargs)
 
+Loss = nn.Module
+Metric = BaseMetric
 Optimizer = optim.Optimizer
-
 Scheduler = LRSchedulerPLType
 
 
-class SimpleLearnerKwargs(TypedDict, total=False):
-    config: Required[ConfigSimpleLearner]
-    dataset_list: Required[list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]]
-    val_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-    test_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-    loss: CustomLoss | None
-    metric: CustomMetric | None
-    resume: bool
-    force_clear_dir: bool
+class BaseLearnerKwargs(
+    TypedDict, Generic[ConfigType, DatasetClass, DatasetKwargs], total=False
+):
+    config: Required[ConfigType]
+    dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
+    val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    loss: tuple[Type[Loss], dict[str, Any]]
+    metric: tuple[Type[Metric], dict[str, Any]]
+    optuna_trial: optuna.Trial | None
 
 
-class SimpleDataBatchTuple(NamedTuple):
-    image: Tensor
-    mask: Tensor
-    file_names: list[str]
-    dataset_names: list[str]
+SimpleLearnerKwargs = BaseLearnerKwargs[
+    ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs
+]
+
+
+class MetaLearnerKwargs(
+    Generic[ConfigTypeMeta],
+    BaseLearnerKwargs[ConfigTypeMeta, FewSparseDataset, FewSparseDatasetKwargs],
+):
+    ...
+
+
+WeaselLearnerKwargs = MetaLearnerKwargs[ConfigWeasel]
+
+ProtoSegLearnerKwargs = MetaLearnerKwargs[ConfigProtoSeg]
+
+GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
+
+
+SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]
+
+PredictionDataDict = dict[str, list[tuple[Tensor, Tensor, str, str]]]

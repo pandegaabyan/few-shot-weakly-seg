@@ -1,8 +1,8 @@
 from typing import Literal, Union
 
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import NotRequired, Required, TypedDict
 
-RunMode = Literal["fit-test", "fit", "test", "sweep", "sweep-cv"]
+RunMode = Literal["fit-test", "fit", "test", "study"]
 
 
 class DataConfig(TypedDict):
@@ -19,20 +19,16 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
-    tensorboard_graph: NotRequired[bool]
+    deterministic: NotRequired[bool]
+    manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
-
-
-class LossConfig(TypedDict, total=False):
-    type: str
-    ignored_index: int
+    optuna_study_name: NotRequired[str | None]
 
 
 class OptimizerConfig(TypedDict, total=False):
     lr: float
-    lr_bias: float
+    lr_bias_mult: float
     weight_decay: float
-    weight_decay_bias: float
     betas: tuple[float, float]
 
 
@@ -41,28 +37,33 @@ class SchedulerConfig(TypedDict, total=False):
     gamma: float
 
 
+class LogConfig(TypedDict, total=False):
+    configuration: bool
+    table: bool
+    model_onnx: bool
+    tensorboard_graph: bool
+
+
 class CallbacksConfig(TypedDict, total=False):
-    progress_leave: bool
-    monitor: str
+    progress: bool
+    monitor: str | None
     monitor_mode: Literal["min", "max"]
+    ckpt_last: bool
     ckpt_top_k: int
     stop_patience: int
     stop_min_delta: float
     stop_threshold: float | None
 
 
-class WandbConfig(TypedDict):
-    run_id: str
+class WandbConfig(TypedDict, total=False):
+    run_id: Required[str]
     tags: list[str]
     job_type: str | None
-    log_model: bool
     watch_model: bool
     push_table_freq: int | None
-    sweep_id: NotRequired[str]
-    sweep_parent: NotRequired[str]
-    save_train_preds: NotRequired[int]
-    save_val_preds: NotRequired[int]
-    save_test_preds: NotRequired[int]
+    save_train_preds: int
+    save_val_preds: int
+    save_test_preds: int
 
 
 class SimpleLearnerConfig(TypedDict):
@@ -91,9 +92,9 @@ class GuidedNetsConfig(TypedDict):
 class ConfigBase(TypedDict):
     data: DataConfig
     learn: LearnConfig
-    loss: LossConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
+    log: LogConfig
     callbacks: CallbacksConfig
     wandb: NotRequired[WandbConfig]
 

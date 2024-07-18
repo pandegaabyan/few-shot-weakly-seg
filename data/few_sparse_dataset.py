@@ -6,15 +6,15 @@ import torch
 from numpy.typing import NDArray
 from skimage import data as skdata
 from skimage import measure, morphology, segmentation
+from typing_extensions import Unpack
 
 from data.base_dataset import BaseDataset
 from data.typings import (
     DatasetModes,
+    FewSparseDatasetKwargs,
     FewSparseDataTuple,
     QueryDataTuple,
-    ShotOptions,
     SparsityMode,
-    SparsityOptions,
     SparsityTuple,
     SparsityValue,
     SupportDataTuple,
@@ -27,45 +27,20 @@ class FewSparseDataset(BaseDataset, ABC):
         mode: DatasetModes,
         num_classes: int,
         resize_to: tuple[int, int],
-        max_items: int | None = None,
-        seed: int | None = None,
-        split_val_size: float = 0,
-        split_test_size: float = 0,
-        cache_data: bool = False,
-        dataset_name: str | None = None,
-        shot_options: ShotOptions = "all",
-        sparsity_options: SparsityOptions = [("random", "random")],
-        sparsity_params: dict | None = None,
-        shot_sparsity_permutation: bool = False,
-        homogen_support_batch: bool = False,
-        query_batch_size: int = 1,
-        split_query_size: float = 0,
-        split_query_fold: int = 0,
-        num_iterations: int | float = 1.0,
+        **kwargs: Unpack[FewSparseDatasetKwargs],
     ):
-        super().__init__(
-            mode,
-            num_classes,
-            resize_to,
-            max_items,
-            seed,
-            split_val_size,
-            0,
-            split_test_size,
-            0,
-            cache_data,
-            dataset_name,
-        )
+        super().__init__(mode, num_classes, resize_to, **kwargs)
 
-        # Initializing variables.
-        self.shot_options: ShotOptions = shot_options
-        self.sparsity_options: SparsityOptions = sparsity_options
-        self.sparsity_params = sparsity_params or {}
-        self.shot_sparsity_permutation = shot_sparsity_permutation
-        self.homogen_support_batch = homogen_support_batch or shot_sparsity_permutation
-        self.query_batch_size = query_batch_size
-        self.split_query_size = split_query_size
-        self.split_query_fold = split_query_fold
+        self.shot_options = kwargs.get("shot_options", "all")
+        self.sparsity_options = kwargs.get("sparsity_options", [("random", "random")])
+        self.sparsity_params = kwargs.get("sparsity_params") or {}
+        self.shot_sparsity_permutation = kwargs.get("shot_sparsity_permutation", False)
+        self.homogen_support_batch = (
+            kwargs.get("homogen_support_batch", False) or self.shot_sparsity_permutation
+        )
+        self.query_batch_size = kwargs.get("query_batch_size", 1)
+        self.split_query_size = kwargs.get("split_query_size", 0)
+        self.split_query_fold = kwargs.get("split_query_fold", 0)
 
         if self.shot_sparsity_permutation:
             (
@@ -74,10 +49,11 @@ class FewSparseDataset(BaseDataset, ABC):
                 self.support_sparsities,
             ) = self.permute_shot_sparsity_for_support()
         else:
+            num_iterations = kwargs.get("num_iterations", 1.0)
             if isinstance(num_iterations, float):
                 num_iterations = (
-                    round(num_iterations * len(self.items) * split_query_size)
-                    // query_batch_size
+                    round(num_iterations * len(self.items) * self.split_query_size)
+                    // self.query_batch_size
                 )
             self.num_iterations = num_iterations
             self.support_batches = self.make_support_batches()
@@ -310,7 +286,7 @@ class FewSparseDataset(BaseDataset, ABC):
             np.max(new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
-            seed=bseed,
+            rng=bseed,
         )
         blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
 
@@ -569,14 +545,13 @@ class FewSparseDataset(BaseDataset, ABC):
         support_images_list = []
         support_masks_list = []
         support_name_list = []
-        support_sparsity_list: list[SparsityTuple] = []
-        support_sparsity = []
+        support_sparsity_modes: list[SparsityMode] = []
+        support_sparsity_values: list[SparsityValue] = []
         if self.homogen_support_batch:
             if self.shot_sparsity_permutation:
-                support_sparsity = self.support_sparsities[index]
+                sparsity_mode, sparsity_value = self.support_sparsities[index]
             else:
-                support_sparsity = self.select_sparsity(index)
-            sparsity_mode, sparsity_value = support_sparsity
+                sparsity_mode, sparsity_value = self.select_sparsity(index)
         else:
             sparsity_mode, sparsity_value = None, None
         for i in range(support_batch_size):
@@ -590,9 +565,12 @@ class FewSparseDataset(BaseDataset, ABC):
             support_masks_list.append(msk)
             support_name_list.append(name)
             if not self.homogen_support_batch:
-                support_sparsity_list.append((mode, value))
+                support_sparsity_modes.append(mode)
+                support_sparsity_values.append(value)
         if not self.homogen_support_batch:
-            support_sparsity = support_sparsity_list
+            sparsity_mode = support_sparsity_modes
+            sparsity_value = support_sparsity_values
+        assert sparsity_mode is not None and sparsity_value is not None
 
         query_images_list = []
         query_masks_list = []
@@ -616,7 +594,8 @@ class FewSparseDataset(BaseDataset, ABC):
                 images=support_images,
                 masks=support_masks,
                 file_names=support_name_list,
-                sparsity=support_sparsity,
+                sparsity_mode=sparsity_mode,
+                sparsity_value=sparsity_value,
             ),
             query=QueryDataTuple(
                 images=query_images, masks=query_masks, file_names=query_names_list

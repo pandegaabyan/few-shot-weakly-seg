@@ -4,7 +4,7 @@ from typing import Literal
 
 from config.constants import FILENAMES, WANDB_SETTINGS
 from utils.logging import check_rmtree, get_run_paths
-from utils.utils import convert_iso_timestamp_to_epoch
+from utils.time import convert_iso_timestamp_to_epoch
 from utils.wandb import wandb_get_runs
 
 
@@ -55,18 +55,12 @@ def clean_logging_data(
         if user_confirm != "Y":
             return
 
-    parent_dirs = [
-        FILENAMES["checkpoint_folder"],
-        FILENAMES["tensorboard_folder"],
-        FILENAMES["log_folder"],
-    ]
-    for parent in parent_dirs:
-        for run in local_run_paths:
-            run_path = os.path.join(parent, run)
-            if os.path.isfile(run_path):
-                os.remove(run_path)
-            else:
-                check_rmtree(run_path, True)
+    for run in local_run_paths:
+        run_path = os.path.join(FILENAMES["log_folder"], run)
+        if os.path.isfile(run_path):
+            os.remove(run_path)
+        else:
+            check_rmtree(run_path, True)
 
     for run in wandb_runs:
         run.delete(delete_artifacts=True)

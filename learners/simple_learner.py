@@ -1,60 +1,63 @@
 from abc import ABC, abstractmethod
-from typing import Any, Type
+from typing import Any, Literal
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.utils.data import ConcatDataset, DataLoader
 
 from config.config_type import ConfigSimpleLearner
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
-from learners.losses import CustomLoss
-from learners.metrics import CustomMetric
 from learners.typings import SimpleDataBatchTuple
-from utils.utils import mean
+from utils.utils import make_batch_sample_indices
 
 
 class SimpleLearner(
     BaseLearner[ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs], ABC
 ):
-    def __init__(
-        self,
-        config: ConfigSimpleLearner,
-        dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]],
-        val_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-        | None = None,
-        test_dataset_list: list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]
-        | None = None,
-        loss: CustomLoss | None = None,
-        metric: CustomMetric | None = None,
-        resume: bool = False,
-        force_clear_dir: bool = False,
-    ):
-        super().__init__(
-            config,
-            dataset_list,
-            val_dataset_list,
-            test_dataset_list,
-            loss,
-            metric,
-            resume,
-            force_clear_dir,
-        )
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         self.check_and_clean_config(ConfigSimpleLearner)
 
         self.net = self.make_net()
-        self.training_step_losses = []
-        self.validation_step_losses = []
-        self.test_step_losses = []
 
     @abstractmethod
     def make_net(self) -> nn.Module:
         pass
 
-    def forward(self, x):
-        return self.net(x)
+    def make_dataloader(self, datasets: list[SimpleDataset]):
+        num_workers = self.config["data"]["num_workers"]
+        return DataLoader(
+            ConcatDataset(datasets),
+            batch_size=self.config["data"]["batch_size"],
+            shuffle=datasets[0].mode == "train",
+            num_workers=num_workers,
+            persistent_workers=num_workers > 0,
+            pin_memory=self.device.type != "cpu",
+        )
+
+    def make_indices_to_save(
+        self, datasets: list[SimpleDataset], sample_size: int
+    ) -> list[list[int]]:
+        batch_size = self.config["data"]["batch_size"]
+        return make_batch_sample_indices(
+            sum(len(ds) for ds in datasets),
+            sample_size,
+            batch_size,
+        )
+
+    def make_input_example(self) -> tuple[Any, ...]:
+        image_example = torch.rand(
+            self.config["data"]["batch_size"],
+            self.config["data"]["num_channels"],
+            *self.config["data"]["resize_to"],
+        )
+        return (image_example,)
+
+    def forward(self, image: Tensor) -> Tensor:
+        return self.net(image)
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
@@ -62,31 +65,10 @@ class SimpleLearner(
         loss = self.loss(pred, mask)
 
         self.training_step_losses.append(loss.item())
-        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
 
-        self.log_table(
-            [
-                ("type", "TR"),
-                ("epoch", self.current_epoch),
-                ("batch", batch_idx),
-                ("loss", loss.item()),
-            ]
-            + dummy_score,
-            "metrics",
-        )
+        self.log_to_table_metrics("TR", batch_idx, loss)
 
-        if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            for i in self.train_indices_to_save[batch_idx]:
-                self.wandb_log_image(
-                    mask[i],
-                    pred[i],
-                    [
-                        ("type", "TR"),
-                        ("file_name", file_names[i]),
-                        ("dataset", dataset_names[i]),
-                    ],
-                    "preds",
-                )
+        self.wandb_handle_preds("TR", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
 
@@ -102,59 +84,11 @@ class SimpleLearner(
         if self.trainer.sanity_checking:
             return loss
 
-        self.log_table(
-            [
-                ("type", "VL"),
-                ("epoch", self.current_epoch),
-                ("batch", batch_idx),
-                ("loss", loss.item()),
-            ]
-            + score,
-            "metrics",
-        )
+        self.log_to_table_metrics("VL", batch_idx, loss, score=score)
 
-        if self.current_epoch == self.config["learn"]["num_epochs"] - 1:
-            for i in self.val_indices_to_save[batch_idx]:
-                self.wandb_log_image(
-                    mask[i],
-                    pred[i],
-                    [
-                        ("type", "VL"),
-                        ("file_name", file_names[i]),
-                        ("dataset", dataset_names[i]),
-                    ],
-                    "preds",
-                )
+        self.wandb_handle_preds("VL", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
-
-    def on_validation_epoch_end(self):
-        super().on_validation_epoch_end()
-
-        val_loss = mean(self.validation_step_losses)
-        self.validation_step_losses.clear()
-        val_score = self.metric.compute()
-        val_score = self.metric.prepare_for_log(val_score)
-        score_summary = self.metric.score_summary()
-
-        if self.trainer.sanity_checking:
-            return
-
-        self.wandb_log(
-            {"loss": val_loss} | dict(val_score) | {"score": score_summary},
-            "summary/val_",
-        )
-        self.log_monitor(score_summary)
-
-    def on_train_epoch_end(self):
-        super().on_train_epoch_end()
-
-        train_loss = mean(self.training_step_losses)
-        self.training_step_losses.clear()
-        self.wandb_log({"loss": train_loss}, "summary/train_")
-
-        self.wandb_push_table()
-        self.wandb_log_ckpt_files()
 
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, file_names, dataset_names = batch
@@ -165,56 +99,28 @@ class SimpleLearner(
         score = self.metric(pred, mask)
         score = self.metric.prepare_for_log(score)
 
-        self.log_table(
-            [
-                ("type", "TS"),
-                ("epoch", 0),
-                ("batch", batch_idx),
-                ("loss", loss.item()),
-            ]
-            + score,
-            "metrics",
-        )
+        self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
-        for i in self.test_indices_to_save[batch_idx]:
-            self.wandb_log_image(
-                mask[i],
-                pred[i],
-                [
-                    ("type", "TS"),
-                    ("file_name", file_names[i]),
-                    ("dataset", dataset_names[i]),
-                ],
-                "preds",
-            )
+        self.wandb_handle_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
 
         return loss
 
-    def on_test_end(self) -> None:
-        super().on_test_end()
-
-        test_loss = mean(self.test_step_losses)
-        self.test_step_losses.clear()
-        test_score = self.metric.compute()
-        test_score = self.metric.prepare_for_log(test_score)
-
-        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
-
-        self.wandb_push_table(force=True)
-
-    def make_dataloader(self, datasets: list[SimpleDataset]):
-        return DataLoader(
-            ConcatDataset(datasets),
-            batch_size=self.config["data"]["batch_size"],
-            shuffle=datasets[0].mode == "train",
-            num_workers=self.config["data"]["num_workers"],
-            pin_memory=self.device.type != "cpu",
+    def log_to_table_metrics(
+        self,
+        type: Literal["TR", "VL", "TS"],
+        batch_idx: int,
+        loss: Tensor,
+        score: list[tuple[str, float]] | None = None,
+        epoch: int | None = None,
+    ):
+        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
+        self.log_table(
+            [
+                ("type", type),
+                ("epoch", epoch if epoch is not None else self.current_epoch),
+                ("batch", batch_idx),
+                ("loss", loss.item()),
+            ]
+            + (score if score is not None else dummy_score),
+            "metrics",
         )
-
-    def make_input_example(self) -> tuple[Any, ...]:
-        input_example = torch.rand(
-            self.config["data"]["batch_size"],
-            self.config["data"]["num_channels"],
-            *self.config["data"]["resize_to"],
-        )
-        return (input_example,)

@@ -1,10 +1,6 @@
-from typing import Any, Callable, Iterable
+from typing import Any
 
-from utils.utils import convert_iso_timestamp_to_epoch
-
-
-def get_name_from_function(func: Callable) -> str:
-    return f"<function {func.__module__}.{func.__name__}>"
+from utils.time import convert_iso_timestamp_to_epoch
 
 
 def get_name_from_class(cls: object) -> str:
@@ -48,20 +44,6 @@ def get_simple_stack_list(start: int = 0, end: int | None = None) -> list[str]:
     return simple_stack_list
 
 
-def get_count_as_text(data: Iterable) -> str:
-    from collections import Counter
-
-    counted = Counter(data)
-    return " ".join([f"{key}({count})" for key, count in counted.items()])
-
-
-def prepare_ckpt_path_for_artifact(ckpt_path: str) -> tuple[str, str]:
-    exp_name, run_name, ckpt_name = ckpt_path.split("/")
-    run_name = run_name.replace("-", "").replace(" ", "-")
-    ckpt_name = ckpt_name.replace(" ", "-").replace("=", "_").removesuffix(".ckpt")
-    return f"{exp_name}-{run_name}", ckpt_name
-
-
 def check_mkdir(dir_name: str):
     import os
 
@@ -83,6 +65,15 @@ def check_rmtree(dir_name: str, force: bool = False) -> bool:
         shutil.rmtree(dir_name)
 
     return True
+
+
+def split_path(path: str) -> list[str]:
+    import os
+
+    if path == "":
+        return []
+    head, tail = os.path.split(path)
+    return split_path(head) + [tail]
 
 
 def load_json(path: str) -> dict | list:
@@ -117,36 +108,6 @@ def write_to_csv(filename: str, row: list[tuple[str, Any]]):
             writer.writerow(rowdict)
 
 
-def read_recent_runs(exp_name: str) -> list[str]:
-    import os
-
-    from config.constants import FILENAMES
-
-    recent_runs_path = os.path.join(
-        FILENAMES["log_folder"], exp_name, FILENAMES["recent_runs"]
-    )
-    recent_runs = []
-    if os.path.isfile(recent_runs_path):
-        with open(recent_runs_path, "r") as f:
-            recent_runs = f.read().split("\n")
-    return recent_runs
-
-
-def write_recent_runs(exp_name: str, recent_runs: list[str], new_run: str):
-    import os
-
-    from config.constants import FILENAMES
-
-    recent_runs_path = os.path.join(
-        FILENAMES["log_folder"], exp_name, FILENAMES["recent_runs"]
-    )
-    recent_runs.append(new_run)
-    while len(recent_runs) > 50:
-        recent_runs.pop(0)
-    with open(recent_runs_path, "w") as f:
-        f.write("\n".join(recent_runs))
-
-
 def get_configuration(exp_name: str = "", run_name: str = "") -> dict:
     import os
 
@@ -168,7 +129,7 @@ def get_full_ckpt_path(*paths: str, extension: str = ".ckpt") -> str:
 
     from config.constants import FILENAMES
 
-    path = os.path.join(FILENAMES["checkpoint_folder"], *paths)
+    path = os.path.join(FILENAMES["log_folder"], *paths)
     if not path.endswith(extension):
         path += extension
     return path
