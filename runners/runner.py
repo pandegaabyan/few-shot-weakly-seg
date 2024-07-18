@@ -298,7 +298,6 @@ class Runner:
                 EarlyStopping(
                     monitor=monitor,
                     mode=monitor_mode,
-                    verbose=True,
                     patience=cb_config.get("stop_patience", 3),
                     min_delta=cb_config.get("stop_min_delta", 0.0),
                     stopping_threshold=cb_config.get("stop_threshold"),
