@@ -170,8 +170,9 @@ class Runner:
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
-        self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
-        self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
+        if not self.resume:
+            self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
+            self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
 
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
