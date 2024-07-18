@@ -74,8 +74,8 @@ class MyRunner(Runner):
         config = super().make_optuna_config()
         config["study_name"] = "Simple RIM-ONE"
         config["sampler_params"] = {
-            "n_startup_trials": 10,
-            "n_ei_candidates": 20,
+            "n_startup_trials": 20,
+            "n_ei_candidates": 30,
             "multivariate": True,
             "group": True,
             "constant_liar": True,
@@ -83,7 +83,7 @@ class MyRunner(Runner):
         }
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 30 * 3600
+            config["timeout_sec"] = 8 * 3600
         return config
 
     def make_dataset_list(

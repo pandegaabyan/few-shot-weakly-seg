@@ -209,9 +209,9 @@ def make_config(
         }
         config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
-            config_simple["data"]["batch_size"] = 16
+            config_simple["data"]["batch_size"] = 32
             config_simple["learn"]["num_epochs"] = 200
-            config_simple["callbacks"]["stop_patience"] = 15
+            config_simple["callbacks"]["stop_patience"] = 20
         config = config_simple
     elif learner == "meta":
         config_meta: ConfigMetaLearner = {
