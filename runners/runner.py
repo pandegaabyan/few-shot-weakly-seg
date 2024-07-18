@@ -1,4 +1,5 @@
 import os
+from typing import Sequence, Type
 
 import nanoid
 import optuna
@@ -17,7 +18,10 @@ from config.optuna import (
     pruner_classes,
     sampler_classes,
 )
+from data.base_dataset import BaseDataset
+from data.typings import BaseDatasetKwargs
 from learners.base_learner import BaseLearner
+from learners.typings import BaseLearnerKwargs
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
 from utils.logging import (
     check_mkdir,
@@ -58,9 +62,8 @@ class Runner:
         config: ConfigUnion,
         dummy: bool,
         dataset_fold: int = 0,
-        ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[BaseLearner, dict]:
+    ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         raise NotImplementedError
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
@@ -112,9 +115,13 @@ class Runner:
             if self.resume or test_only_by_resuming:
                 wandb_download_config(self.exp_name, self.run_name)
 
-        learner, important_config = self.make_learner(
-            self.config, self.dummy, ckpt_path=ckpt_path
+        learner_class, learner_kwargs, important_config = self.make_learner(
+            self.config, self.dummy
         )
+        if ckpt_path is None:
+            learner = learner_class(**learner_kwargs)
+        else:
+            learner = learner_class.load_from_checkpoint(ckpt_path, **learner_kwargs)
 
         if self.use_wandb:
             wandb.config.update({"git": get_short_git_hash(), **important_config})
@@ -184,7 +191,7 @@ class Runner:
             study.set_user_attr(key, value)
 
         n_trials = self.optuna_config.get("num_trials")
-        timeout = self.optuna_config.get("timeout_sec", 3600)
+        timeout = self.optuna_config.get("timeout_sec")
         if n_trials is None and timeout is None:
             timeout = 120
         study.optimize(
@@ -205,12 +212,13 @@ class Runner:
             assert "wandb" in trial_config
             trial_config["wandb"]["run_id"] = run_id
 
-        learner, important_config = self.make_learner(
+        learner_class, learner_kwargs, important_config = self.make_learner(
             trial_config,
             self.dummy,
             dataset_fold=dataset_fold,
             optuna_trial=trial,
         )
+        learner = learner_class(**learner_kwargs)
 
         if self.use_wandb and not self.resume and trial and trial.number == 0:
             study_id = trial.study.study_name.split(" ")[-1]
@@ -258,6 +266,9 @@ class Runner:
 
         if self.use_wandb:
             wandb.finish()
+
+        if learner.optuna_pruned:
+            raise optuna.TrialPruned()
 
         return learner.best_monitor_value
 
@@ -314,4 +325,11 @@ class Runner:
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
             resume="must" if resume else None,
+        )
+
+    def get_names_from_dataset_list(
+        self, dataset_list: Sequence[tuple[Type[BaseDataset], BaseDatasetKwargs]]
+    ) -> str:
+        return ",".join(
+            [(kwargs.get("dataset_name") or "NoName") for _, kwargs in dataset_list]
         )

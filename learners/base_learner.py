@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Generic, Literal, Type
 
 import numpy as np
-import optuna
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from torch import Tensor
@@ -121,6 +120,7 @@ class BaseLearner(
         self.init_ok = False
         self.resume = False
         self.configuration_logged = False
+        self.optuna_pruned = False
         self.best_monitor_value = 0.0
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
@@ -623,4 +623,5 @@ class BaseLearner(
             return
         self.optuna_trial.report(value, self.current_epoch)
         if self.optuna_trial.should_prune():
-            raise optuna.TrialPruned()
+            self.optuna_pruned = True
+            self.trainer.should_stop = True
