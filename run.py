@@ -75,7 +75,7 @@ class MyRunner(Runner):
         config["study_name"] = "Simple RIM-ONE"
         config["sampler_params"] = {
             "n_startup_trials": 10,
-            "n_ei_candidates": 20,
+            "n_ei_candidates": 24,
             "multivariate": True,
             "group": True,
             "constant_liar": True,
@@ -83,7 +83,7 @@ class MyRunner(Runner):
         }
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 30 * 3600
+            config["timeout_sec"] = 2 * 3600
         return config
 
     def make_dataset_list(
