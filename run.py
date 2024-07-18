@@ -1,13 +1,16 @@
+from typing import Type
+
 import click
 import optuna
 
 from config.config_maker import make_config
 from config.config_type import ConfigSimpleLearner, ConfigUnion, RunMode
+from config.optuna import OptunaConfig
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
 from learners.simple_unet import SimpleUnet
-from learners.typings import SimpleLearnerKwargs
+from learners.typings import BaseLearnerKwargs, SimpleLearnerKwargs
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
@@ -24,32 +27,69 @@ class MyRunner(Runner):
         config: ConfigUnion,
         dummy: bool,
         dataset_fold: int = 0,
-        ckpt_path: str | None = None,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[BaseLearner, dict]:
+    ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         dataset_list = self.make_dataset_list(dataset_fold)
         for ds in dataset_list:
             ds[1]["max_items"] = 6 if dummy else None
 
-        typed_config: ConfigSimpleLearner = config  # type: ignore
+        cfg: ConfigSimpleLearner = config  # type: ignore
+        if optuna_trial is not None:
+            lr = optuna_trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+            lr_bias_mult = optuna_trial.suggest_categorical("lr_bias_mult", [0.5, 1, 2])
+            weight_decay = optuna_trial.suggest_float(
+                "weight_decay", 1e-10, 1e-3, log=True
+            )
+            beta1_comp = optuna_trial.suggest_float("beta1_comp", 1e-2, 1, log=True)
+            beta2_comp = optuna_trial.suggest_float("beta2_comp", 1e-4, 1e-2, log=True)
+            lowest_gamma = (1e-10 / lr) ** (
+                cfg["scheduler"].get("step_size", 1) / cfg["learn"]["num_epochs"]
+            )
+            gamma = optuna_trial.suggest_float("gamma", lowest_gamma, 1, log=True)
+            cfg["optimizer"]["lr"] = lr
+            cfg["optimizer"]["lr_bias_mult"] = lr_bias_mult
+            cfg["optimizer"]["weight_decay"] = weight_decay
+            cfg["optimizer"]["betas"] = (1 - beta1_comp, 1 - beta2_comp)
+            cfg["scheduler"]["gamma"] = gamma
+
         kwargs: SimpleLearnerKwargs = {
-            "config": typed_config,
+            "config": cfg,
             "dataset_list": dataset_list,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        if ckpt_path is None:
-            learner = SimpleUnet(**kwargs)
-        else:
-            learner = SimpleUnet.load_from_checkpoint(ckpt_path, **kwargs)
+        important_config = {
+            "dataset": self.get_names_from_dataset_list(dataset_list),
+            "lr": cfg["optimizer"].get("lr"),
+            "weight_decay": cfg["optimizer"].get("weight_decay"),
+            "beta1": cfg["optimizer"].get("betas", (None, None))[0],
+            "beta2": cfg["optimizer"].get("betas", (None, None))[1],
+            "gamma": cfg["scheduler"].get("gamma"),
+        }
 
-        return learner, {}
+        return SimpleUnet, kwargs, important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["study_name"] = "Simple RIM-ONE"
+        config["sampler_params"] = {
+            "n_startup_trials": 10,
+            "n_ei_candidates": 20,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
+            "seed": 0,
+        }
+        if not self.dummy:
+            config["num_folds"] = 3
+            config["timeout_sec"] = 30 * 3600
+        return config
 
     def make_dataset_list(
         self,
         val_fold: int = 0,
-    ) -> list[tuple[type[SimpleDataset], SimpleDatasetKwargs]]:
+    ) -> list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]:
         rim_one_kwargs: SimpleDatasetKwargs = {
             "seed": 0,
             "max_items": None,
