@@ -20,6 +20,7 @@ onnx = "==1.16.1"
 torchmetrics = "==1.4.0.post0"
 wandb = "==0.17.4"
 optuna = "==3.6.1"
+psycopg2-binary = "==2.9.9"
 
 [dev-packages]
 ipykernel = "==6.29.5"
