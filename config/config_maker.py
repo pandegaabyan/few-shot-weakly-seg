@@ -55,7 +55,7 @@ optimizer_config: OptimizerConfig = {
     "betas": (0.9, 0.99),
 }
 
-scheduler_config: SchedulerConfig = {"step_size": 50, "gamma": 0.1}
+scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 
 log_config: LogConfig = {
     "configuration": True,
