@@ -12,7 +12,7 @@ from learners.base_learner import BaseLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import BaseLearnerKwargs, SimpleLearnerKwargs
 from runners.runner import Runner
-from tasks.optic_disc_cup.datasets import RimOneSimpleDataset
+from tasks.optic_disc_cup.datasets import DrishtiSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 from utils.logging import (
@@ -90,18 +90,18 @@ class MyRunner(Runner):
         self,
         val_fold: int = 0,
     ) -> list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]:
-        rim_one_kwargs: SimpleDatasetKwargs = {
+        drishti_kwargs: SimpleDatasetKwargs = {
             "seed": 0,
             "max_items": None,
-            "split_val_size": 0.2,
+            "split_val_size": 0.15,
             "split_val_fold": val_fold,
-            "split_test_size": 0.2,
+            "split_test_size": 0.15,
             "split_test_fold": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE",
+            "dataset_name": "DRISHTI",
         }
 
-        return [(RimOneSimpleDataset, rim_one_kwargs)]
+        return [(DrishtiSimpleDataset, drishti_kwargs)]
 
 
 @click.command()
