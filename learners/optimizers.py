@@ -17,41 +17,28 @@ from utils.logging import get_name_from_instance
 def make_optimizer_adam(
     config: OptimizerConfig,
     named_params: Iterator[tuple[str, nn.Parameter]],
-    separate_bias: bool = False,
 ) -> Optimizer:
     default_lr = 0.001
     default_betas = (0.9, 0.999)
-
     lr = config.get("lr", default_lr)
-    weight_decay = config.get("weight_decay", 0)
-    betas = config.get("betas", default_betas)
-
-    if separate_bias:
-        return optim.Adam(
-            [
-                {
-                    "params": [
-                        param for name, param in named_params if name[-4:] == "bias"
-                    ],
-                    "lr": config.get("lr_bias", lr),
-                    "weight_decay": config.get("weight_decay_bias", weight_decay),
-                },
-                {
-                    "params": [
-                        param for name, param in named_params if name[-4:] != "bias"
-                    ],
-                    "lr": lr,
-                    "weight_decay": weight_decay,
-                },
-            ],
-            betas=betas,
-        )
 
     return optim.Adam(
-        [param for _, param in named_params],
-        lr=lr,
-        weight_decay=weight_decay,
-        betas=betas,
+        [
+            {
+                "params": [
+                    param for name, param in named_params if name[-4:] == "bias"
+                ],
+                "lr": config.get("lr_bias_mult", 1) * lr,
+            },
+            {
+                "params": [
+                    param for name, param in named_params if name[-4:] != "bias"
+                ],
+                "lr": lr,
+                "weight_decay": config.get("weight_decay", 0),
+            },
+        ],
+        betas=config.get("betas", default_betas),
     )
 
 

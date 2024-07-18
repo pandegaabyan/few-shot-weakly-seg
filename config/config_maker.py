@@ -49,9 +49,8 @@ learn_config: LearnConfig = {
 
 optimizer_config: OptimizerConfig = {
     "lr": 1e-3,
-    "lr_bias": 2e-3,
+    "lr_bias_mult": 1,
     "weight_decay": 5e-5,
-    "weight_decay_bias": 0,
     "betas": (0.9, 0.99),
 }
 

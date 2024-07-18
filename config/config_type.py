@@ -27,9 +27,8 @@ class LearnConfig(TypedDict):
 
 class OptimizerConfig(TypedDict, total=False):
     lr: float
-    lr_bias: float
+    lr_bias_mult: float
     weight_decay: float
-    weight_decay_bias: float
     betas: tuple[float, float]
 
 
