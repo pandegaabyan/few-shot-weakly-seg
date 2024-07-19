@@ -72,7 +72,7 @@ class MyRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple RIM-ONE GP Median"
+        config["study_name"] = "Simple RIM-ONE QMC Median"
         config["sampler"] = "qmc"
         config["sampler_params"] = {
             "scramble": True,
