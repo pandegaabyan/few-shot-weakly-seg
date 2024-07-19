@@ -73,9 +73,9 @@ class MyRunner(Runner):
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
         config["study_name"] = "Simple RIM-ONE GP Median"
-        config["sampler"] = "gp"
+        config["sampler"] = "qmc"
         config["sampler_params"] = {
-            "n_startup_trials": 20,
+            "scramble": True,
             "seed": 0,
         }
         config["pruner"] = "median"
