@@ -82,13 +82,14 @@ class MyRunner(Runner):
             "seed": 0,
         }
         config["pruner_params"] = {
+            "max_resource": self.config["learn"]["num_epochs"],
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
         config["pruner_patience"] = 10
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 8 * 3600
+            config["timeout_sec"] = 6 * 3600
         return config
 
     def make_rim_one_dataset(
