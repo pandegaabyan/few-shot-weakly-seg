@@ -12,7 +12,7 @@ from learners.base_learner import BaseLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import BaseLearnerKwargs, SimpleLearnerKwargs
 from runners.runner import Runner
-from tasks.optic_disc_cup.datasets import DrishtiSimpleDataset
+from tasks.optic_disc_cup.datasets import DrishtiSimpleDataset, RimOneSimpleDataset
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 from utils.logging import (
@@ -29,7 +29,7 @@ class MyRunner(Runner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
-        dataset_list = self.make_dataset_list(dataset_fold)
+        dataset_list = [self.make_rim_one_dataset(dataset_fold)]
         for ds in dataset_list:
             ds[1]["max_items"] = 6 if dummy else None
 
@@ -86,10 +86,27 @@ class MyRunner(Runner):
             config["timeout_sec"] = 8 * 3600
         return config
 
-    def make_dataset_list(
+    def make_rim_one_dataset(
         self,
         val_fold: int = 0,
-    ) -> list[tuple[Type[SimpleDataset], SimpleDatasetKwargs]]:
+    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
+        rim_one_kwargs: SimpleDatasetKwargs = {
+            "seed": 0,
+            "max_items": None,
+            "split_val_size": 0.2,
+            "split_val_fold": val_fold,
+            "split_test_size": 0.2,
+            "split_test_fold": 0,
+            "cache_data": True,
+            "dataset_name": "RIM-ONE",
+        }
+
+        return (RimOneSimpleDataset, rim_one_kwargs)
+
+    def make_drishti_dataset(
+        self,
+        val_fold: int = 0,
+    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
         drishti_kwargs: SimpleDatasetKwargs = {
             "seed": 0,
             "max_items": None,
@@ -101,7 +118,7 @@ class MyRunner(Runner):
             "dataset_name": "DRISHTI",
         }
 
-        return [(DrishtiSimpleDataset, drishti_kwargs)]
+        return (DrishtiSimpleDataset, drishti_kwargs)
 
 
 @click.command()
