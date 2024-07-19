@@ -72,7 +72,7 @@ class MyRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple RIM-ONE 2"
+        config["study_name"] = "Simple RIM-ONE 3"
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -82,11 +82,12 @@ class MyRunner(Runner):
             "seed": 0,
         }
         config["pruner_params"] = {
+            "min_resource": 20,
             "max_resource": self.config["learn"]["num_epochs"],
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
-        config["pruner_patience"] = 10
+        config["pruner_patience"] = 20
         if not self.dummy:
             config["num_folds"] = 3
             config["timeout_sec"] = 6 * 3600
