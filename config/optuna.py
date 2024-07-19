@@ -22,6 +22,7 @@ class OptunaConfig(TypedDict):
     timeout_sec: NotRequired[int]
     sampler_params: NotRequired[dict[str, Any]]
     pruner_params: NotRequired[dict[str, Any]]
+    pruner_patience: NotRequired[int]
 
 
 sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {

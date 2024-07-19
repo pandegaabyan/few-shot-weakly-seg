@@ -178,7 +178,10 @@ class Runner:
             "study_name": self.optuna_config["study_name"],
             "storage": get_optuna_storage(self.dummy),
             "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
-            "pruner": pruner_class(**self.optuna_config.get("pruner_params")),
+            "pruner": optuna.pruners.PatientPruner(
+                pruner_class(**self.optuna_config.get("pruner_params")),
+                self.optuna_config.get("pruner_patience", 1),
+            ),
         }
 
         if self.resume:
