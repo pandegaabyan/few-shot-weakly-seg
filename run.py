@@ -81,11 +81,11 @@ class MyRunner(Runner):
             "constant_liar": True,
             "seed": 0,
         }
+        config["pruner"] = "median"
         config["pruner_params"] = {
-            "min_resource": 10,
-            "max_resource": self.config["learn"]["num_epochs"],
-            "reduction_factor": 2,
-            "bootstrap_count": 2,
+            "n_startup_trials": 20,
+            "n_warmup_steps": 10,
+            "n_min_trials": 2,
         }
         config["pruner_patience"] = 5
         if not self.dummy:
