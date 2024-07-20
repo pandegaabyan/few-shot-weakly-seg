@@ -21,6 +21,8 @@ torchmetrics = "==1.4.0.post0"
 wandb = "==0.17.4"
 optuna = "==3.6.1"
 psycopg2-binary = "==2.9.9"
+optuna-integration = {extras = ["botorch"], version = "==3.6.0"}
+botorch = "==0.9.5"
 
 [dev-packages]
 ipykernel = "==6.29.5"
