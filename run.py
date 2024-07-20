@@ -72,7 +72,7 @@ class MyRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple RIM-ONE BoTorch Median"
+        config["study_name"] = "Simple RIM-ONE BoTorch"
         config["sampler"] = "botorch"
         config["sampler_params"] = {
             "n_startup_trials": 20,
