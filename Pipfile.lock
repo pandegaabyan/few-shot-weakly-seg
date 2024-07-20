@@ -504,9 +504,7 @@
             "version": "==1.4.1"
         },
         "fsspec": {
-            "extras": [
-                "http"
-            ],
+            "extras": ["http"],
             "hashes": [
                 "sha256:3cb443f8bcd2efb31295a5b9fdb02aee81d8452c80d28f97a6d0959e6cee101e",
                 "sha256:fad7d7e209dd4c1208e3bbfda706620e0da5142bebbd9c384afb95b07e798e49"
@@ -1278,9 +1276,7 @@
             "version": "==3.6.1"
         },
         "optuna-integration": {
-            "extras": [
-                "botorch"
-            ],
+            "extras": ["botorch"],
             "hashes": [
                 "sha256:e281d4902ab728b4c86a997eb01e7bc54d921ae7cff40ed8f4e083f49d37e033",
                 "sha256:f261c38586b22cd95639287ca694fc0f788482cfbb7bb83803caf404ce06a55a"
@@ -2013,6 +2009,14 @@
             ],
             "markers": "platform_system == 'Linux' and platform_machine == 'x86_64'",
             "version": "==2.0.0"
+        },
+        "typeguard": {
+            "hashes": [
+                "sha256:00edaa8da3a133674796cf5ea87d9f4b4c367d77476e185e80251cc13dfbb8c4",
+                "sha256:5e3e3be01e887e7eafae5af63d1f36c849aaa94e3a0112097312aabfa16284f1"
+            ],
+            "markers": "python_full_version >= '3.5.3'",
+            "version": "==2.13.3"
         },
         "typeguard": {
             "hashes": [

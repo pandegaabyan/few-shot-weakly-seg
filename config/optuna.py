@@ -8,7 +8,7 @@ from typing_extensions import NotRequired, TypedDict
 from config.constants import FILENAMES
 from utils.logging import check_mkdir
 
-OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp"]
+OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp", "botorch"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
 
 
@@ -31,6 +31,7 @@ sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {
     "cmaes": optuna.samplers.CmaEsSampler,
     "qmc": optuna.samplers.QMCSampler,
     "gp": optuna.samplers.GPSampler,
+    "botorch": optuna.integration.BoTorchSampler,
 }
 pruner_classes: dict[OptunaPruner, Type[optuna.pruners.BasePruner]] = {
     "none": optuna.pruners.NopPruner,
