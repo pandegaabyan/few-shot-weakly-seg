@@ -12,18 +12,10 @@ class DataConfig(TypedDict):
 class DataTuneConfig(TypedDict):
     list_shots: list[int]  # Number of shots (i.e, total annotated samples)
     list_sparsity_point: list[float]  # Number of labeled pixels in point annotation
-    list_sparsity_grid: list[
-        float
-    ]  # Spacing between selected pixels in grid annotation
-    list_sparsity_contour: list[
-        float
-    ]  # Density of the contours (1, is the complete contours)
-    list_sparsity_skeleton: list[
-        float
-    ]  # Density of the skeletons (1, is the complete skeletons)
-    list_sparsity_region: list[
-        float
-    ]  # Percentage of regions labeled (1, all \pure\ regions are labeled)
+    list_sparsity_grid: list[float]  # Spacing between pixels in grid annotation
+    list_sparsity_contour: list[float]  # Density of the contours (0 to 1)
+    list_sparsity_skeleton: list[float]  # Density of the skeletons (0 to 1)
+    list_sparsity_region: list[float]  # Ratio of labeled regions (0 to 1)
 
 
 class LearnConfig(TypedDict):
@@ -53,9 +45,14 @@ class WeaselConfig(TypedDict):
     tune_test_freq: int  # Test each tune_test_freq epochs on the tuning phase.
 
 
+class ProtosegConfig(TypedDict):
+    embedding_size: int
+
+
 class AllConfig(TypedDict):
     data: DataConfig
     data_tune: DataTuneConfig
     learn: LearnConfig
     save: SaveConfig
     weasel: WeaselConfig
+    protoseg: ProtosegConfig
