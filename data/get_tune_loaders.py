@@ -5,7 +5,6 @@ from torch.utils.data import DataLoader
 from data.few_sparse_dataset import (
     FewSparseDataset,
     FewSparseDatasetKeywordArgs,
-    SparsityModesNoRandom,
 )
 
 
@@ -39,20 +38,16 @@ def get_tune_loaders(
     batch_size: int = 1,
     num_workers: int = 0,
 ) -> TuneLoaderDict:
-    sparsity_modes: list[SparsityModesNoRandom] = [
-        "point",
-        "grid",
-        "contour",
-        "skeleton",
-        "region",
-        "dense",
-    ]
-    loader_dict = {}
+    loader_dict: TuneLoaderDict = {
+        "point": [],
+        "grid": [],
+        "contour": [],
+        "skeleton": [],
+        "region": [],
+        "dense": [],
+    }
 
-    dataset_kwargs.pop("sparsity_mode")
-    dataset_kwargs.pop("sparsity_value")
-
-    for sparsity_mode in sparsity_modes:
+    for sparsity_mode in loader_dict.keys():
         loader_list = []
 
         if sparsity_mode == "point":
@@ -70,13 +65,13 @@ def get_tune_loaders(
 
         for n_shots in shots:
             for sparsity_value in sparsity_values:
+                dataset_kwargs["sparsity_mode"] = sparsity_mode  # type: ignore
+                dataset_kwargs["sparsity_value"] = sparsity_value
                 tune_train_set = dataset_class(
                     "tune_train",
                     num_classes,
                     n_shots,
                     resize_to,
-                    sparsity_mode=sparsity_mode,
-                    sparsity_value=sparsity_value,
                     **dataset_kwargs,
                 )
                 tune_train_loader = DataLoader(
@@ -86,12 +81,13 @@ def get_tune_loaders(
                     shuffle=True,
                 )
 
+                dataset_kwargs["sparsity_mode"] = "dense"
+                dataset_kwargs["sparsity_value"] = "random"
                 tune_test_set = dataset_class(
                     "tune_test",
                     num_classes,
                     n_shots,
                     resize_to,
-                    sparsity_mode="dense",
                     **dataset_kwargs,
                 )
                 tune_test_loader = DataLoader(

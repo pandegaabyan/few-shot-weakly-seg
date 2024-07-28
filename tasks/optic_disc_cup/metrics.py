@@ -1,6 +1,6 @@
 import numpy as np
-import sklearn
 from numpy.typing import NDArray
+from sklearn import metrics
 
 
 def calc_disc_cup_iou(
@@ -18,8 +18,8 @@ def calc_disc_cup_iou(
     preds_oc_np = np.asarray(preds_oc).ravel()
 
     # Computing metrics.
-    iou_od = sklearn.metrics.jaccard_score(labels_od_np, preds_od_np)
-    iou_oc = sklearn.metrics.jaccard_score(labels_oc_np, preds_oc_np)
+    iou_od = metrics.jaccard_score(labels_od_np, preds_od_np)
+    iou_oc = metrics.jaccard_score(labels_oc_np, preds_oc_np)
 
     score_text = "Disc = %.2f | Cup = %.2f" % (iou_od * 100, iou_oc * 100)
     name = "IoU score"

@@ -174,7 +174,7 @@ class WeaselLearner(MetaLearner):
     def update_parameters(self, loss: torch.Tensor):
         grads = torch.autograd.grad(
             loss,
-            self.net.meta_parameters(),
+            list(self.net.meta_parameters()),
             create_graph=not self.config["weasel"]["use_first_order"],
         )
 

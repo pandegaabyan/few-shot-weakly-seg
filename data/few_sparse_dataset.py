@@ -37,11 +37,11 @@ class FewSparseDataset(Dataset, ABC):
         num_classes: int,
         num_shots: int,
         resize_to: tuple[int, int],
-        split_seed: int = None,
+        split_seed: int | None = None,
         split_test_size: float = 0.8,
         sparsity_mode: SparsityModes = "dense",
         sparsity_value: SparsityValue = "random",
-        sparsity_params: dict = None,
+        sparsity_params: dict | None = None,
     ):
         # Initializing variables.
         self.mode = mode
@@ -50,8 +50,8 @@ class FewSparseDataset(Dataset, ABC):
         self.resize_to = resize_to
         self.split_seed = split_seed
         self.split_test_size = split_test_size
-        self.sparsity_mode = sparsity_mode
-        self.sparsity_value = sparsity_value
+        self.sparsity_mode: SparsityModes = sparsity_mode
+        self.sparsity_value: SparsityValue = sparsity_value
         self.sparsity_params = sparsity_params if sparsity_params is not None else {}
 
         self.sparsity_mode_list = ["point", "grid", "contour", "skeleton", "region"]
@@ -141,8 +141,8 @@ class FewSparseDataset(Dataset, ABC):
         msk: NDArray,
         num_classes: int,
         sparsity: SparsityValue = "random",
-        radius_dist: int = None,
-        radius_thick: int = None,
+        radius_dist: int | None = None,
+        radius_thick: int | None = None,
         seed=0,
     ) -> NDArray:
         sparsity_num = sparsity if sparsity != "random" else np.random.random()
@@ -199,7 +199,7 @@ class FewSparseDataset(Dataset, ABC):
         msk: NDArray,
         num_classes: int,
         sparsity: SparsityValue = "random",
-        radius_thick: int = None,
+        radius_thick: int | None = None,
         seed=0,
     ) -> NDArray:
         sparsity_num = sparsity if sparsity != "random" else np.random.random()
@@ -227,7 +227,7 @@ class FewSparseDataset(Dataset, ABC):
             np.max(new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
-            seed=bseed,
+            rng=bseed,
         )
         blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
 
@@ -242,7 +242,7 @@ class FewSparseDataset(Dataset, ABC):
         msk: NDArray,
         img: NDArray,
         num_classes: int,
-        compactness: float = 0.5,
+        compactness: float | None = 0.5,
         sparsity: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
@@ -333,11 +333,12 @@ class FewSparseDataset(Dataset, ABC):
         )
 
         # Select split, based on the mode
-        data_list = None
         if "train" in self.mode:
             data_list = tr
         elif "test" in self.mode:
             data_list = ts
+        else:
+            raise ValueError("Mode not recognized")
 
         random.seed(self.split_seed)
         random.shuffle(data_list)
@@ -353,7 +354,7 @@ class FewSparseDataset(Dataset, ABC):
         self,
         sparsity_mode: SparsityModes,
         msk: NDArray,
-        img: NDArray = None,
+        img: NDArray | None = None,
         sparsity_value: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
@@ -392,6 +393,8 @@ class FewSparseDataset(Dataset, ABC):
                 radius_thick=self.sparsity_params.get("skeleton_radius_thick"),
             )
         elif selected_sparsity_mode == "region":
+            if img is None:
+                raise ValueError("Image is required for region sparsity")
             sparse_msk = self.sparse_region(
                 msk,
                 img,
@@ -476,9 +479,9 @@ class FewSparseDataset(Dataset, ABC):
 
         # Turning to tensors.
         img = torch.from_numpy(img)
-        msk = torch.from_numpy(msk).type(torch.LongTensor)
+        msk = torch.from_numpy(msk).type(torch.LongTensor)  # type: ignore
 
-        sparse_msk = torch.from_numpy(sparse_msk).type(torch.LongTensor)
+        sparse_msk = torch.from_numpy(sparse_msk).type(torch.LongTensor)  # type: ignore
 
         # Returning to iterator.
         return img, msk, sparse_msk, img_filename

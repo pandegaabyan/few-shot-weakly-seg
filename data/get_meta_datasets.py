@@ -25,13 +25,12 @@ def get_meta_datasets(param_list: list[MetaDatasetParam]) -> MetaDatasets:
             "meta_train", param["num_classes"], -1, param["resize_to"], **kwargs
         )
 
-        kwargs.pop("sparsity_mode")
+        kwargs["sparsity_mode"] = "dense"
         test_dataset = dataset_class(
             "meta_test",
             param["num_classes"],
             -1,
             param["resize_to"],
-            sparsity_mode="dense",
             **kwargs,
         )
 
