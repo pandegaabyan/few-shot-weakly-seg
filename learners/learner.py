@@ -93,6 +93,9 @@ class MetaLearner(ABC):
             gamma=self.config["learn"]["scheduler_gamma"],
         )
 
+        self.curr_epoch_scores: list[float] = []
+        self.best_avg_score: float = 0.0
+
     @abstractmethod
     def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         pass
@@ -230,6 +233,8 @@ class MetaLearner(ABC):
             row,
         )
 
+        self.curr_epoch_scores += score.values()
+
         if (
             epoch == self.config["learn"]["num_epochs"]
             and not self.config["save"]["minimal_save"]
@@ -271,6 +276,11 @@ class MetaLearner(ABC):
                 self.tune_train_test(tl["train"], tl["test"], epoch, sparsity_mode)
 
                 print()
+
+        avg_score = sum(self.curr_epoch_scores) / len(self.curr_epoch_scores)
+        self.curr_epoch_scores.clear()
+        if avg_score > self.best_avg_score:
+            self.best_avg_score = avg_score
 
     def prepare_meta_batch(self, index: int) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         x_train = []
