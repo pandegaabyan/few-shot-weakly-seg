@@ -16,26 +16,26 @@ class MetaDatasets(TypedDict):
 
 
 def get_meta_datasets(param_list: list[MetaDatasetParam]) -> MetaDatasets:
-    meta_datasets: MetaDatasets = {'train': [], 'test': []}
+    meta_datasets: MetaDatasets = {"train": [], "test": []}
 
     for param in param_list:
-        kwargs = param['kwargs'].copy()
-        dataset_class = param['dataset_class']
-        train_dataset = dataset_class('meta_train',
-                                      param['num_classes'],
-                                      -1,
-                                      param['resize_to'],
-                                      **kwargs)
+        kwargs = param["kwargs"].copy()
+        dataset_class = param["dataset_class"]
+        train_dataset = dataset_class(
+            "meta_train", param["num_classes"], -1, param["resize_to"], **kwargs
+        )
 
-        kwargs.pop('sparsity_mode')
-        test_dataset = dataset_class('meta_test',
-                                     param['num_classes'],
-                                     -1,
-                                     param['resize_to'],
-                                     sparsity_mode="dense",
-                                     **kwargs)
+        kwargs.pop("sparsity_mode")
+        test_dataset = dataset_class(
+            "meta_test",
+            param["num_classes"],
+            -1,
+            param["resize_to"],
+            sparsity_mode="dense",
+            **kwargs,
+        )
 
-        meta_datasets['train'].append(train_dataset)
-        meta_datasets['test'].append(test_dataset)
+        meta_datasets["train"].append(train_dataset)
+        meta_datasets["test"].append(test_dataset)
 
     return meta_datasets

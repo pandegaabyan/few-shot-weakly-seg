@@ -10,7 +10,6 @@ from learners.learner import MetaLearner
 
 
 class WeaselLearner(MetaLearner):
-
     def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         # Acquiring training and test data.
 
@@ -34,7 +33,7 @@ class WeaselLearner(MetaLearner):
 
         # Resetting outer loss.
         outer_loss = torch.tensor(0.0)
-        if self.config['learn']["use_gpu"]:
+        if self.config["learn"]["use_gpu"]:
             outer_loss = outer_loss.cuda()
 
         # Iterating over datasets.
@@ -76,9 +75,13 @@ class WeaselLearner(MetaLearner):
         # Returning loss.
         return [outer_loss.detach().item()]
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
-
+    def tune_train_test_process(
+        self,
+        tune_train_loader: DataLoader,
+        tune_test_loader: DataLoader,
+        epoch: int,
+        sparsity_mode: str,
+    ) -> tuple[list[NDArray], list[NDArray], list[str]]:
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
 
@@ -89,19 +92,17 @@ class WeaselLearner(MetaLearner):
         self.net.zero_grad()
 
         # Repeatedly cycling over batches.
-        tune_epochs = self.config['weasel']['tune_epochs']
+        tune_epochs = self.config["weasel"]["tune_epochs"]
         for c in range(1, tune_epochs + 1):
-
-            self.print_and_log('\tTuning epoch %d/%d' % (c, tune_epochs))
+            self.print_and_log("\tTuning epoch %d/%d" % (c, tune_epochs))
 
             # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
-
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
 
                 # Casting to cuda variables.
-                if self.config['learn']["use_gpu"]:
+                if self.config["learn"]["use_gpu"]:
                     x_tr = x_tr.cuda()
                     y_tr = y_tr.cuda()
 
@@ -118,15 +119,12 @@ class WeaselLearner(MetaLearner):
                 tune_train_loss.backward()
                 self.meta_optimizer.step()
 
-            if (c % self.config['weasel']['tune_test_freq'] == 0
-                    or c == tune_epochs):
-
+            if c % self.config["weasel"]["tune_test_freq"] == 0 or c == tune_epochs:
                 # Starting test.
 
                 labels, preds, names = [], [], []
 
                 with torch.no_grad():
-
                     start_time = time.time()
 
                     # Setting network for evaluation mode.
@@ -138,7 +136,7 @@ class WeaselLearner(MetaLearner):
                         x_ts, y_ts, _, img_name = data
 
                         # Casting to cuda variables.
-                        if self.config['learn']["use_gpu"]:
+                        if self.config["learn"]["use_gpu"]:
                             x_ts = x_ts.cuda()
                             y_ts = y_ts.cuda()
 
@@ -146,20 +144,25 @@ class WeaselLearner(MetaLearner):
                         p_ts = self.net(x_ts)
 
                         # Obtaining predictions.
-                        prds = p_ts.detach().max(1)[1].squeeze(1).squeeze(0).cpu().numpy()
+                        prds = (
+                            p_ts.detach().max(1)[1].squeeze(1).squeeze(0).cpu().numpy()
+                        )
 
                         # Appending data to lists.
                         labels.append(y_ts.detach().squeeze(0).cpu().numpy())
                         preds.append(prds)
                         names.append(img_name)
 
-                    print_message = f'{c}/{tune_epochs}'
-                    score = self.calc_and_log_metrics(labels, preds, print_message, start='\t')
+                    print_message = f"{c}/{tune_epochs}"
+                    score = self.calc_and_log_metrics(
+                        labels, preds, print_message, start="\t"
+                    )
 
                     end_time = time.time()
 
-                    self.write_score_to_csv(epoch, sparsity_mode, c,
-                                            end_time - start_time, score)
+                    self.write_score_to_csv(
+                        epoch, sparsity_mode, c, end_time - start_time, score
+                    )
 
                 # Finishing test.
 
@@ -169,21 +172,38 @@ class WeaselLearner(MetaLearner):
         return labels, preds, names
 
     def update_parameters(self, loss: torch.Tensor):
-        grads = torch.autograd.grad(loss, self.net.meta_parameters(),
-                                    create_graph=not self.config['weasel']['use_first_order'])
+        grads = torch.autograd.grad(
+            loss,
+            self.net.meta_parameters(),
+            create_graph=not self.config["weasel"]["use_first_order"],
+        )
 
         params = OrderedDict()
         for (name, param), grad in zip(self.net.meta_named_parameters(), grads):
-            params[name] = param - self.config['weasel']['update_param_step_size'] * grad
+            params[name] = (
+                param - self.config["weasel"]["update_param_step_size"] * grad
+            )
 
         return params
 
-    def write_score_to_csv(self, epoch: int, sparsity_mode: str, tune_epoch: int, test_duration: float, score: dict):
-        row = {'epoch': epoch, 'sparsity_mode': sparsity_mode,
-               'tune_epoch': tune_epoch, 'test_duration': test_duration * 10 ** 3}
+    def write_score_to_csv(
+        self,
+        epoch: int,
+        sparsity_mode: str,
+        tune_epoch: int,
+        test_duration: float,
+        score: dict,
+    ):
+        row = {
+            "epoch": epoch,
+            "sparsity_mode": sparsity_mode,
+            "tune_epoch": tune_epoch,
+            "test_duration": test_duration * 10**3,
+        }
         row.update(score)
         self.write_to_csv(
-            'tuning_score.csv',
-            ['epoch', 'sparsity_mode', 'tune_epoch', 'test_duration'] + sorted(score.keys()),
-            row
+            "tuning_score.csv",
+            ["epoch", "sparsity_mode", "tune_epoch", "test_duration"]
+            + sorted(score.keys()),
+            row,
         )

@@ -21,10 +21,12 @@ class RimOneDataset(FewSparseDataset):
             msk_file_no_ext = self.get_filename_from_path(msk_file)
             try:
                 img_index = img_files_no_ext.index(msk_file_no_ext)
-                all_data_path.append((
-                    data_path + img_dir + img_files[img_index],
-                    data_path + msk_dir + msk_file,
-                ))
+                all_data_path.append(
+                    (
+                        data_path + img_dir + img_files[img_index],
+                        data_path + msk_dir + msk_file,
+                    )
+                )
             except ValueError:
                 continue
 
@@ -53,10 +55,12 @@ class DrishtiDataset(FewSparseDataset):
             msk_file_no_ext = self.get_filename_from_path(msk_file)
             try:
                 img_index = img_files_no_ext.index(msk_file_no_ext)
-                all_data_path.append((
-                    data_path + img_dir + img_files[img_index],
-                    data_path + msk_dir + msk_file,
-                ))
+                all_data_path.append(
+                    (
+                        data_path + img_dir + img_files[img_index],
+                        data_path + msk_dir + msk_file,
+                    )
+                )
             except ValueError:
                 continue
 

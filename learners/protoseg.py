@@ -7,7 +7,6 @@ from learners.learner import MetaLearner
 
 
 class ProtoSegLearner(MetaLearner):
-
     def meta_train_test_step(self, dataset_indices: list[int]) -> list[float]:
         loss_list = list()
 
@@ -31,21 +30,24 @@ class ProtoSegLearner(MetaLearner):
             emb_test = self.net(x_test)
 
             emb_train_linear = emb_train.permute(0, 2, 3, 1).view(
-                emb_train.size(0), emb_train.size(2) * emb_train.size(3), emb_train.size(1))
+                emb_train.size(0),
+                emb_train.size(2) * emb_train.size(3),
+                emb_train.size(1),
+            )
             emb_test_linear = emb_test.permute(0, 2, 3, 1).view(
-                emb_test.size(0), emb_test.size(2) * emb_test.size(3), emb_test.size(1))
+                emb_test.size(0), emb_test.size(2) * emb_test.size(3), emb_test.size(1)
+            )
 
             y_train_linear = y_train.view(y_train.size(0), -1)
             y_test_linear = y_test.view(y_test.size(0), -1)
 
-            prototypes = self.get_prototypes(emb_train_linear,
-                                             y_train_linear,
-                                             self.config['data']['num_classes'])
+            prototypes = self.get_prototypes(
+                emb_train_linear, y_train_linear, self.config["data"]["num_classes"]
+            )
 
-            outer_loss = self.prototypical_loss(prototypes,
-                                                emb_test_linear,
-                                                y_test_linear,
-                                                ignore_index=-1)
+            outer_loss = self.prototypical_loss(
+                prototypes, emb_test_linear, y_test_linear, ignore_index=-1
+            )
 
             # End of prototyping
 
@@ -61,14 +63,17 @@ class ProtoSegLearner(MetaLearner):
         # Returning loss.
         return loss_list
 
-    def tune_train_test_process(self, tune_train_loader: DataLoader, tune_test_loader: DataLoader,
-                                epoch: int, sparsity_mode: str) -> tuple[list[NDArray], list[NDArray], list[str]]:
-
+    def tune_train_test_process(
+        self,
+        tune_train_loader: DataLoader,
+        tune_test_loader: DataLoader,
+        epoch: int,
+        sparsity_mode: str,
+    ) -> tuple[list[NDArray], list[NDArray], list[str]]:
         # Initiating lists for labels, predictions, and image names.
         labels, preds, names = [], [], []
 
         with torch.no_grad():
-
             # Setting network for training mode.
             self.net.eval()
 
@@ -81,19 +86,19 @@ class ProtoSegLearner(MetaLearner):
 
             # Iterating over tune train batches.
             for i, data in enumerate(tune_train_loader):
-
                 # Obtaining images, dense labels, sparse labels and paths for batch.
                 x_tr, _, y_tr, _ = data
 
                 # Casting tensors to cuda.
-                if self.config['learn']["use_gpu"]:
+                if self.config["learn"]["use_gpu"]:
                     x_tr = x_tr.cuda()
                     y_tr = y_tr.cuda()
 
                 emb_tr = self.net(x_tr)
 
                 emb_train_linear = emb_tr.permute(0, 2, 3, 1).view(
-                    emb_tr.size(0), emb_tr.size(2) * emb_tr.size(3), emb_tr.size(1))
+                    emb_tr.size(0), emb_tr.size(2) * emb_tr.size(3), emb_tr.size(1)
+                )
 
                 y_train_linear = y_tr.view(y_tr.size(0), -1)
 
@@ -103,7 +108,9 @@ class ProtoSegLearner(MetaLearner):
             emb_tr = torch.vstack(emb_train_list)
             y_tr = torch.vstack(y_train_list)
 
-            prototypes = self.get_prototypes(emb_tr, y_tr, self.config['data']['num_classes'])
+            prototypes = self.get_prototypes(
+                emb_tr, y_tr, self.config["data"]["num_classes"]
+            )
 
             # Iterating over tune test batches.
             for i, data in enumerate(tune_test_loader):
@@ -111,18 +118,21 @@ class ProtoSegLearner(MetaLearner):
                 x_ts, y_ts, _, img_name = data
 
                 # Casting tensors to cuda.
-                if self.config['learn']["use_gpu"]:
+                if self.config["learn"]["use_gpu"]:
                     x_ts = x_ts.cuda()
                     y_ts = y_ts.cuda()
 
                 emb_ts = self.net(x_ts)
 
                 emb_test_linear = emb_ts.permute(0, 2, 3, 1).view(
-                    emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1))
+                    emb_ts.size(0), emb_ts.size(2) * emb_ts.size(3), emb_ts.size(1)
+                )
 
                 p_test_linear = self.get_predictions(prototypes, emb_test_linear)
 
-                p_test = p_test_linear.view(p_test_linear.size(0), y_ts.size(1), y_ts.size(2))
+                p_test = p_test_linear.view(
+                    p_test_linear.size(0), y_ts.size(1), y_ts.size(2)
+                )
 
                 # Taking mode of predictions.
                 p_full, _ = torch.mode(p_test, dim=0)
@@ -208,8 +218,9 @@ class ProtoSegLearner(MetaLearner):
         loss : `torch.FloatTensor` instance
             The negative log-likelihood on the query points.
         """
-        squared_distances = torch.sum((prototypes.unsqueeze(2)
-                                       - embeddings.unsqueeze(1)) ** 2, dim=-1)
+        squared_distances = torch.sum(
+            (prototypes.unsqueeze(2) - embeddings.unsqueeze(1)) ** 2, dim=-1
+        )
         return functional.cross_entropy(-squared_distances, targets, **kwargs)
 
     @staticmethod
@@ -228,7 +239,8 @@ class ProtoSegLearner(MetaLearner):
         accuracy : `torch.FloatTensor` instance
             Mean accuracy on the query points.
         """
-        sq_distances = torch.sum((prototypes.unsqueeze(1)
-                                  - embeddings.unsqueeze(2)) ** 2, dim=-1)
+        sq_distances = torch.sum(
+            (prototypes.unsqueeze(1) - embeddings.unsqueeze(2)) ** 2, dim=-1
+        )
         _, predictions = torch.min(sq_distances, dim=-1)
         return predictions
