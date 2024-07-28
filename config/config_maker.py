@@ -56,6 +56,7 @@ save_config: SaveConfig = {
     "ckpt_path": "./ckpt/",
     "output_path": "./outputs/",
     "exp_name": "",
+    "minimal_save": False,
 }
 
 weasel_config: WeaselConfig = {
@@ -100,8 +101,12 @@ def make_config(
         elif learner == "protoseg":
             all_config["data"]["batch_size"] = 32
 
+    if mode == "study":
+        all_config["save"]["minimal_save"] = True
+
     name_prefix = (
         "WS" if learner == "weasel" else "PS" if learner == "protoseg" else "N"
     )
-    all_config["save"]["exp_name"] = f"{name_prefix} {nanoid.generate(size=4)}"
+    all_config["save"]["exp_name"] = f"{name_prefix} {nanoid.generate(size=5)}"
+
     return all_config

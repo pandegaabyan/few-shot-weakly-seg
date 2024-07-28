@@ -36,6 +36,7 @@ class SaveConfig(TypedDict):
     ckpt_path: str  # Root folder for checkpoints (model weights)
     output_path: str  # Root folder for general outputs (img predictions, generated train sparse masks, etc)
     exp_name: str
+    minimal_save: bool
 
 
 class WeaselConfig(TypedDict):

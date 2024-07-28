@@ -150,7 +150,8 @@ class MetaLearner(ABC):
                 or epoch == self.config["learn"]["num_epochs"]
             ):
                 self.run_sparse_tuning(epoch)
-                self.save_net_and_optimizer(epoch)
+                if not self.config["save"]["minimal_save"]:
+                    self.save_net_and_optimizer(epoch)
 
             self.scheduler.step()
 
@@ -229,7 +230,10 @@ class MetaLearner(ABC):
             row,
         )
 
-        if epoch == self.config["learn"]["num_epochs"]:
+        if (
+            epoch == self.config["learn"]["num_epochs"]
+            and not self.config["save"]["minimal_save"]
+        ):
             for pred, name in zip(preds, names):
                 self.save_prediction(pred, name, sparsity_mode)
 
@@ -336,6 +340,8 @@ class MetaLearner(ABC):
         return output_ok and ckpt_ok
 
     def initialize_log(self):
+        if self.config["save"]["minimal_save"]:
+            return
         logging.basicConfig(
             filename=os.path.join(self.output_path, FILENAMES["learn_log"]),
             encoding="utf-8",
@@ -345,8 +351,9 @@ class MetaLearner(ABC):
             force=True,
         )
 
-    @staticmethod
-    def print_and_log(message: str, start: str = "", end: str = ""):
+    def print_and_log(self, message: str, start: str = "", end: str = ""):
+        if self.config["save"]["minimal_save"]:
+            return
         logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
         print(start + message + end)
 
@@ -375,6 +382,8 @@ class MetaLearner(ABC):
             self.checkpoint: dict = json.load(ckpt_file)
 
     def update_checkpoint(self, data: dict):
+        if self.config["save"]["minimal_save"]:
+            return
         with open(
             os.path.join(self.ckpt_path, FILENAMES["checkpoint"]), "w"
         ) as ckpt_file:
@@ -399,6 +408,8 @@ class MetaLearner(ABC):
                 os.path.join(self.output_path, FILENAMES["config"]), "w"
             ) as config_file:
                 json.dump(self.config, config_file, indent=4)
+            if self.config["save"]["minimal_save"]:
+                return
             with open(
                 os.path.join(self.output_path, FILENAMES["net_text"]), "w"
             ) as net_file:
