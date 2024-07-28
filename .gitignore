@@ -1,6 +1,10 @@
 *.pyc
 
+.venv
 .idea
+.vscode
+
+.env
 
 
 ckpt
