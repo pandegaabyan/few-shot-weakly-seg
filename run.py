@@ -1,10 +1,16 @@
-import gc
+import subprocess
 
 import click
-from torch import cuda
+import nanoid
+import optuna
 
 from config.config_maker import make_config
 from config.config_type import AllConfig
+from config.optuna import (
+    OptunaConfig,
+    get_optuna_storage,
+    sampler_classes,
+)
 from data.get_meta_datasets import MetaDatasets, get_meta_datasets
 from data.get_tune_loaders import TuneLoaderDict, get_tune_loaders
 from learners.protoseg import ProtoSegLearner
@@ -12,6 +18,18 @@ from learners.weasel import WeaselLearner
 from models.u_net import UNet
 from tasks.optic_disc_cup.datasets import DrishtiDataset, RimOneDataset
 from tasks.optic_disc_cup.metrics import calc_disc_cup_iou
+
+
+def get_short_git_hash() -> str:
+    short_hash = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+    short_hash = str(short_hash, "utf-8").strip()
+    return short_hash
+
+
+def check_git_clean() -> bool:
+    message = subprocess.check_output(["git", "status"])
+    message = str(message, "utf-8").strip()
+    return message.endswith("working tree clean")
 
 
 def prepare_data(config: AllConfig) -> tuple[MetaDatasets, TuneLoaderDict]:
@@ -68,6 +86,67 @@ def prepare_data(config: AllConfig) -> tuple[MetaDatasets, TuneLoaderDict]:
     return meta_set, tune_loader
 
 
+def run_fit(config: AllConfig, learner_type: str) -> float:
+    meta_set, tune_loader = prepare_data(config)
+
+    if learner_type == "weasel":
+        net = UNet(config["data"]["num_channels"], config["data"]["num_classes"])
+        learner = WeaselLearner(net, config, meta_set, tune_loader, calc_disc_cup_iou)
+    elif learner_type == "protoseg":
+        net = UNet(config["data"]["num_channels"], config["protoseg"]["embedding_size"])
+        learner = ProtoSegLearner(net, config, meta_set, tune_loader, calc_disc_cup_iou)
+    else:
+        raise ValueError("Invalid learner")
+
+    learner.learn()
+
+    return learner.best_avg_score
+
+
+def run_study(config: AllConfig, learner_type: str, study_name: str, dummy: bool):
+    resume = bool(study_name)
+    if study_name == "":
+        study_name = f"{learner_type} {nanoid.generate(size=5)}"
+    optuna_config: OptunaConfig = {
+        "study_name": study_name,
+        "direction": "maximize",
+        "sampler": "tpe",
+        "timeout_sec": 3600,
+        "sampler_params": {},
+    }
+
+    def objective(trial: optuna.Trial) -> float:
+        ...
+
+        score = run_fit(config, learner_type)
+
+        return score
+
+    sampler_class = sampler_classes[optuna_config["sampler"]]
+    study_kwargs = {
+        "study_name": optuna_config["study_name"],
+        "storage": get_optuna_storage(dummy),
+        "sampler": sampler_class(**optuna_config["sampler_params"]),
+    }
+
+    if resume:
+        study = optuna.load_study(**study_kwargs)
+    else:
+        study = optuna.create_study(
+            direction=optuna_config["direction"], **study_kwargs
+        )
+
+    study.set_user_attr("git_hash", get_short_git_hash())
+    for key, value in optuna_config.items():
+        study.set_user_attr(key, value)
+
+    study.optimize(
+        objective,
+        timeout=optuna_config["timeout_sec"],
+        gc_after_trial=True,
+    )
+
+
 @click.command()
 @click.option(
     "--learner",
@@ -81,28 +160,24 @@ def prepare_data(config: AllConfig) -> tuple[MetaDatasets, TuneLoaderDict]:
     type=click.Choice(["fit", "study"]),
     default="fit",
 )
+@click.option(
+    "--study_name",
+    "-sn",
+    type=str,
+    default="",
+)
 @click.option("--dummy", "-d", is_flag=True)
-def main(learner, mode, dummy):
+def main(learner, mode, dummy, study_name):
+    if not dummy and not check_git_clean():
+        raise Exception("Git is not clean, please commit your changes first")
+    print("Git hash:", get_short_git_hash())
+
     config = make_config(learner=learner or None, mode=mode, dummy=dummy)
 
-    meta_set, tune_loader = prepare_data(config)
-
-    if learner == "weasel":
-        net = UNet(config["data"]["num_channels"], config["data"]["num_classes"])
-        learner = WeaselLearner(net, config, meta_set, tune_loader, calc_disc_cup_iou)
-    elif learner == "protoseg":
-        net = UNet(config["data"]["num_channels"], config["protoseg"]["embedding_size"])
-        learner = ProtoSegLearner(net, config, meta_set, tune_loader, calc_disc_cup_iou)
-    else:
-        raise ValueError("Invalid learner")
-
-    try:
-        learner.learn()
-    finally:
-        net = None
-        learner = None
-        gc.collect()
-        cuda.empty_cache()
+    if mode == "fit":
+        run_fit(config, learner)
+    elif mode == "study":
+        run_study(config, learner, study_name, dummy)
 
 
 if __name__ == "__main__":
