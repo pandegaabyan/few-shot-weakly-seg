@@ -165,6 +165,14 @@ class MetaLearner(
             batch_size = self.config["data"]["batch_size"]
         return [t.split(batch_size) for t in tensors]
 
+    def optimizer_state_dicts(self) -> list[dict[str, Any]]:
+        return [opt.optimizer.state_dict() for opt in self.get_optimizer_list()]
+
+    def load_optimizer_state_dicts(self, state_dicts: list[dict[str, Any]]):
+        opt_list = self.get_optimizer_list()
+        for opt, state_dict in zip(opt_list, state_dicts):
+            opt.optimizer.load_state_dict(state_dict)
+
     def manual_optimizer_step(self):
         opt_list = self.get_optimizer_list()
         for opt in opt_list:
