@@ -27,9 +27,9 @@ sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {
 
 def get_optuna_storage(dummy: bool = False) -> optuna.storages.BaseStorage:
     if dummy:
-        log_dir = "logs"
-        os.makedirs(log_dir, exist_ok=True)
-        db_url = f"sqlite:///{log_dir}/optuna_dummy.sqlite3"
+        dir = "outputs"
+        os.makedirs(dir, exist_ok=True)
+        db_url = f"sqlite:///{dir}/optuna_dummy.sqlite3"
     else:
         load_dotenv()
         db_url = os.getenv("OPTUNA_DB_URL")
