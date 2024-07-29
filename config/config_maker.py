@@ -80,6 +80,14 @@ all_config: AllConfig = {
 }
 
 
+def make_exp_name(learner: str | None = None, dummy: bool = False) -> str:
+    name_prefix = (
+        "WS" if learner == "weasel" else "PS" if learner == "protoseg" else "N"
+    )
+    exp_name = f"{name_prefix}{' D ' if dummy else ' '}{nanoid.generate(size=5)}"
+    return exp_name
+
+
 def make_config(
     learner: Literal["weasel", "protoseg", None] = None,
     mode: Literal["fit", "study"] = "fit",
@@ -104,9 +112,6 @@ def make_config(
     if mode == "study":
         all_config["save"]["minimal_save"] = True
 
-    name_prefix = (
-        "WS" if learner == "weasel" else "PS" if learner == "protoseg" else "N"
-    )
-    all_config["save"]["exp_name"] = f"{name_prefix} {nanoid.generate(size=5)}"
+    all_config["save"]["exp_name"] = make_exp_name(learner=learner, dummy=dummy)
 
     return all_config
