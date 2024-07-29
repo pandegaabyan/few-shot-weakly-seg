@@ -1,6 +1,5 @@
 import datetime
 from copy import deepcopy
-from typing import Literal
 
 import nanoid
 
@@ -16,6 +15,7 @@ from config.config_type import (
     DataConfig,
     GuidedNetsConfig,
     LearnConfig,
+    LearnerType,
     LogConfig,
     MetaLearnerConfig,
     OptimizerConfig,
@@ -121,7 +121,7 @@ def make_run_name() -> str:
 
 
 def make_config(
-    learner: Literal["simple", "meta", "weasel", "protoseg", "guidednets", None] = None,
+    learner: LearnerType = None,
     mode: RunMode = "fit-test",
     name_suffix: str = "",
     use_wandb: bool = True,

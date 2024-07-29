@@ -3,6 +3,7 @@ from typing import Literal, Union
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study"]
+LearnerType = Literal["simple", "meta", "weasel", "protoseg", "guidednets", None]
 
 
 class DataConfig(TypedDict):
