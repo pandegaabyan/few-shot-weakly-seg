@@ -4,7 +4,7 @@ import click
 import nanoid
 import optuna
 
-from config.config_maker import make_config
+from config.config_maker import make_config, make_exp_name
 from config.config_type import AllConfig
 from config.optuna import (
     OptunaConfig,
@@ -111,12 +111,33 @@ def run_study(config: AllConfig, learner_type: str, study_name: str, dummy: bool
         "study_name": study_name,
         "direction": "maximize",
         "sampler": "tpe",
-        "timeout_sec": 3600,
+        "timeout_sec": 20 * 60 if dummy else 8 * 3600,
         "sampler_params": {},
     }
 
     def objective(trial: optuna.Trial) -> float:
-        ...
+        config["save"]["exp_name"] = make_exp_name(learner=learner_type, dummy=dummy)
+
+        lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
+        weight_decay = trial.suggest_float("weight_decay", 1e-10, 1e-3, log=True)
+        momentum_comp = trial.suggest_float("momentum_comp", 1e-2, 1, log=True)
+        lowest_gamma = (1e-10 / lr) ** (
+            config["learn"]["scheduler_step_size"] / config["learn"]["num_epochs"]
+        )
+        gamma = trial.suggest_float("gamma", lowest_gamma, 1, log=True)
+        config["learn"]["optimizer_lr"] = lr
+        config["learn"]["optimizer_weight_decay"] = weight_decay
+        config["learn"]["optimizer_momentum"] = 1 - momentum_comp
+        config["learn"]["scheduler_gamma"] = gamma
+
+        if learner_type == "weasel":
+            first_order = trial.suggest_categorical("first_order", [True, False])
+            update_rate = trial.suggest_float("update_rate", 1e-2, 1, log=True)
+            config["weasel"]["use_first_order"] = first_order
+            config["weasel"]["update_param_rate"] = update_rate
+        elif learner_type == "protoseg":
+            embedding = trial.suggest_int("embedding", 2, 16)
+            config["protoseg"]["embedding_size"] = embedding
 
         score = run_fit(config, learner_type)
 
@@ -135,10 +156,11 @@ def run_study(config: AllConfig, learner_type: str, study_name: str, dummy: bool
         study = optuna.create_study(
             direction=optuna_config["direction"], **study_kwargs
         )
-
-    study.set_user_attr("git_hash", get_short_git_hash())
-    for key, value in optuna_config.items():
-        study.set_user_attr(key, value)
+        study.set_user_attr("git_hash", get_short_git_hash())
+        for key, value in optuna_config.items():
+            if key == "study_name":
+                continue
+            study.set_user_attr(key, value)
 
     study.optimize(
         objective,
