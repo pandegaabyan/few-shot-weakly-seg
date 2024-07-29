@@ -190,9 +190,11 @@ class Runner:
             study = optuna.create_study(
                 direction=self.optuna_config["direction"], **study_kwargs
             )
-
-        for key, value in self.optuna_config.items():
-            study.set_user_attr(key, value)
+            study.set_user_attr("git_hash", get_short_git_hash())
+            for key, value in self.optuna_config.items():
+                if key == "study_name":
+                    continue
+                study.set_user_attr(key, value)
 
         n_trials = self.optuna_config.get("num_trials")
         timeout = self.optuna_config.get("timeout_sec")
