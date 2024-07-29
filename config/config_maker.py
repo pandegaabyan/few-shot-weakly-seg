@@ -45,11 +45,12 @@ learn_config: LearnConfig = {
     "optimizer_lr": 1e-3,
     "optimizer_weight_decay": 5e-5,
     "optimizer_momentum": 0.9,
-    "scheduler_step_size": 150,
+    # "scheduler_step_size": 150,
+    "scheduler_step_size": 50,
     "scheduler_gamma": 0.2,
     "tune_freq": 3,
     "meta_used_datasets": 1,
-    "meta_iterations": 4,
+    "meta_iterations": 2,
 }
 
 save_config: SaveConfig = {
@@ -102,6 +103,7 @@ def make_config(
         all_config["data"]["num_workers"] = 3
         all_config["learn"]["num_epochs"] = 200
         all_config["learn"]["tune_freq"] = 40
+        all_config["learn"]["meta_iterations"] = 5
         all_config["weasel"]["tune_epochs"] = 40
         all_config["weasel"]["tune_test_freq"] = 8
         if learner == "weasel":
