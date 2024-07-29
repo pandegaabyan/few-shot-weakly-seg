@@ -79,7 +79,6 @@ class SimpleLearner(
 
         self.validation_step_losses.append(loss.item())
         score = self.metric(pred, mask)
-        score = self.metric.prepare_for_log(score)
 
         if self.trainer.sanity_checking:
             return loss
@@ -97,7 +96,6 @@ class SimpleLearner(
 
         self.test_step_losses.append(loss.item())
         score = self.metric(pred, mask)
-        score = self.metric.prepare_for_log(score)
 
         self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
@@ -110,10 +108,15 @@ class SimpleLearner(
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
         loss: Tensor,
-        score: list[tuple[str, float]] | None = None,
+        score: dict[str, Tensor] | None = None,
         epoch: int | None = None,
     ):
-        dummy_score = [(key, None) for key in sorted(self.metric.additional_params())]
+        if not self.config["log"].get("table"):
+            return
+        if score is not None:
+            score_tup = self.metric.prepare_for_log(score)
+        else:
+            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
         self.log_table(
             [
                 ("type", type),
@@ -121,6 +124,6 @@ class SimpleLearner(
                 ("batch", batch_idx),
                 ("loss", loss.item()),
             ]
-            + (score if score is not None else dummy_score),
+            + score_tup,
             "metrics",
         )

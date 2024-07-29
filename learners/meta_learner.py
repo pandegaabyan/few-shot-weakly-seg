@@ -33,7 +33,7 @@ class MetaLearner(
     @abstractmethod
     def evaluation_process(
         self, type: Literal["VL", "TS"], batch: FewSparseDataTuple, batch_idx: int
-    ) -> tuple[Tensor, Tensor, list[tuple[str, float]]]:
+    ) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         pass
 
     def make_dataloader(self, datasets: list[FewSparseDataset]):
@@ -135,9 +135,15 @@ class MetaLearner(
         batch_idx: int,
         loss: Tensor,
         support: SupportDataTuple,
-        score: list[tuple[str, Any]] | None = None,
+        score: dict[str, Tensor] | None = None,
         epoch: int | None = None,
     ):
+        if not self.config["log"].get("table"):
+            return
+        if score is not None:
+            score_tup = self.metric.prepare_for_log(score)
+        else:
+            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
         self.log_table(
             [
                 ("type", type),
@@ -148,11 +154,7 @@ class MetaLearner(
                 ("sparsity_value", support.sparsity_value),
                 ("loss", loss.item()),
             ]
-            + (
-                score
-                if score is not None
-                else [(key, None) for key in sorted(self.metric.additional_params())]
-            ),
+            + score_tup,
             "metrics",
         )
 
