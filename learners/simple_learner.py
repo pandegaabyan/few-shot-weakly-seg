@@ -40,7 +40,7 @@ class SimpleLearner(
 
     def make_indices_to_save(
         self, datasets: list[SimpleDataset], sample_size: int
-    ) -> list[list[int]]:
+    ) -> list[list[int]] | None:
         batch_size = self.config["data"]["batch_size"]
         return make_batch_sample_indices(
             sum(len(ds) for ds in datasets),

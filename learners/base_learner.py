@@ -135,7 +135,7 @@ class BaseLearner(
     @abstractmethod
     def make_indices_to_save(
         self, datasets: list[DatasetClass], sample_size: int
-    ) -> list[list[int]]:
+    ) -> list[list[int]] | None:
         pass
 
     @abstractmethod
@@ -594,6 +594,9 @@ class BaseLearner(
                 indices_to_save = self.val_indices_to_save
             case "TS":
                 indices_to_save = self.test_indices_to_save
+        if indices_to_save is None:
+            return
+
         if batch_idx == 0:
             self.prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
