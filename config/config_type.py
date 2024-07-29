@@ -41,7 +41,7 @@ class SaveConfig(TypedDict):
 
 class WeaselConfig(TypedDict):
     use_first_order: bool  # First order approximation of MAML.
-    update_param_step_size: float  # MAML inner loop step size.
+    update_param_rate: float  # MAML inner loop learning rate.
     tune_epochs: int  # Number of epochs on the tuning phase.
     tune_test_freq: int  # Test each tune_test_freq epochs on the tuning phase.
 

@@ -180,9 +180,7 @@ class WeaselLearner(MetaLearner):
 
         params = OrderedDict()
         for (name, param), grad in zip(self.net.meta_named_parameters(), grads):
-            params[name] = (
-                param - self.config["weasel"]["update_param_step_size"] * grad
-            )
+            params[name] = param - self.config["weasel"]["update_param_rate"] * grad
 
         return params
 

@@ -61,7 +61,7 @@ save_config: SaveConfig = {
 
 weasel_config: WeaselConfig = {
     "use_first_order": False,
-    "update_param_step_size": 0.3,
+    "update_param_rate": 0.3,
     "tune_epochs": 4,
     "tune_test_freq": 2,
 }
