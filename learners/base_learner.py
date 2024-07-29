@@ -547,7 +547,9 @@ class BaseLearner(
             return
 
         gt_arr = gt.cpu().numpy()
-        pred_arr = pred.argmax(0).cpu().numpy()
+        if pred.is_floating_point():
+            pred = pred.argmax(dim=0)
+        pred_arr = pred.cpu().numpy()
         if image is not None:
             image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
         else:
