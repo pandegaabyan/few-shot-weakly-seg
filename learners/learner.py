@@ -362,9 +362,8 @@ class MetaLearner(ABC):
         )
 
     def print_and_log(self, message: str, start: str = "", end: str = ""):
-        if self.config["save"]["minimal_save"]:
-            return
-        logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
+        if not self.config["save"]["minimal_save"]:
+            logging.info(start.replace("\n", "") + message + end.replace("\n", ""))
         print(start + message + end)
 
     @staticmethod
