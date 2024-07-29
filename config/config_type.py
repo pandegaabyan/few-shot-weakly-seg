@@ -76,10 +76,11 @@ class MetaLearnerConfig(TypedDict):
 
 
 class WeaselConfig(TypedDict):
-    use_first_order: bool
-    update_param_step_size: float
+    first_order: bool
+    update_param_rate: float
     tune_epochs: int
     tune_val_freq: int
+    tune_multi_step: bool
 
 
 class ProtoSegConfig(TypedDict):

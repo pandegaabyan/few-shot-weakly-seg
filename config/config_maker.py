@@ -99,10 +99,11 @@ simple_learner_config: SimpleLearnerConfig = {}
 meta_learner_config: MetaLearnerConfig = {}
 
 weasel_config: WeaselConfig = {
-    "use_first_order": False,
-    "update_param_step_size": 0.3,
+    "first_order": False,
+    "update_param_rate": 0.3,
     "tune_epochs": 3,
     "tune_val_freq": 1,
+    "tune_multi_step": True,
 }
 
 protoseg_config: ProtoSegConfig = {
