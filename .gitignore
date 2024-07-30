@@ -4,4 +4,6 @@
 .vscode
 
 archive
+ckpt
 logs
+outputs
