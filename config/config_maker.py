@@ -108,6 +108,7 @@ weasel_config: WeaselConfig = {
 }
 
 protoseg_config: ProtoSegConfig = {
+    "multi_pred": False,
     "embedding_size": 8,
 }
 

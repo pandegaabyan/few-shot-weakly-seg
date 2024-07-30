@@ -68,12 +68,10 @@ class WandbConfig(TypedDict, total=False):
     save_test_preds: int
 
 
-class SimpleLearnerConfig(TypedDict):
-    ...
+class SimpleLearnerConfig(TypedDict): ...
 
 
-class MetaLearnerConfig(TypedDict):
-    ...
+class MetaLearnerConfig(TypedDict): ...
 
 
 class WeaselConfig(TypedDict):
@@ -85,6 +83,7 @@ class WeaselConfig(TypedDict):
 
 
 class ProtoSegConfig(TypedDict):
+    multi_pred: bool
     embedding_size: int
 
 
