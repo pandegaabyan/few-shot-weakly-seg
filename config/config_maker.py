@@ -60,8 +60,8 @@ scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 log_config: LogConfig = {
     "configuration": True,
     "table": True,
-    "model_onnx": True,
-    "tensorboard_graph": True,
+    "model_onnx": False,
+    "tensorboard_graph": False,
 }
 
 callbacks_config: CallbacksConfig = {
@@ -109,10 +109,10 @@ weasel_config: WeaselConfig = {
 
 protoseg_config: ProtoSegConfig = {
     "multi_pred": False,
-    "embedding_size": 8,
+    "embedding_size": 4,
 }
 
-guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
+guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
 
 
 def make_run_name() -> str:
