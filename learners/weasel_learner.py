@@ -107,6 +107,9 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 qry_loss = self.loss(qry_pred, query.masks)
                 qry_score = self.metric(qry_pred, query.masks)
 
+            if self.trainer.sanity_checking:
+                continue
+
             self.log_to_table_tuning_metrics(type, batch_idx, ep, qry_loss, qry_score)
 
         self.net.load_state_dict(net_state_dict)
