@@ -15,6 +15,14 @@ from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 
 
+def update_datasets_for_dummy(
+    *dataset_lists: Sequence[tuple[Type[BaseDataset], BaseDatasetKwargs]],
+):
+    for ds_list in dataset_lists:
+        for ds in ds_list:
+            ds[1]["max_items"] = 6
+
+
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
     lr_bias_mult = trial.suggest_categorical("lr_bias_mult", [0.5, 1, 2])
@@ -50,12 +58,14 @@ class SimpleRunner(Runner):
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         dataset_list = [self.make_rim_one_dataset(dataset_fold)]
-        for ds in dataset_list:
-            ds[1]["max_items"] = 6 if dummy else None
+        if dummy:
+            update_datasets_for_dummy(dataset_list)
 
         cfg: ConfigSimpleLearner = config  # type: ignore
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
+        else:
+            important_config = {}
 
         kwargs: SimpleLearnerKwargs = {
             "config": cfg,
@@ -99,7 +109,6 @@ class SimpleRunner(Runner):
     ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
         rim_one_kwargs: SimpleDatasetKwargs = {
             "seed": 0,
-            "max_items": None,
             "split_val_size": 0.2,
             "split_val_fold": val_fold,
             "split_test_size": 0.2,
@@ -116,7 +125,6 @@ class SimpleRunner(Runner):
     ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
         drishti_kwargs: SimpleDatasetKwargs = {
             "seed": 0,
-            "max_items": None,
             "split_val_size": 0.15,
             "split_val_fold": val_fold,
             "split_test_size": 0.15,
