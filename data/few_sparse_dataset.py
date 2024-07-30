@@ -32,7 +32,7 @@ class FewSparseDataset(BaseDataset, ABC):
         super().__init__(mode, num_classes, resize_to, **kwargs)
 
         self.shot_options = kwargs.get("shot_options", "all")
-        self.sparsity_options = kwargs.get("sparsity_options", [("random", "random")])
+        self.sparsity_options = kwargs.get("sparsity_options") or [("random", "random")]
         self.sparsity_params = kwargs.get("sparsity_params") or {}
         self.shot_sparsity_permutation = kwargs.get("shot_sparsity_permutation", False)
         self.homogen_support_batch = (
@@ -407,8 +407,6 @@ class FewSparseDataset(BaseDataset, ABC):
         return support_indices, query_indices
 
     def select_sparsity(self, index: int) -> tuple[SparsityMode, SparsityValue]:
-        if len(self.sparsity_options) == 0:
-            return "random", "random"
         random.seed(index)
         sparsity = self.sparsity_options[index % len(self.sparsity_options)]
         sparsity_mode = sparsity[0]
