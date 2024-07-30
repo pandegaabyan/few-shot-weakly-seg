@@ -20,7 +20,8 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
-    deterministic: NotRequired[bool]
+    cudnn_deterministic: NotRequired[bool | Literal["warn"]]
+    cudnn_benchmark: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
     optuna_study_name: NotRequired[str | None]

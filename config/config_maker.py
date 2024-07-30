@@ -41,7 +41,8 @@ learn_config: LearnConfig = {
     "run_name": "",
     "dummy": True,
     "val_freq": 1,
-    "deterministic": True,
+    "cudnn_deterministic": "warn",
+    "cudnn_benchmark": False,
     "manual_optim": False,
     "ref_ckpt_path": None,
     "optuna_study_name": None,
@@ -131,7 +132,8 @@ def make_config(
     config_ref = deepcopy(config_base)
 
     if mode == "study":
-        config_ref["learn"]["deterministic"] = False
+        config_ref["learn"]["cudnn_deterministic"] = False
+        config_ref["learn"]["cudnn_benchmark"] = True
         config_ref["log"]["configuration"] = False
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False

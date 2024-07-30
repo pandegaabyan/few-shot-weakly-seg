@@ -74,14 +74,13 @@ class Runner:
 
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
-        deterministic = self.config["learn"].get("deterministic", True)
         progress = self.config["callbacks"].get("progress", True)
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
             callbacks=callbacks,
-            deterministic="warn" if deterministic else False,
-            benchmark=not deterministic,
+            deterministic=self.config["learn"].get("cudnn_deterministic", "warn"),
+            benchmark=self.config["learn"].get("cudnn_benchmark", False),
             logger=False,
             enable_progress_bar=progress,
             enable_model_summary=progress,
