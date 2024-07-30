@@ -4,7 +4,7 @@ import click
 
 from config.config_maker import make_config
 from config.config_type import LearnerType, RunMode
-from my_runners import SimpleRunner
+from my_runners import ProtosegRunner, SimpleRunner, WeaselRunner
 from runners.runner import Runner
 from utils.logging import (
     check_git_clean,
@@ -67,6 +67,8 @@ def main(
 
     runner_classes: dict[LearnerType, Type[Runner]] = {
         "simple": SimpleRunner,
+        "weasel": WeaselRunner,
+        "protoseg": ProtosegRunner,
     }
     runner = runner_classes[learner](config, dummy, resume)
 
