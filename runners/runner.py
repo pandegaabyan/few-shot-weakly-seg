@@ -173,14 +173,15 @@ class Runner:
             self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
             self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
 
+        pruner = pruner_class(**self.optuna_config.get("pruner_params", {}))
+        pruner_patience = self.optuna_config.get("pruner_patience")
+        if pruner_patience:
+            pruner = optuna.pruners.PatientPruner(pruner, pruner_patience)
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
             "storage": get_optuna_storage(self.dummy),
             "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
-            "pruner": optuna.pruners.PatientPruner(
-                pruner_class(**self.optuna_config.get("pruner_params")),
-                self.optuna_config.get("pruner_patience", 1),
-            ),
+            "pruner": pruner,
         }
 
         if self.resume:
