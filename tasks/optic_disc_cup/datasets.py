@@ -9,7 +9,7 @@ from data.few_sparse_dataset import FewSparseDataset
 
 class RimOneDataset(FewSparseDataset):
     def get_all_data_path(self) -> list[tuple[str, str]]:
-        data_path = "../Data/RIM-ONE"
+        data_path = "../data/RIM-ONE DL"
         img_dir = "/images/"
         msk_dir = "/masks/"
         img_files = os.listdir(data_path + img_dir)
@@ -35,15 +35,14 @@ class RimOneDataset(FewSparseDataset):
     @staticmethod
     def read_image_mask(img_path: str, msk_path: str) -> tuple[NDArray, NDArray]:
         img = io.imread(img_path, as_gray=False)
-        msk = io.imread(msk_path, as_gray=True)
-        msk = (msk * 255).astype(np.int8)
+        msk = io.imread(msk_path, as_gray=True).astype(np.int8)
 
         return img, msk
 
 
 class DrishtiDataset(FewSparseDataset):
     def get_all_data_path(self) -> list[tuple[str, str]]:
-        data_path = "../Data/DRISHTI-GS"
+        data_path = "../data/DRISHTI-GS"
         img_dir = "/images/"
         msk_dir = "/masks/"
         img_files = os.listdir(data_path + img_dir)
@@ -69,7 +68,6 @@ class DrishtiDataset(FewSparseDataset):
     @staticmethod
     def read_image_mask(img_path: str, msk_path: str) -> tuple[NDArray, NDArray]:
         img = io.imread(img_path, as_gray=False)
-        msk = io.imread(msk_path, as_gray=True)
-        msk = (msk * 255).astype(np.int64)
+        msk = io.imread(msk_path, as_gray=True).astype(np.int8)
 
         return img, msk
