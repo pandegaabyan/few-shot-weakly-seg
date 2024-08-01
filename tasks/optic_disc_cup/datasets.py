@@ -12,7 +12,7 @@ from data.typings import DataPathList, SparsityMode, SparsityValue
 
 
 def get_rim_one_data_path() -> DataPathList:
-    data_path = "../Data/RIM-ONE"
+    data_path = "../data/RIM-ONE DL"
     img_dir = "/images/"
     msk_dir = "/masks/"
     img_files = os.listdir(data_path + img_dir)
@@ -39,7 +39,7 @@ def get_rim_one_data_path() -> DataPathList:
 
 
 def get_drishti_data_path() -> list[tuple[str, str]]:
-    data_path = "../Data/DRISHTI-GS"
+    data_path = "../data/DRISHTI-GS"
     img_dir = "/images/"
     msk_dir = "/masks/"
     img_files = os.listdir(data_path + img_dir)
