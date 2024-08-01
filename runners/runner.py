@@ -74,14 +74,13 @@ class Runner:
 
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
-        deterministic = self.config["learn"].get("deterministic", True)
         progress = self.config["callbacks"].get("progress", True)
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
             callbacks=callbacks,
-            deterministic="warn" if deterministic else False,
-            benchmark=not deterministic,
+            deterministic=self.config["learn"].get("cudnn_deterministic", "warn"),
+            benchmark=self.config["learn"].get("cudnn_benchmark", False),
             logger=False,
             enable_progress_bar=progress,
             enable_model_summary=progress,
@@ -174,14 +173,15 @@ class Runner:
             self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
             self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
 
+        pruner = pruner_class(**self.optuna_config.get("pruner_params", {}))
+        pruner_patience = self.optuna_config.get("pruner_patience")
+        if pruner_patience:
+            pruner = optuna.pruners.PatientPruner(pruner, pruner_patience)
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
             "storage": get_optuna_storage(self.dummy),
             "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
-            "pruner": optuna.pruners.PatientPruner(
-                pruner_class(**self.optuna_config.get("pruner_params")),
-                self.optuna_config.get("pruner_patience", 1),
-            ),
+            "pruner": pruner,
         }
 
         if self.resume:
@@ -190,9 +190,11 @@ class Runner:
             study = optuna.create_study(
                 direction=self.optuna_config["direction"], **study_kwargs
             )
-
-        for key, value in self.optuna_config.items():
-            study.set_user_attr(key, value)
+            study.set_user_attr("git_hash", get_short_git_hash())
+            for key, value in self.optuna_config.items():
+                if key == "study_name":
+                    continue
+                study.set_user_attr(key, value)
 
         n_trials = self.optuna_config.get("num_trials")
         timeout = self.optuna_config.get("timeout_sec")

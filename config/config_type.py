@@ -3,6 +3,7 @@ from typing import Literal, Union
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study"]
+LearnerType = Literal["simple", "meta", "weasel", "protoseg", "guidednets", None]
 
 
 class DataConfig(TypedDict):
@@ -19,7 +20,8 @@ class LearnConfig(TypedDict):
     run_name: str
     dummy: NotRequired[bool]
     val_freq: NotRequired[int]
-    deterministic: NotRequired[bool]
+    cudnn_deterministic: NotRequired[bool | Literal["warn"]]
+    cudnn_benchmark: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
     optuna_study_name: NotRequired[str | None]
@@ -66,22 +68,22 @@ class WandbConfig(TypedDict, total=False):
     save_test_preds: int
 
 
-class SimpleLearnerConfig(TypedDict):
-    ...
+class SimpleLearnerConfig(TypedDict): ...
 
 
-class MetaLearnerConfig(TypedDict):
-    ...
+class MetaLearnerConfig(TypedDict): ...
 
 
 class WeaselConfig(TypedDict):
-    use_first_order: bool
-    update_param_step_size: float
+    first_order: bool
+    update_param_rate: float
     tune_epochs: int
     tune_val_freq: int
+    tune_multi_step: bool
 
 
 class ProtoSegConfig(TypedDict):
+    multi_pred: bool
     embedding_size: int
 
 

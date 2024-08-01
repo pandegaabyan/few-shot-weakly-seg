@@ -1,6 +1,5 @@
 import datetime
 from copy import deepcopy
-from typing import Literal
 
 import nanoid
 
@@ -16,6 +15,7 @@ from config.config_type import (
     DataConfig,
     GuidedNetsConfig,
     LearnConfig,
+    LearnerType,
     LogConfig,
     MetaLearnerConfig,
     OptimizerConfig,
@@ -41,7 +41,8 @@ learn_config: LearnConfig = {
     "run_name": "",
     "dummy": True,
     "val_freq": 1,
-    "deterministic": True,
+    "cudnn_deterministic": "warn",
+    "cudnn_benchmark": False,
     "manual_optim": False,
     "ref_ckpt_path": None,
     "optuna_study_name": None,
@@ -59,8 +60,8 @@ scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 log_config: LogConfig = {
     "configuration": True,
     "table": True,
-    "model_onnx": True,
-    "tensorboard_graph": True,
+    "model_onnx": False,
+    "tensorboard_graph": False,
 }
 
 callbacks_config: CallbacksConfig = {
@@ -99,17 +100,19 @@ simple_learner_config: SimpleLearnerConfig = {}
 meta_learner_config: MetaLearnerConfig = {}
 
 weasel_config: WeaselConfig = {
-    "use_first_order": False,
-    "update_param_step_size": 0.3,
+    "first_order": False,
+    "update_param_rate": 0.3,
     "tune_epochs": 3,
     "tune_val_freq": 1,
+    "tune_multi_step": True,
 }
 
 protoseg_config: ProtoSegConfig = {
-    "embedding_size": 8,
+    "multi_pred": False,
+    "embedding_size": 4,
 }
 
-guidednets_config: GuidedNetsConfig = {"embedding_size": 32}
+guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
 
 
 def make_run_name() -> str:
@@ -121,7 +124,7 @@ def make_run_name() -> str:
 
 
 def make_config(
-    learner: Literal["simple", "meta", "weasel", "protoseg", "guidednets", None] = None,
+    learner: LearnerType = None,
     mode: RunMode = "fit-test",
     name_suffix: str = "",
     use_wandb: bool = True,
@@ -130,7 +133,8 @@ def make_config(
     config_ref = deepcopy(config_base)
 
     if mode == "study":
-        config_ref["learn"]["deterministic"] = False
+        config_ref["learn"]["cudnn_deterministic"] = False
+        config_ref["learn"]["cudnn_benchmark"] = True
         config_ref["log"]["configuration"] = False
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False

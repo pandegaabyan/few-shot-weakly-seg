@@ -74,7 +74,7 @@ class BaseLearner(
             "val", self.val_dataset_list or self.dataset_list
         )
         self.test_datasets = self.make_dataset(
-            "test", self.test_dataset_list or self.dataset_list
+            "test", self.test_dataset_list or self.val_dataset_list or self.dataset_list
         )
 
         (loss_class, loss_kwargs) = kwargs.get("loss") or (CustomLoss, {})
@@ -135,7 +135,7 @@ class BaseLearner(
     @abstractmethod
     def make_indices_to_save(
         self, datasets: list[DatasetClass], sample_size: int
-    ) -> list[list[int]]:
+    ) -> list[list[int]] | None:
         pass
 
     @abstractmethod
@@ -547,7 +547,9 @@ class BaseLearner(
             return
 
         gt_arr = gt.cpu().numpy()
-        pred_arr = pred.argmax(0).cpu().numpy()
+        if pred.is_floating_point():
+            pred = pred.argmax(dim=0)
+        pred_arr = pred.cpu().numpy()
         if image is not None:
             image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
         else:
@@ -594,6 +596,9 @@ class BaseLearner(
                 indices_to_save = self.val_indices_to_save
             case "TS":
                 indices_to_save = self.test_indices_to_save
+        if indices_to_save is None:
+            return
+
         if batch_idx == 0:
             self.prediction_data[type] = []
         for i in indices_to_save[batch_idx]:

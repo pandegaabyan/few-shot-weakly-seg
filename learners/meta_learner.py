@@ -33,7 +33,7 @@ class MetaLearner(
     @abstractmethod
     def evaluation_process(
         self, type: Literal["VL", "TS"], batch: FewSparseDataTuple, batch_idx: int
-    ) -> tuple[Tensor, Tensor, list[tuple[str, float]]]:
+    ) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         pass
 
     def make_dataloader(self, datasets: list[FewSparseDataset]):
@@ -49,7 +49,7 @@ class MetaLearner(
 
     def make_indices_to_save(
         self, datasets: list[FewSparseDataset], sample_size: int
-    ) -> list[list[int]]:
+    ) -> list[list[int]] | None:
         batch_size = min(ds.query_batch_size for ds in datasets)
         return make_batch_sample_indices(
             sum(ds.num_iterations for ds in datasets) * batch_size,
@@ -135,9 +135,15 @@ class MetaLearner(
         batch_idx: int,
         loss: Tensor,
         support: SupportDataTuple,
-        score: list[tuple[str, Any]] | None = None,
+        score: dict[str, Tensor] | None = None,
         epoch: int | None = None,
     ):
+        if not self.config["log"].get("table"):
+            return
+        if score is not None:
+            score_tup = self.metric.prepare_for_log(score)
+        else:
+            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
         self.log_table(
             [
                 ("type", type),
@@ -148,11 +154,7 @@ class MetaLearner(
                 ("sparsity_value", support.sparsity_value),
                 ("loss", loss.item()),
             ]
-            + (
-                score
-                if score is not None
-                else [(key, None) for key in sorted(self.metric.additional_params())]
-            ),
+            + score_tup,
             "metrics",
         )
 
@@ -162,6 +164,14 @@ class MetaLearner(
         if batch_size == -1:
             batch_size = self.config["data"]["batch_size"]
         return [t.split(batch_size) for t in tensors]
+
+    def optimizer_state_dicts(self) -> list[dict[str, Any]]:
+        return [opt.optimizer.state_dict() for opt in self.get_optimizer_list()]
+
+    def load_optimizer_state_dicts(self, state_dicts: list[dict[str, Any]]):
+        opt_list = self.get_optimizer_list()
+        for opt, state_dict in zip(opt_list, state_dicts):
+            opt.optimizer.load_state_dict(state_dict)
 
     def manual_optimizer_step(self):
         opt_list = self.get_optimizer_list()
