@@ -60,8 +60,8 @@ scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 log_config: LogConfig = {
     "configuration": True,
     "table": True,
-    "model_onnx": False,
-    "tensorboard_graph": False,
+    "model_onnx": True,
+    "tensorboard_graph": True,
 }
 
 callbacks_config: CallbacksConfig = {

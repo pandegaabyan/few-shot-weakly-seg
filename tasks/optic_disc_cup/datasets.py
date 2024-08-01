@@ -67,8 +67,7 @@ def get_drishti_data_path() -> list[tuple[str, str]]:
 
 def read_image_mask(img_path: str, msk_path: str) -> tuple[NDArray, NDArray]:
     img = io.imread(img_path, as_gray=False)
-    msk = io.imread(msk_path, as_gray=True)
-    msk = (msk * 255).astype(np.int8)
+    msk = io.imread(msk_path, as_gray=True).astype(np.int8)
 
     return img, msk
 
