@@ -45,7 +45,6 @@ def update_datasets_for_dummy(
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
-    lr_bias_mult = trial.suggest_categorical("lr_bias_mult", [0.5, 1, 2])
     weight_decay = trial.suggest_float("weight_decay", 1e-10, 1e-3, log=True)
     beta1_comp = trial.suggest_float("beta1_comp", 1e-2, 1, log=True)
     beta2_comp = trial.suggest_float("beta2_comp", 1e-4, 1e-2, log=True)
@@ -55,7 +54,6 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     gamma = trial.suggest_float("gamma", lowest_gamma, 1, log=True)
 
     config["optimizer"]["lr"] = lr
-    config["optimizer"]["lr_bias_mult"] = lr_bias_mult
     config["optimizer"]["weight_decay"] = weight_decay
     config["optimizer"]["betas"] = (1 - beta1_comp, 1 - beta2_comp)
     config["scheduler"]["gamma"] = gamma
@@ -114,10 +112,12 @@ class SimpleRunner(Runner):
             "seed": 0,
         }
         config["pruner_params"] = {
+            "min_resource": 10,
+            "max_resource": self.config["learn"]["num_epochs"],
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
-        config["pruner_patience"] = 10
+        config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 3
             config["timeout_sec"] = 8 * 3600
