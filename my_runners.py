@@ -26,9 +26,9 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    DrishtiDataset,
+    DrishtiFSDataset,
     DrishtiSimpleDataset,
-    RimOneDataset,
+    RimOneFSDataset,
     RimOneSimpleDataset,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
@@ -180,7 +180,7 @@ class MetaRunner(Runner):
             "num_iterations": 2,
         }
 
-        return (RimOneDataset, rim_one_kwargs)
+        return (RimOneFSDataset, rim_one_kwargs)
 
     def make_drishti_dataset(
         self,
@@ -202,7 +202,7 @@ class MetaRunner(Runner):
             "num_iterations": 2,
         }
 
-        return (DrishtiDataset, drishti_kwargs)
+        return (DrishtiFSDataset, drishti_kwargs)
 
 
 class WeaselRunner(MetaRunner):

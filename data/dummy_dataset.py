@@ -6,13 +6,14 @@ from numpy.typing import NDArray
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
+from data.typings import DataPathList
 
 
-class AbstractDummyDataset(BaseDataset, ABC):
+class DummyBaseDataset(BaseDataset, ABC):
     def set_class_labels(self) -> dict[int, str]:
         return {0: "background", 1: "optic_disc", 2: "optic_cup"}
 
-    def get_all_data_path(self) -> list[tuple[str, str]]:
+    def get_all_data_path(self) -> DataPathList:
         return [
             (f"path/to/image/img{index}.png", f"path/to/mask/msk{index}.png")
             for index in range(400)
@@ -30,7 +31,7 @@ class AbstractDummyDataset(BaseDataset, ABC):
         return img, msk
 
 
-class DummyDataset(AbstractDummyDataset, FewSparseDataset):
+class DummyDataset(DummyBaseDataset, FewSparseDataset):
     def set_additional_sparse_mode(self):
         return []
 
@@ -40,5 +41,4 @@ class DummyDataset(AbstractDummyDataset, FewSparseDataset):
         return msk
 
 
-class DummySimpleDataset(AbstractDummyDataset, SimpleDataset):
-    ...
+class DummySimpleDataset(DummyBaseDataset, SimpleDataset): ...
