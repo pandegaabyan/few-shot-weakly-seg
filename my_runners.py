@@ -122,7 +122,7 @@ class SimpleRunner(Runner):
         config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 12 * 3600
+            config["timeout_sec"] = 10 * 3600
         return config
 
     def make_rim_one_dataset(
