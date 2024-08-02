@@ -77,7 +77,7 @@ class SimpleRunner(Runner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_list = [self.make_drishti_dataset(dataset_fold)]
+        dataset_list = [self.make_origa_dataset(dataset_fold)]
         if dummy:
             update_datasets_for_dummy(dataset_list)
 
@@ -104,7 +104,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple DRISHTI"
+        config["study_name"] = "Simple ORIGA"
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
