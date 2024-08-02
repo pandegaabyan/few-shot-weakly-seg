@@ -99,6 +99,10 @@ class FewSparseDataset(BaseDataset, ABC):
         auto_dot_size = max(min(msk.shape) // 50, 1)
         dot_size = dot_size or auto_dot_size
 
+        sparsity_num = (
+            np.random.randint(5, 50) if sparsity == "random" else round(sparsity)
+        )
+
         small_msk = FewSparseDataset.resize_image(
             msk, np.divide(msk.shape, dot_size).tolist(), True
         )
@@ -108,16 +112,16 @@ class FewSparseDataset(BaseDataset, ABC):
         small_msk_point = np.zeros(msk_ravel.shape[0], dtype=msk.dtype)
         small_msk_point[:] = -1
 
+        total_count = msk_ravel.shape[0]
+        class_counts = np.unique(msk_ravel, return_counts=True)[1]
+        class_ratios = np.sqrt(class_counts / total_count)
+        class_points = class_ratios / class_ratios.sum() * sparsity_num
+        class_points = np.round(class_points).astype(int)
+
         for c in range(num_classes):
             msk_class = small_msk_point[msk_ravel == c]
-
             perm = np.random.permutation(msk_class.shape[0])
-            if sparsity == "random":
-                sparsity_num = np.random.randint(low=1, high=len(perm))
-            else:
-                sparsity_num = round(sparsity)
-            msk_class[perm[: min(sparsity_num, len(perm))]] = c
-
+            msk_class[perm[: min(class_points[c], len(perm))]] = c
             small_msk_point[msk_ravel == c] = msk_class
 
         small_msk_point = small_msk_point.reshape(small_msk.shape)
