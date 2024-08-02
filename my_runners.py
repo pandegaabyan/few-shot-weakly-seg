@@ -28,6 +28,8 @@ from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiFSDataset,
     DrishtiSimpleDataset,
+    OrigaSimpleDataset,
+    PapilaSimpleDataset,
     RimOneFSDataset,
     RimOneSimpleDataset,
 )
@@ -134,7 +136,7 @@ class SimpleRunner(Runner):
             "split_test_size": 0.2,
             "split_test_fold": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE",
+            "dataset_name": "RIM-ONE DL",
         }
 
         return (RimOneSimpleDataset, rim_one_kwargs)
@@ -155,6 +157,38 @@ class SimpleRunner(Runner):
 
         return (DrishtiSimpleDataset, drishti_kwargs)
 
+    def make_origa_dataset(
+        self,
+        val_fold: int = 0,
+    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
+        origa_kwargs: SimpleDatasetKwargs = {
+            "seed": 0,
+            "split_val_size": 0.2,
+            "split_val_fold": val_fold,
+            "split_test_size": 0.2,
+            "split_test_fold": 0,
+            "cache_data": True,
+            "dataset_name": "ORIGA",
+        }
+
+        return (OrigaSimpleDataset, origa_kwargs)
+
+    def make_papila_dataset(
+        self,
+        val_fold: int = 0,
+    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
+        papila_kwargs: SimpleDatasetKwargs = {
+            "seed": 0,
+            "split_val_size": 0.2,
+            "split_val_fold": val_fold,
+            "split_test_size": 0.2,
+            "split_test_fold": 0,
+            "cache_data": True,
+            "dataset_name": "PAPILA",
+        }
+
+        return (PapilaSimpleDataset, papila_kwargs)
+
 
 class MetaRunner(Runner):
     def make_optuna_config(self) -> OptunaConfig:
@@ -171,7 +205,7 @@ class MetaRunner(Runner):
         rim_one_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE",
+            "dataset_name": "RIM-ONE DL",
             "shot_options": [2],
             "sparsity_options": [("random", "random")],
             "query_batch_size": 2,
