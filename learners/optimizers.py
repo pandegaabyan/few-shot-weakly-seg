@@ -1,4 +1,4 @@
-from typing import Iterator, Union
+from typing import Union
 
 from pytorch_lightning.utilities.types import (
     LRSchedulerConfig,
@@ -16,7 +16,7 @@ from utils.logging import get_name_from_instance
 
 def make_optimizer_adam(
     config: OptimizerConfig,
-    net: Iterator[tuple[str, nn.Parameter]],
+    net: nn.Module,
 ) -> Optimizer:
     default_lr = 0.001
     default_betas = (0.9, 0.999)
