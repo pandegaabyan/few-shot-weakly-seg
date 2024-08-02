@@ -214,7 +214,7 @@ def make_config(
         }
         config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
-            config_simple["data"]["batch_size"] = 32
+            config_simple["data"]["batch_size"] = 16
             config_simple["learn"]["num_epochs"] = 200
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
@@ -225,7 +225,7 @@ def make_config(
         }
         config_meta["learn"]["exp_name"] = "ML"
         if not dummy:
-            config_meta["data"]["batch_size"] = 13
+            config_meta["data"]["batch_size"] = 8
         config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
@@ -235,7 +235,7 @@ def make_config(
         }
         config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
-            config_weasel["data"]["batch_size"] = 13
+            config_weasel["data"]["batch_size"] = 8
             config_weasel["weasel"]["tune_epochs"] = 10
         config = config_weasel
     elif learner == "protoseg":
@@ -246,7 +246,7 @@ def make_config(
         }
         config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
-            config_protoseg["data"]["batch_size"] = 32
+            config_protoseg["data"]["batch_size"] = 16
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
