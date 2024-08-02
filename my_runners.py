@@ -102,7 +102,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple RIM-ONE"
+        config["study_name"] = "Simple RIM-ONE TPE-Hyperband"
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -120,7 +120,7 @@ class SimpleRunner(Runner):
         config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 8 * 3600
+            config["timeout_sec"] = 6 * 3600
         return config
 
     def make_rim_one_dataset(
