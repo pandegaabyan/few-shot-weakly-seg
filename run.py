@@ -61,15 +61,6 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
-    config["data"]["batch_size"] = 16
-    config["learn"]["num_epochs"] = 300
-    config["callbacks"]["stop_patience"] = 15
-    config["optimizer"]["betas"] = (0.9, 0.999)
-    config["optimizer"]["lr"] = 0.00015
-    config["optimizer"]["lr_bias_mult"] = 2
-    config["optimizer"]["weight_decay"] = 0.0053
-    config["scheduler"]["gamma"] = 0.24731
-    config["scheduler"]["step_size"] = 50
 
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
