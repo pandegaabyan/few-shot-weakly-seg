@@ -83,4 +83,4 @@ def create_dataset_classes(
 RimOneSimpleDataset, RimOneFSDataset = create_dataset_classes("../data/RIM-ONE DL")
 DrishtiSimpleDataset, DrishtiFSDataset = create_dataset_classes("../data/DRISHTI-GS")
 OrigaSimpleDataset, OrigaFSDataset = create_dataset_classes("../data/ORIGA")
-PapilaSimpleDataset, PapilaFSDataset = create_dataset_classes("../data/Papila")
+PapilaSimpleDataset, PapilaFSDataset = create_dataset_classes("../data/PAPILA")
