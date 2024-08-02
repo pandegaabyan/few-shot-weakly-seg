@@ -196,7 +196,7 @@ def make_config(
         config_ref["data"]["num_workers"] = 3
         config_ref["learn"]["dummy"] = False
         config_ref["learn"]["num_epochs"] = 100
-        config_ref["callbacks"]["stop_patience"] = 10
+        config_ref["callbacks"]["stop_patience"] = 20
         if mode != "study":
             config_ref["callbacks"]["ckpt_top_k"] = 5
 
@@ -216,7 +216,7 @@ def make_config(
         if not dummy:
             config_simple["data"]["batch_size"] = 32
             config_simple["learn"]["num_epochs"] = 200
-            config_simple["callbacks"]["stop_patience"] = 20
+            config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
     elif learner == "meta":
         config_meta: ConfigMetaLearner = {

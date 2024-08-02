@@ -96,36 +96,34 @@ class FewSparseDataset(BaseDataset, ABC):
         if sparsity != "random":
             np.random.seed(seed)
 
-        default_dot_size = max(min(msk.shape) // 50, 1)
-        dot_size = dot_size or default_dot_size
+        auto_dot_size = max(min(msk.shape) // 50, 1)
+        dot_size = dot_size or auto_dot_size
+
+        sparsity_num = (
+            np.random.randint(5, 50) if sparsity == "random" else round(sparsity)
+        )
 
         small_msk = FewSparseDataset.resize_image(
             msk, np.divide(msk.shape, dot_size).tolist(), True
         )
 
-        # Linearizing mask.
         msk_ravel = small_msk.ravel()
 
-        # Copying raveled mask and starting it with -1 for inserting sparsity.
         small_msk_point = np.zeros(msk_ravel.shape[0], dtype=msk.dtype)
         small_msk_point[:] = -1
 
+        total_count = msk_ravel.shape[0]
+        class_counts = np.unique(msk_ravel, return_counts=True)[1]
+        class_ratios = np.sqrt(class_counts / total_count)
+        class_points = class_ratios / class_ratios.sum() * sparsity_num
+        class_points = np.round(class_points).astype(int)
+
         for c in range(num_classes):
-            # Slicing array for only containing class "c" pixels.
             msk_class = small_msk_point[msk_ravel == c]
-
-            # Random permutation of class "c" pixels.
             perm = np.random.permutation(msk_class.shape[0])
-            if sparsity == "random":
-                sparsity_num = np.random.randint(low=1, high=len(perm))
-            else:
-                sparsity_num = round(sparsity)
-            msk_class[perm[: min(sparsity_num, len(perm))]] = c
-
-            # Merging sparse masks.
+            msk_class[perm[: min(class_points[c], len(perm))]] = c
             small_msk_point[msk_ravel == c] = msk_class
 
-        # Reshaping linearized sparse mask to the original 2 dimensions.
         small_msk_point = small_msk_point.reshape(small_msk.shape)
 
         msk_point = FewSparseDataset.resize_image(small_msk_point, msk.shape, True)
@@ -152,50 +150,55 @@ class FewSparseDataset(BaseDataset, ABC):
     def sparse_grid(
         msk: NDArray,
         sparsity: SparsityValue = "random",
+        spacing: int | None = None,
         dot_size: int | None = None,
         seed=0,
     ) -> NDArray:
+        blob_seed = None
         if sparsity != "random":
             np.random.seed(seed)
+            prime_num = 11
+            blob_seed = seed * prime_num
 
-        default_dot_size = max(
-            min(msk.shape) // 80,
-            # sparsity // 5 if (isinstance(sparsity, float) or isinstance(sparsity, int)) else 0,
-            sparsity // 5
-            if (isinstance(sparsity, float) or isinstance(sparsity, int))
-            else 0,
-            1,
-        )
-        dot_size = dot_size or int(default_dot_size)
+        auto_spacing = np.max(msk.shape) // 20
+        int_spacing = spacing or auto_spacing
+
+        auto_dot_size = max(min(msk.shape) // 80, int_spacing // 5, 1)
+        dot_size = dot_size or int(auto_dot_size)
+
+        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         small_msk = FewSparseDataset.resize_image(
             msk, np.divide(msk.shape, dot_size).tolist(), True
         )
+        small_spacing = int_spacing // dot_size
 
-        # Copying mask and starting it with -1 for inserting sparsity.
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        if sparsity == "random":
-            # Random sparsity (x and y point spacing).
-            max_high = int(np.max(small_msk.shape) / 2)
-            spacing_value = np.random.randint(low=1, high=max_high)
-        else:
-            # Predetermined sparsity (x and y point spacing).
-            spacing_value = int(sparsity / dot_size)
-        spacing = (spacing_value, spacing_value)
+        starting = (np.random.randint(small_spacing), np.random.randint(small_spacing))
 
-        starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
-
-        small_new_msk[starting[0] :: spacing[0], starting[1] :: spacing[1]] = small_msk[
-            starting[0] :: spacing[0], starting[1] :: spacing[1]
-        ]
+        small_new_msk[starting[0] :: small_spacing, starting[1] :: small_spacing] = (
+            small_msk[starting[0] :: small_spacing, starting[1] :: small_spacing]
+        )
 
         new_msk = FewSparseDataset.resize_image(small_new_msk, msk.shape, True)
 
+        blobs = skdata.binary_blobs(
+            np.max(new_msk.shape),
+            blob_size_fraction=0.1,
+            volume_fraction=sparsity_num,
+            rng=blob_seed,
+        )
+        blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
+
+        final_msk = np.zeros_like(new_msk)
+        final_msk[:] = -1
+        final_msk[blobs] = new_msk[blobs]
+
         np.random.seed(None)
 
-        return new_msk
+        return final_msk
 
     @staticmethod
     def sparse_contour(
@@ -213,25 +216,21 @@ class FewSparseDataset(BaseDataset, ABC):
 
         new_msk = np.zeros_like(msk)
 
-        # Random disk radius for erosions and dilations from the original mask.
-        radius_dist = radius_dist or min(msk.shape) // 60
+        auto_radius_dist = min(msk.shape) // 60
+        radius_dist = radius_dist or auto_radius_dist
 
-        # Random disk radius for annotation thickness.
-        radius_thick = radius_thick or 1
+        auto_radius_thick = min(msk.shape) // 100
+        radius_thick = radius_thick or auto_radius_thick
 
-        # Creating morphology elements.
         selem_dist = morphology.disk(radius_dist)
         selem_thick = morphology.disk(radius_thick)
 
         for c in range(num_classes):
-            # Eroding original mask and obtaining contour.
             msk_class = morphology.binary_erosion(msk == c, selem_dist)
             msk_contr = measure.find_contours(msk_class, 0.0)
 
-            # Instantiating masks for the boundaries.
             msk_bound = np.zeros_like(msk)
 
-            # Filling boundary masks.
             for _, contour in enumerate(msk_contr):
                 rand_rot = np.random.randint(low=1, high=len(contour))
                 for j, coord in enumerate(np.roll(contour, rand_rot, axis=0)):
@@ -240,13 +239,10 @@ class FewSparseDataset(BaseDataset, ABC):
                     ):
                         msk_bound[int(coord[0]), int(coord[1])] = c + 1
 
-            # Dilating boundary masks to make them thicker.
             msk_bound = morphology.dilation(msk_bound, footprint=selem_thick)
 
-            # Removing invalid boundary masks.
             msk_bound = msk_bound * (msk == c)
 
-            # Merging boundary masks.
             new_msk += msk_bound
 
         np.random.seed(None)
@@ -261,18 +257,19 @@ class FewSparseDataset(BaseDataset, ABC):
         radius_thick: int | None = None,
         seed=0,
     ) -> NDArray:
-        bseed = None  # Blobs generator seed
+        blob_seed = None
         if sparsity != "random":
             np.random.seed(seed)
-            bseed = seed
+            prime_num = 13
+            blob_seed = seed * prime_num
 
         sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
 
-        # Randomly selecting disk radius the annotation thickness.
-        radius_thick = radius_thick or 1
+        auto_radius_thick = min(msk.shape) // 100
+        radius_thick = radius_thick or auto_radius_thick
         selem_thick = morphology.disk(radius_thick)
 
         for c in range(num_classes):
@@ -286,17 +283,17 @@ class FewSparseDataset(BaseDataset, ABC):
             np.max(new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
-            rng=bseed,
+            rng=blob_seed,
         )
         blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
 
-        n_sp = np.zeros_like(new_msk)
-        n_sp[:] = -1
-        n_sp[blobs] = new_msk[blobs]
+        final_msk = np.zeros_like(new_msk)
+        final_msk[:] = -1
+        final_msk[blobs] = new_msk[blobs]
 
         np.random.seed(None)
 
-        return n_sp
+        return final_msk
 
     @staticmethod
     def sparse_region(
@@ -312,17 +309,17 @@ class FewSparseDataset(BaseDataset, ABC):
 
         sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
-        # Copying mask and starting it with -1 for inserting sparsity.
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
 
-        # Computing SLIC super pixels.
+        auto_compactness = 0.5
+        compactness = compactness or auto_compactness
+
         slic = segmentation.slic(
-            img, n_segments=250, compactness=compactness or 0.5, start_label=1
+            img, n_segments=250, compactness=compactness, start_label=1
         )
         labels = np.unique(slic)
 
-        # Finding 'pure' regions, that is, the ones that only contain one label within.
         pure_regions = [[] for _ in range(num_classes)]
         for label in labels:
             sp = msk[slic == label].ravel()
@@ -333,10 +330,8 @@ class FewSparseDataset(BaseDataset, ABC):
                     pure_regions[c].append(label)
 
         for c, pure_region in enumerate(pure_regions):
-            # Random permutation to pure region.
             perm = np.random.permutation(len(pure_region))
 
-            # Only keeping the selected k regions.
             perm_last_idx = max(1, round(sparsity_num * len(perm)))
             for sp in np.array(pure_region)[perm[:perm_last_idx]]:
                 new_msk[slic == sp] = c
@@ -463,6 +458,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 msk,
                 sparsity=selected_sparsity_value,
                 seed=seed,
+                spacing=self.sparsity_params.get("grid_spacing"),
                 dot_size=self.sparsity_params.get("grid_dot_size"),
             )
         elif selected_sparsity_mode == "contour":
