@@ -146,46 +146,55 @@ class FewSparseDataset(BaseDataset, ABC):
     def sparse_grid(
         msk: NDArray,
         sparsity: SparsityValue = "random",
+        spacing: int | None = None,
         dot_size: int | None = None,
         seed=0,
     ) -> NDArray:
+        blob_seed = None
         if sparsity != "random":
             np.random.seed(seed)
+            prime_num = 11
+            blob_seed = seed * prime_num
 
-        auto_dot_size = max(
-            min(msk.shape) // 80,
-            sparsity // 5
-            if (isinstance(sparsity, float) or isinstance(sparsity, int))
-            else 0,
-            1,
-        )
+        auto_spacing = np.max(msk.shape) // 20
+        int_spacing = spacing or auto_spacing
+
+        auto_dot_size = max(min(msk.shape) // 80, int_spacing // 5, 1)
         dot_size = dot_size or int(auto_dot_size)
+
+        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
         small_msk = FewSparseDataset.resize_image(
             msk, np.divide(msk.shape, dot_size).tolist(), True
         )
+        small_spacing = int_spacing // dot_size
 
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        if sparsity == "random":
-            max_high = int(np.max(small_msk.shape) / 2)
-            spacing_value = np.random.randint(low=1, high=max_high)
-        else:
-            spacing_value = int(sparsity / dot_size)
-        spacing = (spacing_value, spacing_value)
+        starting = (np.random.randint(small_spacing), np.random.randint(small_spacing))
 
-        starting = (np.random.randint(spacing[0]), np.random.randint(spacing[1]))
-
-        small_new_msk[starting[0] :: spacing[0], starting[1] :: spacing[1]] = small_msk[
-            starting[0] :: spacing[0], starting[1] :: spacing[1]
-        ]
+        small_new_msk[starting[0] :: small_spacing, starting[1] :: small_spacing] = (
+            small_msk[starting[0] :: small_spacing, starting[1] :: small_spacing]
+        )
 
         new_msk = FewSparseDataset.resize_image(small_new_msk, msk.shape, True)
 
+        blobs = skdata.binary_blobs(
+            np.max(new_msk.shape),
+            blob_size_fraction=0.1,
+            volume_fraction=sparsity_num,
+            rng=blob_seed,
+        )
+        blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
+
+        final_msk = np.zeros_like(new_msk)
+        final_msk[:] = -1
+        final_msk[blobs] = new_msk[blobs]
+
         np.random.seed(None)
 
-        return new_msk
+        return final_msk
 
     @staticmethod
     def sparse_contour(
@@ -247,7 +256,8 @@ class FewSparseDataset(BaseDataset, ABC):
         blob_seed = None
         if sparsity != "random":
             np.random.seed(seed)
-            blob_seed = seed
+            prime_num = 13
+            blob_seed = seed * prime_num
 
         sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
 
@@ -444,6 +454,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 msk,
                 sparsity=selected_sparsity_value,
                 seed=seed,
+                spacing=self.sparsity_params.get("grid_spacing"),
                 dot_size=self.sparsity_params.get("grid_dot_size"),
             )
         elif selected_sparsity_mode == "contour":
