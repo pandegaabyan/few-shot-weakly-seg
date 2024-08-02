@@ -216,8 +216,8 @@ class FewSparseDataset(BaseDataset, ABC):
         # Random disk radius for erosions and dilations from the original mask.
         radius_dist = radius_dist or min(msk.shape) // 60
 
-        # Random disk radius for annotation thickness.
-        radius_thick = radius_thick or 1
+        auto_radius_thick = min(msk.shape) // 100
+        radius_thick = radius_thick or auto_radius_thick
 
         # Creating morphology elements.
         selem_dist = morphology.disk(radius_dist)
@@ -271,8 +271,8 @@ class FewSparseDataset(BaseDataset, ABC):
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
 
-        # Randomly selecting disk radius the annotation thickness.
-        radius_thick = radius_thick or 1
+        auto_radius_thick = min(msk.shape) // 100
+        radius_thick = radius_thick or auto_radius_thick
         selem_thick = morphology.disk(radius_thick)
 
         for c in range(num_classes):
