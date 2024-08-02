@@ -31,7 +31,7 @@ class DummyBaseDataset(BaseDataset, ABC):
         return img, msk
 
 
-class DummyDataset(DummyBaseDataset, FewSparseDataset):
+class DummyFSDataset(DummyBaseDataset, FewSparseDataset):
     def set_additional_sparse_mode(self):
         return []
 
