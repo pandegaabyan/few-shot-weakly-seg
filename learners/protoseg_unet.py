@@ -13,10 +13,7 @@ class ProtosegUnet(ProtosegLearner):
         )
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
-        adam_optimizer = make_optimizer_adam(
-            self.config["optimizer"],
-            self.net.named_parameters(),
-        )
+        adam_optimizer = make_optimizer_adam(self.config["optimizer"], self.net)
 
         step_scheduler = make_scheduler_step(
             adam_optimizer,

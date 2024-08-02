@@ -1,4 +1,4 @@
-from typing import Iterator, Union
+from typing import Union
 
 from pytorch_lightning.utilities.types import (
     LRSchedulerConfig,
@@ -16,7 +16,7 @@ from utils.logging import get_name_from_instance
 
 def make_optimizer_adam(
     config: OptimizerConfig,
-    named_params: Iterator[tuple[str, nn.Parameter]],
+    net: nn.Module,
 ) -> Optimizer:
     default_lr = 0.001
     default_betas = (0.9, 0.999)
@@ -26,13 +26,17 @@ def make_optimizer_adam(
         [
             {
                 "params": [
-                    param for name, param in named_params if name[-4:] == "bias"
+                    param
+                    for name, param in net.named_parameters()
+                    if name[-4:] == "bias"
                 ],
                 "lr": config.get("lr_bias_mult", 1) * lr,
             },
             {
                 "params": [
-                    param for name, param in named_params if name[-4:] != "bias"
+                    param
+                    for name, param in net.named_parameters()
+                    if name[-4:] != "bias"
                 ],
                 "lr": lr,
                 "weight_decay": config.get("weight_decay", 0),
