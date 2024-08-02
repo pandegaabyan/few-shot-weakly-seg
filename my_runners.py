@@ -136,7 +136,7 @@ class SimpleRunner(Runner):
             "split_test_size": 0.2,
             "split_test_fold": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE DL",
+            "dataset_name": "RIM-ONE-DL",
         }
 
         return (RimOneSimpleDataset, rim_one_kwargs)
@@ -205,7 +205,7 @@ class MetaRunner(Runner):
         rim_one_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE DL",
+            "dataset_name": "RIM-ONE-DL",
             "shot_options": [2],
             "sparsity_options": [("random", "random")],
             "query_batch_size": 2,
