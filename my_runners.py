@@ -104,22 +104,25 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple RIM-ONE BoTorch-Median"
-        config["sampler"] = "botorch"
+        config["study_name"] = "Simple RIM-ONE"
         config["sampler_params"] = {
             "n_startup_trials": 20,
+            "n_ei_candidates": 30,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
             "seed": 0,
         }
-        config["pruner"] = "median"
         config["pruner_params"] = {
-            "n_startup_trials": 20,
-            "n_warmup_steps": 10,
-            "n_min_trials": 2,
+            "min_resource": 10,
+            "max_resource": self.config["learn"]["num_epochs"],
+            "reduction_factor": 2,
+            "bootstrap_count": 2,
         }
         config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 6 * 3600
+            config["timeout_sec"] = 12 * 3600
         return config
 
     def make_rim_one_dataset(
