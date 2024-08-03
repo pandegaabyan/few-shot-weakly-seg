@@ -1,5 +1,5 @@
 import os
-from typing import Sequence, Type
+from typing import Type
 
 import nanoid
 import optuna
@@ -18,8 +18,6 @@ from config.optuna import (
     pruner_classes,
     sampler_classes,
 )
-from data.base_dataset import BaseDataset
-from data.typings import BaseDatasetKwargs
 from learners.base_learner import BaseLearner
 from learners.typings import BaseLearnerKwargs
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
@@ -31,7 +29,7 @@ from utils.logging import (
 )
 from utils.utils import mean
 from utils.wandb import (
-    prepare_study_artifact_name,
+    prepare_study_ref_artifact_name,
     wandb_download_ckpt,
     wandb_download_config,
     wandb_get_run_id_by_name,
@@ -247,7 +245,7 @@ class Runner:
 
             wandb_log_file(
                 wandb.run,
-                prepare_study_artifact_name(study_id),
+                prepare_study_ref_artifact_name(study_id),
                 ref_conf_path,
                 "study-reference",
             )
@@ -286,7 +284,7 @@ class Runner:
         monitor_mode = cb_config.get("monitor_mode", "min")
 
         log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
-        ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
+        ckpt_filename = ("{" + monitor + ":.2f} {epoch}") if monitor else ("{epoch}")
         callbacks.append(
             ModelCheckpoint(
                 dirpath=log_path,
@@ -330,11 +328,4 @@ class Runner:
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
             resume="must" if resume else None,
-        )
-
-    def get_names_from_dataset_list(
-        self, dataset_list: Sequence[tuple[Type[BaseDataset], BaseDatasetKwargs]]
-    ) -> str:
-        return ",".join(
-            [(kwargs.get("dataset_name") or "NoName") for _, kwargs in dataset_list]
         )

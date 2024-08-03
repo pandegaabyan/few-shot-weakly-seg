@@ -66,8 +66,12 @@ def prepare_ckpt_artifact_alias(ckpt_name: str) -> str:
     return ckpt_name.replace(" ", "-").replace("=", "_").removesuffix(".ckpt")
 
 
-def prepare_study_artifact_name(study_id: str) -> str:
+def prepare_study_ref_artifact_name(study_id: str) -> str:
     return f"{study_id}-study-ref"
+
+
+def prepare_study_ckpt_artifact_name(study_id: str) -> str:
+    return f"{study_id}-study-ckpt"
 
 
 def wandb_delete_file(

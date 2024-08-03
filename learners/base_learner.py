@@ -48,7 +48,8 @@ from utils.wandb import (
     prepare_artifact_name,
     prepare_ckpt_artifact_alias,
     prepare_ckpt_artifact_name,
-    prepare_study_artifact_name,
+    prepare_study_ckpt_artifact_name,
+    prepare_study_ref_artifact_name,
     wandb_delete_file,
     wandb_log_file,
 )
@@ -189,6 +190,7 @@ class BaseLearner(
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
         self.wandb_log_ckpt_files()
+        self.wandb_log_best_study_ckpt()
 
     def on_test_start(self) -> None:
         super().on_test_start()
@@ -376,7 +378,7 @@ class BaseLearner(
             if self.use_wandb and wandb.run:
                 study_id = self.optuna_trial.study.study_name.split(" ")[-1]
                 wandb.run.use_artifact(
-                    f"{prepare_study_artifact_name(study_id)}:latest",
+                    f"{prepare_study_ref_artifact_name(study_id)}:latest",
                     type="study-reference",
                 )
         if not self.config["log"].get("configuration") or self.configuration_logged:
@@ -434,7 +436,7 @@ class BaseLearner(
         tensorboard_writer.add_graph(self, self.example_input_array)
         tensorboard_writer.close()
         tb_files = sorted(filter(lambda x: "tfevents" in x, os.listdir(self.log_path)))
-        if self.use_wandb:
+        if self.use_wandb and self.config.get("wandb", {}).get("save_model"):
             wandb_log_file(
                 wandb.run,
                 prepare_artifact_name(exp_name, run_name, "tb"),
@@ -447,7 +449,7 @@ class BaseLearner(
             return
         onnx_path = os.path.join(self.log_path, FILENAMES["model_onnx"])
         self.to_onnx(onnx_path, export_params=False)
-        if self.use_wandb:
+        if self.use_wandb and self.config.get("wandb", {}).get("save_model"):
             artifact = wandb_log_file(
                 wandb.run, self.__class__.__name__, onnx_path, "model"
             )
@@ -489,7 +491,11 @@ class BaseLearner(
         )
 
     def wandb_log_ckpt_files(self):
-        if not self.use_wandb or self.log_path == "":
+        if (
+            not self.use_wandb
+            or self.log_path == ""
+            or not self.config.get("wandb", {}).get("save_model")
+        ):
             return
 
         artifact_name = prepare_ckpt_artifact_name(
@@ -513,6 +519,39 @@ class BaseLearner(
                 "checkpoint",
                 [artifact_alias],
             )
+
+    def wandb_log_best_study_ckpt(self):
+        if (
+            not self.use_wandb
+            or self.optuna_trial is None
+            or not self.config["callbacks"].get("ckpt_top_k")
+        ):
+            return
+
+        study_id = self.optuna_trial.study.study_name.split(" ")[-1]
+        artifact_name = prepare_study_ckpt_artifact_name(study_id)
+        if self.optuna_trial.number != 0:
+            wandb_delete_file(
+                artifact_name,
+                "study-checkpoint",
+                dummy=self.config["learn"].get("dummy") is True,
+            )
+
+        index = 0 if self.config["callbacks"].get("monitor_mode") == "min" else -1
+        best_ckpt = sorted(
+            filter(
+                lambda x: x.endswith(".ckpt") and x != "last.ckpt",
+                os.listdir(self.log_path),
+            )
+        )[index]
+        artifact_alias = prepare_ckpt_artifact_alias(best_ckpt)
+        wandb_log_file(
+            wandb.run,
+            artifact_name,
+            os.path.join(self.log_path, best_ckpt),
+            "study-checkpoint",
+            [artifact_alias],
+        )
 
     def wandb_add_table(
         self,

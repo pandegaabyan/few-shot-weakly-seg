@@ -80,6 +80,7 @@ wandb_config: WandbConfig = {
     "tags": [],
     "job_type": None,
     "watch_model": True,
+    "save_model": True,
     "push_table_freq": 5,
     "save_train_preds": 0,
     "save_val_preds": 0,
@@ -141,13 +142,14 @@ def make_config(
         config_ref["log"]["tensorboard_graph"] = False
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
-        config_ref["callbacks"]["ckpt_top_k"] = 0
+        config_ref["callbacks"]["ckpt_top_k"] = 1
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
                 "watch_model": False,
+                "save_model": False,
                 "push_table_freq": 20,
                 "save_train_preds": 0,
                 "save_val_preds": 0,
@@ -160,6 +162,7 @@ def make_config(
                 "tags": [],
                 "job_type": mode,
                 "watch_model": True,
+                "save_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
                 "save_val_preds": 20,
@@ -174,6 +177,7 @@ def make_config(
                 "tags": [],
                 "job_type": mode,
                 "watch_model": False,
+                "save_model": False,
                 "push_table_freq": 1,
                 "save_train_preds": 0,
                 "save_val_preds": 0,
@@ -186,6 +190,7 @@ def make_config(
                 "tags": [],
                 "job_type": mode,
                 "watch_model": True,
+                "save_model": True,
                 "push_table_freq": 5,
                 "save_train_preds": 20,
                 "save_val_preds": 20,
