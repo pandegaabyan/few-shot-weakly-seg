@@ -3,6 +3,7 @@ from typing import Type
 import optuna
 from typing_extensions import Generic, Required, TypedDict
 
+from config.config_maker import gen_id
 from config.config_type import (
     ConfigProtoSeg,
     ConfigSimpleLearner,
@@ -114,7 +115,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple REFUGE train-val"
+        config["study_name"] = "Simple REFUGE train-val " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -294,7 +295,7 @@ class WeaselRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Weasel"
+        config["study_name"] = "Weasel " + gen_id(5)
         return config
 
 
@@ -327,5 +328,5 @@ class ProtosegRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Protoseg"
+        config["study_name"] = "Protoseg " + gen_id(5)
         return config
