@@ -33,11 +33,10 @@ from tasks.optic_disc_cup.datasets import (
     DrishtiTrainFSDataset,
     RefugeTestFSDataset,
     RefugeTrainFSDataset,
-    RefugeTrainSimpleDataset,
     RefugeValFSDataset,
-    RefugeValSimpleDataset,
     RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
+    RimOne3TrainSimpleDataset,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
@@ -114,7 +113,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "Simple REFUGE-train-val " + gen_id(5)
+        config["study_name"] = "Simple RIM-ONE-3-train " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -131,8 +130,8 @@ class SimpleRunner(Runner):
         }
         config["pruner_patience"] = 5
         if not self.dummy:
-            config["num_folds"] = 1
-            config["timeout_sec"] = 250 * 60
+            config["num_folds"] = 3
+            config["timeout_sec"] = 120 * 60
         return config
 
     def make_dataset_lists(
@@ -183,10 +182,7 @@ class SimpleRunner(Runner):
 
         return {
             "dataset_list": [
-                (RefugeTrainSimpleDataset, refuge_train_kwargs),
-            ],
-            "val_dataset_list": [
-                (RefugeValSimpleDataset, refuge_val_kwargs),
+                (RimOne3TrainSimpleDataset, rim_one_3_train_kwargs),
             ],
         }
 
