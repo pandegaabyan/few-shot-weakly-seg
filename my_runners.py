@@ -32,7 +32,6 @@ from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
     RefugeTestFSDataset,
-    RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeTrainSimpleDataset,
     RefugeValFSDataset,
@@ -133,7 +132,7 @@ class SimpleRunner(Runner):
         config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 1
-            config["timeout_sec"] = 13 * 3600
+            config["timeout_sec"] = 250 * 60
         return config
 
     def make_dataset_lists(
@@ -188,9 +187,6 @@ class SimpleRunner(Runner):
             ],
             "val_dataset_list": [
                 (RefugeValSimpleDataset, refuge_val_kwargs),
-            ],
-            "test_dataset_list": [
-                (RefugeTestSimpleDataset, refuge_test_kwargs),
             ],
         }
 
