@@ -67,8 +67,10 @@ class OpticDiscCupSimpleDataset(OpticDiscCupBaseDataset, SimpleDataset, ABC): ..
 
 
 def create_dataset_classes(
-    data_path,
+    data_dir,
 ) -> tuple[Type[SimpleDataset], Type[FewSparseDataset]]:
+    data_path = "../data/" + data_dir
+
     class SimpleDataset(OpticDiscCupSimpleDataset):
         def get_all_data_path(self) -> DataPathList:
             return get_all_data_path(data_path)
@@ -80,7 +82,22 @@ def create_dataset_classes(
     return SimpleDataset, FewSparseDataset
 
 
-RimOneSimpleDataset, RimOneFSDataset = create_dataset_classes("../data/RIM-ONE DL")
-DrishtiSimpleDataset, DrishtiFSDataset = create_dataset_classes("../data/DRISHTI-GS")
-OrigaSimpleDataset, OrigaFSDataset = create_dataset_classes("../data/ORIGA")
-PapilaSimpleDataset, PapilaFSDataset = create_dataset_classes("../data/Papila")
+DrishtiSimpleDataset, DrishtiFSDataset = create_dataset_classes("DRISHTI-GS")
+DrishtiTrainSimpleDataset, DrishtiTrainFSDataset = create_dataset_classes(
+    "DRISHTI-GS-train"
+)
+DrishtiTestSimpleDataset, DrishtiTestFSDataset = create_dataset_classes(
+    "DRISHTI-GS-test"
+)
+RimOneSimpleDataset, RimOneFSDataset = create_dataset_classes("RIM-ONE-DL")
+RimOne3TrainSimpleDataset, RimOne3TrainFSDataset = create_dataset_classes(
+    "RIM-ONE-3-train"
+)
+RimOne3TestSimpleDataset, RimOne3TestFSDataset = create_dataset_classes(
+    "RIM-ONE-3-test"
+)
+OrigaSimpleDataset, OrigaFSDataset = create_dataset_classes("ORIGA")
+PapilaSimpleDataset, PapilaFSDataset = create_dataset_classes("PAPILA")
+RefugeTrainSimpleDataset, RefugeTrainFSDataset = create_dataset_classes("REFUGE-train")
+RefugeValSimpleDataset, RefugeValFSDataset = create_dataset_classes("REFUGE-val")
+RefugeTestSimpleDataset, RefugeTestFSDataset = create_dataset_classes("REFUGE-test")
