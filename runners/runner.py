@@ -284,7 +284,7 @@ class Runner:
         monitor_mode = cb_config.get("monitor_mode", "min")
 
         log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
-        ckpt_filename = ("{epoch} {" + monitor + ":.2f}") if monitor else ("{epoch}")
+        ckpt_filename = ("{" + monitor + ":.2f} {epoch}") if monitor else ("{epoch}")
         callbacks.append(
             ModelCheckpoint(
                 dirpath=log_path,
