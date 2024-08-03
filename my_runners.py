@@ -152,7 +152,7 @@ class SimpleRunner(Runner):
             "split_test_size": 0.15,
             "split_test_fold": 0,
             "cache_data": True,
-            "dataset_name": "DRISHTI",
+            "dataset_name": "DRISHTI-GS",
         }
 
         return (DrishtiSimpleDataset, drishti_kwargs)
@@ -227,7 +227,7 @@ class MetaRunner(Runner):
             "split_test_size": 0.4,
             "split_test_fold": 0,
             "cache_data": True,
-            "dataset_name": "DRISHTI",
+            "dataset_name": "DRISHTI-GS",
             "shot_options": [2],
             "sparsity_options": [("random", "random")],
             "query_batch_size": 2,
