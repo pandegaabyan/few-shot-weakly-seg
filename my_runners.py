@@ -28,9 +28,16 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    DrishtiFSDataset,
-    RimOneFSDataset,
-    RimOneSimpleDataset,
+    DrishtiTestFSDataset,
+    DrishtiTrainFSDataset,
+    RefugeTestFSDataset,
+    RefugeTestSimpleDataset,
+    RefugeTrainFSDataset,
+    RefugeTrainSimpleDataset,
+    RefugeValFSDataset,
+    RefugeValSimpleDataset,
+    RimOne3TestFSDataset,
+    RimOne3TrainFSDataset,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
@@ -139,35 +146,51 @@ class SimpleRunner(Runner):
             "cache_data": True,
         }
 
-        rim_one_kwargs: SimpleDatasetKwargs = {
+        rim_one_3_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
-            "dataset_name": "RIM-ONE-DL",
+            "dataset_name": "RIM-ONE-3-train",
             "split_val_size": 0.2,
-            "split_test_size": 0.2,
         }
-        drishti_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+        rim_one_3_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
-            "dataset_name": "DRISHTI-GS",
-            "split_val_size": 0.15,
-            "split_test_size": 0.15,
+            "dataset_name": "RIM-ONE-3-test",
+            "split_test_size": 1,
         }
-        origa_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+        drishti_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
-            "dataset_name": "ORIGA",
-            "split_val_size": 0.2,
-            "split_test_size": 0.2,
+            "dataset_name": "DRISHTI-GS-train",
+            "split_val_size": 0.1,
         }
-        papila_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+        drishti_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
-            "dataset_name": "PAPILA",
-            "split_val_size": 0.2,
-            "split_test_size": 0.2,
+            "dataset_name": "DRISHTI-GS-test",
+            "split_test_size": 1,
+        }
+        refuge_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            "dataset_name": "REFUGE-train",
+        }
+        refuge_val_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            "dataset_name": "REFUGE-val",
+            "split_val_size": 1,
+        }
+        refuge_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            "dataset_name": "REFUGE-test",
+            "split_test_size": 1,
         }
 
         return {
             "dataset_list": [
-                (RimOneSimpleDataset, rim_one_kwargs),
-            ]
+                (RefugeTrainSimpleDataset, refuge_train_kwargs),
+            ],
+            "val_dataset_list": [
+                (RefugeValSimpleDataset, refuge_val_kwargs),
+            ],
+            "test_dataset_list": [
+                (RefugeTestSimpleDataset, refuge_test_kwargs),
+            ],
         }
 
 
@@ -190,33 +213,54 @@ class MetaRunner(Runner):
             "split_query_fold": query_fold,
         }
 
-        rim_one_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
-            "dataset_name": "RIM-ONE-DL",
-            "shot_options": [2],
-            "sparsity_options": [("random", "random")],
-            "split_query_size": 0.5,
-            "num_iterations": 2,
+            "dataset_name": "RIM-ONE-3-train",
+            "split_val_size": 1,
         }
-        drishti_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
-            "split_val_size": 0.6,
-            "split_val_fold": 0,
-            "split_test_size": 0.4,
-            "split_test_fold": 0,
-            "dataset_name": "DRISHTI-GS",
-            "shot_options": [2],
-            "sparsity_options": [("random", "random")],
-            "split_query_size": 0.5,
-            "num_iterations": 2,
+            "dataset_name": "RIM-ONE-3-test",
+            "split_test_size": 1,
+        }
+        drishti_train_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "DRISHTI-GS-train",
+            "split_val_size": 1,
+        }
+        drishti_test_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "DRISHTI-GS-test",
+            "split_test_size": 1,
+        }
+        refuge_train_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "REFUGE-train",
+        }
+        refuge_val_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "REFUGE-val",
+            "split_val_size": 1,
+        }
+        refuge_test_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "REFUGE-test",
+            "split_test_size": 1,
         }
 
         return {
             "dataset_list": [
-                (RimOneFSDataset, rim_one_kwargs),
+                (RefugeTrainFSDataset, refuge_train_kwargs),
             ],
             "val_dataset_list": [
-                (DrishtiFSDataset, drishti_kwargs),
+                (RefugeValFSDataset, refuge_val_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
+                (DrishtiTrainFSDataset, drishti_train_kwargs),
+            ],
+            "test_dataset_list": [
+                (RefugeTestFSDataset, refuge_test_kwargs),
+                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
+                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
