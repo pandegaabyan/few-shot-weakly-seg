@@ -116,11 +116,18 @@ protoseg_config: ProtoSegConfig = {
 guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
 
 
+def gen_id(size: int) -> str:
+    return nanoid.generate(
+        size=size,
+        alphabet="_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    )
+
+
 def make_run_name() -> str:
     timestamp_text = (
         datetime.datetime.now().isoformat()[0:16].replace(":", "-").replace("T", " ")
     )
-    random_id = nanoid.generate(size=3)
+    random_id = gen_id(3)
     return f"{timestamp_text} {random_id}"
 
 

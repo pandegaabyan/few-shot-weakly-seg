@@ -1,14 +1,13 @@
 import os
 from typing import Type
 
-import nanoid
 import optuna
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 import wandb
 import wandb.util
-from config.config_maker import make_run_name
+from config.config_maker import gen_id, make_run_name
 from config.config_type import ConfigUnion
 from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
@@ -168,7 +167,7 @@ class Runner:
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
         if not self.resume:
-            self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
+            self.optuna_config["study_name"] += f" {gen_id(5)}"
             self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
 
         pruner = pruner_class(**self.optuna_config.get("pruner_params", {}))
