@@ -1,7 +1,6 @@
 import os
 from typing import Type
 
-import nanoid
 import optuna
 from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
@@ -167,10 +166,6 @@ class Runner:
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
 
-        if not self.resume:
-            self.optuna_config["study_name"] += f" {nanoid.generate(size=5)}"
-            self.optuna_config["study_name"] = self.optuna_config["study_name"].strip()
-
         pruner = pruner_class(**self.optuna_config.get("pruner_params", {}))
         pruner_patience = self.optuna_config.get("pruner_patience")
         if pruner_patience:
@@ -182,9 +177,7 @@ class Runner:
             "pruner": pruner,
         }
 
-        if self.resume:
-            study = optuna.load_study(**study_kwargs)
-        else:
+        try:
             study = optuna.create_study(
                 direction=self.optuna_config["direction"], **study_kwargs
             )
@@ -193,6 +186,9 @@ class Runner:
                 if key == "study_name":
                     continue
                 study.set_user_attr(key, value)
+        except optuna.exceptions.DuplicatedStudyError:
+            study = optuna.load_study(**study_kwargs)
+            self.resume = True
 
         n_trials = self.optuna_config.get("num_trials")
         timeout = self.optuna_config.get("timeout_sec")
