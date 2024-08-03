@@ -29,7 +29,7 @@ from utils.logging import (
 )
 from utils.utils import mean
 from utils.wandb import (
-    prepare_study_artifact_name,
+    prepare_study_ref_artifact_name,
     wandb_download_ckpt,
     wandb_download_config,
     wandb_get_run_id_by_name,
@@ -245,7 +245,7 @@ class Runner:
 
             wandb_log_file(
                 wandb.run,
-                prepare_study_artifact_name(study_id),
+                prepare_study_ref_artifact_name(study_id),
                 ref_conf_path,
                 "study-reference",
             )

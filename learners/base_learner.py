@@ -48,7 +48,7 @@ from utils.wandb import (
     prepare_artifact_name,
     prepare_ckpt_artifact_alias,
     prepare_ckpt_artifact_name,
-    prepare_study_artifact_name,
+    prepare_study_ref_artifact_name,
     wandb_delete_file,
     wandb_log_file,
 )
@@ -376,7 +376,7 @@ class BaseLearner(
             if self.use_wandb and wandb.run:
                 study_id = self.optuna_trial.study.study_name.split(" ")[-1]
                 wandb.run.use_artifact(
-                    f"{prepare_study_artifact_name(study_id)}:latest",
+                    f"{prepare_study_ref_artifact_name(study_id)}:latest",
                     type="study-reference",
                 )
         if not self.config["log"].get("configuration") or self.configuration_logged:
