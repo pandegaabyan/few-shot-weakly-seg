@@ -1,5 +1,5 @@
 import os
-from typing import Sequence, Type
+from typing import Type
 
 import nanoid
 import optuna
@@ -18,8 +18,6 @@ from config.optuna import (
     pruner_classes,
     sampler_classes,
 )
-from data.base_dataset import BaseDataset
-from data.typings import BaseDatasetKwargs
 from learners.base_learner import BaseLearner
 from learners.typings import BaseLearnerKwargs
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
@@ -330,11 +328,4 @@ class Runner:
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
             resume="must" if resume else None,
-        )
-
-    def get_names_from_dataset_list(
-        self, dataset_list: Sequence[tuple[Type[BaseDataset], BaseDatasetKwargs]]
-    ) -> str:
-        return ",".join(
-            [(kwargs.get("dataset_name") or "NoName") for _, kwargs in dataset_list]
         )

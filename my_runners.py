@@ -1,6 +1,7 @@
-from typing import Sequence, Type
+from typing import Type
 
 import optuna
+from typing_extensions import Generic, Required, TypedDict
 
 from config.config_type import (
     ConfigProtoSeg,
@@ -9,15 +10,16 @@ from config.config_type import (
     ConfigWeasel,
 )
 from config.optuna import OptunaConfig
-from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
+from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.protoseg_learner import ProtosegLearner
 from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import (
+    DatasetClass,
+    DatasetKwargs,
     ProtoSegLearnerKwargs,
     SimpleLearnerKwargs,
     WeaselLearnerKwargs,
@@ -27,9 +29,6 @@ from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiFSDataset,
-    DrishtiSimpleDataset,
-    OrigaSimpleDataset,
-    PapilaSimpleDataset,
     RimOneFSDataset,
     RimOneSimpleDataset,
 )
@@ -37,12 +36,22 @@ from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 
 
-def update_datasets_for_dummy(
-    *dataset_lists: Sequence[tuple[Type[BaseDataset], BaseDatasetKwargs]],
-):
-    for ds_list in dataset_lists:
-        for ds in ds_list:
-            ds[1]["max_items"] = 6
+class DatasetLists(TypedDict, Generic[DatasetClass, DatasetKwargs], total=False):
+    dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
+    val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+
+
+def get_names_from_dataset_list(dataset_lists: DatasetLists) -> dict[str, str]:
+    return {
+        key.replace("_list", ""): ",".join(
+            [
+                (kwargs.get("dataset_name") or "NO-NAME")
+                for _, kwargs in dataset_lists[key]
+            ]
+        )
+        for key in dataset_lists
+    }
 
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
@@ -77,9 +86,7 @@ class SimpleRunner(Runner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_list = [self.make_rim_one_dataset(dataset_fold)]
-        if dummy:
-            update_datasets_for_dummy(dataset_list)
+        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigSimpleLearner = config  # type: ignore
         if optuna_trial is not None:
@@ -88,17 +95,13 @@ class SimpleRunner(Runner):
             important_config = {}
 
         kwargs: SimpleLearnerKwargs = {
+            **dataset_lists,
             "config": cfg,
-            "dataset_list": dataset_list,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(
-            {
-                "dataset": self.get_names_from_dataset_list(dataset_list),
-            }
-        )
+        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return SimpleUnet, kwargs, important_config
 
@@ -125,69 +128,47 @@ class SimpleRunner(Runner):
             config["timeout_sec"] = 8 * 3600
         return config
 
-    def make_rim_one_dataset(
-        self,
-        val_fold: int = 0,
-    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
+    def make_dataset_lists(
+        self, val_fold: int, dummy: bool
+    ) -> DatasetLists[SimpleDataset, SimpleDatasetKwargs]:
+        base_kwargs: SimpleDatasetKwargs = {
+            "max_items": 6 if dummy else None,
+            "seed": 0,
+            "split_val_fold": val_fold,
+            "split_test_fold": 0,
+            "cache_data": True,
+        }
+
         rim_one_kwargs: SimpleDatasetKwargs = {
-            "seed": 0,
+            **base_kwargs,
+            "dataset_name": "RIM-ONE-DL",
             "split_val_size": 0.2,
-            "split_val_fold": val_fold,
             "split_test_size": 0.2,
-            "split_test_fold": 0,
-            "cache_data": True,
-            "dataset_name": "RIM-ONE DL",
         }
-
-        return (RimOneSimpleDataset, rim_one_kwargs)
-
-    def make_drishti_dataset(
-        self,
-        val_fold: int = 0,
-    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
-        drishti_kwargs: SimpleDatasetKwargs = {
-            "seed": 0,
+        drishti_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            "dataset_name": "DRISHTI-GS",
             "split_val_size": 0.15,
-            "split_val_fold": val_fold,
             "split_test_size": 0.15,
-            "split_test_fold": 0,
-            "cache_data": True,
-            "dataset_name": "DRISHTI",
         }
-
-        return (DrishtiSimpleDataset, drishti_kwargs)
-
-    def make_origa_dataset(
-        self,
-        val_fold: int = 0,
-    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
-        origa_kwargs: SimpleDatasetKwargs = {
-            "seed": 0,
-            "split_val_size": 0.2,
-            "split_val_fold": val_fold,
-            "split_test_size": 0.2,
-            "split_test_fold": 0,
-            "cache_data": True,
+        origa_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
             "dataset_name": "ORIGA",
-        }
-
-        return (OrigaSimpleDataset, origa_kwargs)
-
-    def make_papila_dataset(
-        self,
-        val_fold: int = 0,
-    ) -> tuple[Type[SimpleDataset], SimpleDatasetKwargs]:
-        papila_kwargs: SimpleDatasetKwargs = {
-            "seed": 0,
             "split_val_size": 0.2,
-            "split_val_fold": val_fold,
             "split_test_size": 0.2,
-            "split_test_fold": 0,
-            "cache_data": True,
+        }
+        papila_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
             "dataset_name": "PAPILA",
+            "split_val_size": 0.2,
+            "split_test_size": 0.2,
         }
 
-        return (PapilaSimpleDataset, papila_kwargs)
+        return {
+            "dataset_list": [
+                (RimOneSimpleDataset, rim_one_kwargs),
+            ]
+        }
 
 
 class MetaRunner(Runner):
@@ -198,45 +179,46 @@ class MetaRunner(Runner):
         config["num_trials"] = 3
         return config
 
-    def make_rim_one_dataset(
-        self,
-        query_fold: int = 0,
-    ) -> tuple[Type[FewSparseDataset], FewSparseDatasetKwargs]:
-        rim_one_kwargs: FewSparseDatasetKwargs = {
+    def make_dataset_lists(
+        self, query_fold: int, dummy: bool
+    ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
+        base_kwargs: FewSparseDatasetKwargs = {
+            "max_items": 6 if dummy else None,
             "seed": 0,
             "cache_data": True,
-            "dataset_name": "RIM-ONE DL",
-            "shot_options": [2],
-            "sparsity_options": [("random", "random")],
-            "query_batch_size": 2,
-            "split_query_size": 0.5,
+            "query_batch_size": self.config["data"]["batch_size"],
             "split_query_fold": query_fold,
-            "num_iterations": 2,
         }
 
-        return (RimOneFSDataset, rim_one_kwargs)
-
-    def make_drishti_dataset(
-        self,
-        query_fold: int = 0,
-    ) -> tuple[Type[FewSparseDataset], FewSparseDatasetKwargs]:
+        rim_one_kwargs: FewSparseDatasetKwargs = {
+            **base_kwargs,
+            "dataset_name": "RIM-ONE-DL",
+            "shot_options": [2],
+            "sparsity_options": [("random", "random")],
+            "split_query_size": 0.5,
+            "num_iterations": 2,
+        }
         drishti_kwargs: FewSparseDatasetKwargs = {
-            "seed": 0,
+            **base_kwargs,
             "split_val_size": 0.6,
             "split_val_fold": 0,
             "split_test_size": 0.4,
             "split_test_fold": 0,
-            "cache_data": True,
-            "dataset_name": "DRISHTI",
+            "dataset_name": "DRISHTI-GS",
             "shot_options": [2],
             "sparsity_options": [("random", "random")],
-            "query_batch_size": 2,
             "split_query_size": 0.5,
-            "split_query_fold": query_fold,
             "num_iterations": 2,
         }
 
-        return (DrishtiFSDataset, drishti_kwargs)
+        return {
+            "dataset_list": [
+                (RimOneFSDataset, rim_one_kwargs),
+            ],
+            "val_dataset_list": [
+                (DrishtiFSDataset, drishti_kwargs),
+            ],
+        }
 
 
 class WeaselRunner(MetaRunner):
@@ -247,10 +229,7 @@ class WeaselRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        dataset_list = [self.make_rim_one_dataset(dataset_fold)]
-        val_dataset_list = [self.make_drishti_dataset(dataset_fold)]
-        if dummy:
-            update_datasets_for_dummy(dataset_list, val_dataset_list)
+        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigWeasel = config  # type: ignore
         if optuna_trial is not None:
@@ -259,19 +238,13 @@ class WeaselRunner(MetaRunner):
             important_config = {}
 
         kwargs: WeaselLearnerKwargs = {
+            **dataset_lists,
             "config": cfg,
-            "dataset_list": dataset_list,
-            "val_dataset_list": val_dataset_list,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(
-            {
-                "dataset": self.get_names_from_dataset_list(dataset_list),
-                "val_dataset": self.get_names_from_dataset_list(val_dataset_list),
-            }
-        )
+        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return WeaselUnet, kwargs, important_config
 
@@ -289,10 +262,7 @@ class ProtosegRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        dataset_list = [self.make_rim_one_dataset(dataset_fold)]
-        val_dataset_list = [self.make_drishti_dataset(dataset_fold)]
-        if dummy:
-            update_datasets_for_dummy(dataset_list, val_dataset_list)
+        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigProtoSeg = config  # type: ignore
         if optuna_trial is not None:
@@ -301,19 +271,13 @@ class ProtosegRunner(MetaRunner):
             important_config = {}
 
         kwargs: ProtoSegLearnerKwargs = {
+            **dataset_lists,
             "config": cfg,
-            "dataset_list": dataset_list,
-            "val_dataset_list": val_dataset_list,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(
-            {
-                "dataset": self.get_names_from_dataset_list(dataset_list),
-                "val_dataset": self.get_names_from_dataset_list(val_dataset_list),
-            }
-        )
+        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return ProtosegUnet, kwargs, important_config
 
