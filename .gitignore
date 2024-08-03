@@ -8,6 +8,8 @@
 
 .env
 
+run.sh
+
 archive
 logs
 wandb
