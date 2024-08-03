@@ -70,6 +70,10 @@ def prepare_study_ref_artifact_name(study_id: str) -> str:
     return f"{study_id}-study-ref"
 
 
+def prepare_study_ckpt_artifact_name(study_id: str) -> str:
+    return f"{study_id}-study-ckpt"
+
+
 def wandb_delete_file(
     name: str,
     type: str,
