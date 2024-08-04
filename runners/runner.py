@@ -6,6 +6,7 @@ from pytorch_lightning import Callback, Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 import wandb
+import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
 from config.config_type import ConfigUnion
@@ -28,7 +29,10 @@ from utils.logging import (
 )
 from utils.utils import mean
 from utils.wandb import (
+    prepare_ckpt_artifact_alias,
+    prepare_study_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
+    wandb_delete_file,
     wandb_download_ckpt,
     wandb_download_config,
     wandb_get_run_id_by_name,
@@ -155,7 +159,11 @@ class Runner:
             self.curr_trial_number = trial.number
             self.curr_dataset_fold = 0
 
-            score = self.fit_study(trial)
+            score, pruned = self.fit_study(trial)
+            base_wandb_run_id = self.config.get("wandb", {}).get("run_id")
+            if pruned:
+                self.wandb_log_trial(base_wandb_run_id, trial, score, pruned)
+                raise optuna.TrialPruned()
             if score is not None:
                 scores.append(score)
 
@@ -164,11 +172,14 @@ class Runner:
                 new_run_name = base_run_name + f" F{fold}"
                 self.run_name = new_run_name
                 self.config["learn"]["run_name"] = new_run_name
-                score = self.fit_study(None)
+                score, _ = self.fit_study(None)
                 if score is not None:
                     scores.append(score)
 
-            return mean(scores)
+            new_score = mean(scores)
+            self.wandb_log_trial(base_wandb_run_id, trial, new_score, False)
+
+            return new_score
 
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
@@ -210,7 +221,7 @@ class Runner:
     def fit_study(
         self,
         trial: optuna.Trial | None,
-    ) -> float | None:
+    ) -> tuple[float, bool]:
         if self.use_wandb:
             run_id = wandb.util.generate_id()
             assert "wandb" in self.config
@@ -224,8 +235,7 @@ class Runner:
         )
         learner = learner_class(**learner_kwargs)
 
-        study_name = self.config["learn"].get("optuna_study_name")
-        assert study_name is not None
+        study_name = self.optuna_config["study_name"]
 
         if (
             self.use_wandb
@@ -282,10 +292,7 @@ class Runner:
         if self.use_wandb:
             wandb.finish()
 
-        if learner.optuna_pruned:
-            raise optuna.TrialPruned()
-
-        return learner.best_monitor_value
+        return learner.best_monitor_value, learner.optuna_pruned
 
     def make_callbacks(self) -> list[Callback]:
         callbacks = []
@@ -338,6 +345,9 @@ class Runner:
 
     def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config
+        if resume:
+            wandb.init(id=run_id, resume="must")
+            return
         wandb.init(
             id=run_id,
             tags=self.config["wandb"].get("tags", []),
@@ -345,5 +355,65 @@ class Runner:
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
-            resume="must" if resume else None,
         )
+
+    def wandb_log_trial(
+        self, run_id: str | None, trial: optuna.Trial, new_score: float, pruned: bool
+    ):
+        if run_id is None:
+            return
+
+        self.wandb_init(run_id, resume=True)
+
+        wandb.log({"study_score": new_score, "epoch": 0})
+
+        if pruned or not self.config["callbacks"].get("ckpt_top_k"):
+            wandb.finish()
+            return
+
+        best_score = trial.study.best_value
+        monitor_mode = self.config["callbacks"].get("monitor_mode")
+        if (
+            not monitor_mode
+            or (monitor_mode == "min" and new_score < best_score)
+            or (monitor_mode == "max" and new_score > best_score)
+        ):
+            wandb.finish()
+            return
+
+        study_id = self.optuna_config["study_name"].split(" ")[-1]
+        artifact_name = prepare_study_ckpt_artifact_name(study_id)
+        try:
+            wandb_delete_file(
+                artifact_name,
+                "study-checkpoint",
+                dummy=self.config["learn"].get("dummy") is True,
+            )
+        except (TypeError, wandb.errors.CommError):
+            pass
+
+        index = 0 if self.config["callbacks"].get("monitor_mode") == "min" else -1
+        base_run_name = " ".join(self.config["learn"]["run_name"].split(" ")[:3])
+        exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
+        run_paths = filter(
+            lambda x: x.startswith(base_run_name),
+            os.listdir(exp_path),
+        )
+        for run_path in run_paths:
+            log_path = os.path.join(exp_path, run_path)
+            best_ckpt = sorted(
+                filter(
+                    lambda x: x.endswith(".ckpt") and x != "last.ckpt",
+                    os.listdir(log_path),
+                )
+            )[index]
+            artifact_alias = prepare_ckpt_artifact_alias(best_ckpt)
+            wandb_log_file(
+                wandb.run,
+                artifact_name,
+                os.path.join(log_path, best_ckpt),
+                "study-checkpoint",
+                [artifact_alias],
+            )
+
+        wandb.finish()
