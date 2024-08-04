@@ -45,7 +45,7 @@ learn_config: LearnConfig = {
     "cudnn_benchmark": False,
     "manual_optim": False,
     "ref_ckpt_path": None,
-    "optuna_study_name": None,
+    "optuna_study": None,
 }
 
 optimizer_config: OptimizerConfig = {
