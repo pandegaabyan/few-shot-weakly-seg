@@ -372,12 +372,13 @@ class Runner:
             wandb.finish()
             return
 
-        best_score = trial.study.best_value
-        monitor_mode = self.config["callbacks"].get("monitor_mode")
-        if (
-            not monitor_mode
-            or (monitor_mode == "min" and new_score < best_score)
-            or (monitor_mode == "max" and new_score > best_score)
+        minimize = self.optuna_config["direction"] == "minimize"
+        try:
+            best_score = trial.study.best_value
+        except ValueError:
+            best_score = float("inf") if minimize else -float("inf")
+        if (minimize and new_score < best_score) or (
+            not minimize and new_score > best_score
         ):
             wandb.finish()
             return
