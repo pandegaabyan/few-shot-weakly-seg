@@ -371,8 +371,8 @@ class Runner:
             best_score = trial.study.best_value
         except ValueError:
             best_score = float("inf") if minimize else -float("inf")
-        if (minimize and new_score < best_score) or (
-            not minimize and new_score > best_score
+        if (minimize and new_score >= best_score) or (
+            not minimize and new_score <= best_score
         ):
             wandb.finish()
             return
