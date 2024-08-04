@@ -170,7 +170,7 @@ class BaseLearner(
 
         self.wandb_log(
             {"loss": val_loss} | dict(val_score) | {"score": score_summary},
-            "summary/val_",
+            "val_",
         )
         self.log_monitor(score_summary)
         self.optuna_log_and_prune(score_summary)
@@ -180,7 +180,7 @@ class BaseLearner(
 
         train_loss = mean(self.training_step_losses)
         self.training_step_losses.clear()
-        self.wandb_log({"loss": train_loss}, "summary/train_")
+        self.wandb_log({"loss": train_loss}, "train_")
 
         self.wandb_push_table()
 
@@ -190,7 +190,6 @@ class BaseLearner(
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
         self.wandb_log_ckpt_files()
-        self.wandb_log_best_study_ckpt()
 
     def on_test_start(self) -> None:
         super().on_test_start()
@@ -205,7 +204,7 @@ class BaseLearner(
         test_score = self.metric.compute()
         test_score = self.metric.prepare_for_log(test_score)
 
-        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
+        self.wandb_log({"loss": test_loss} | dict(test_score), "test_")
 
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
@@ -270,7 +269,7 @@ class BaseLearner(
             wandb.watch(self, log_freq=1)
 
         wandb.define_metric("epoch")
-        wandb.define_metric("summary/*", step_metric="epoch")
+        wandb.define_metric("*", step_metric="epoch")
 
     def check_and_clean_config(self, ref_type: Type[ConfigUnion]):
         config = self.config.copy()
@@ -483,12 +482,8 @@ class BaseLearner(
     def wandb_log(self, data: dict[str, Any], prefix: str = ""):
         if not self.use_wandb:
             return
-        use_epoch = prefix.startswith("summary/")
         epoch_value = 0 if "test" in prefix else self.current_epoch
-        wandb.log(
-            {prefix + k: v for k, v in data.items()}
-            | ({"epoch": epoch_value} if use_epoch else {})
-        )
+        wandb.log({prefix + k: v for k, v in data.items()} | {"epoch": epoch_value})
 
     def wandb_log_ckpt_files(self):
         if (
