@@ -54,6 +54,9 @@ class Runner:
         self.exp_name = self.config["learn"]["exp_name"]
         self.run_name = self.config["learn"]["run_name"]
 
+        self.curr_trial_number = -1
+        self.curr_dataset_fold = -1
+
     def make_learner(
         self,
         config: ConfigUnion,
@@ -143,21 +146,25 @@ class Runner:
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:
             scores = []
-            trial_config = self.config
-            run_name = make_run_name()
-            self.run_name = run_name
-            trial_config["learn"]["run_name"] = run_name
-            trial_config["learn"]["optuna_study_name"] = self.optuna_config[
-                "study_name"
-            ]
+            base_run_name = make_run_name()
+            self.run_name = base_run_name
+            self.config["learn"]["run_name"] = base_run_name
+            self.config["learn"]["optuna_study_name"] = self.optuna_config["study_name"]
 
-            score = self.fit_study(trial, trial_config, 0)
+            trial.set_user_attr("run_name", base_run_name)
+            self.curr_trial_number = trial.number
+            self.curr_dataset_fold = 0
+
+            score = self.fit_study(trial)
             if score is not None:
                 scores.append(score)
 
             for fold in range(1, self.optuna_config.get("num_folds", 1)):
-                trial_config["learn"]["run_name"] += f" F{fold}"
-                score = self.fit_study(None, trial_config, fold)
+                self.curr_dataset_fold = fold
+                new_run_name = base_run_name + f" F{fold}"
+                self.run_name = new_run_name
+                self.config["learn"]["run_name"] = new_run_name
+                score = self.fit_study(None)
                 if score is not None:
                     scores.append(score)
 
@@ -188,7 +195,6 @@ class Runner:
                 study.set_user_attr(key, value)
         except optuna.exceptions.DuplicatedStudyError:
             study = optuna.load_study(**study_kwargs)
-            self.resume = True
 
         n_trials = self.optuna_config.get("num_trials")
         timeout = self.optuna_config.get("timeout_sec")
@@ -204,24 +210,29 @@ class Runner:
     def fit_study(
         self,
         trial: optuna.Trial | None,
-        trial_config: ConfigUnion,
-        dataset_fold: int,
     ) -> float | None:
         if self.use_wandb:
             run_id = wandb.util.generate_id()
-            assert "wandb" in trial_config
-            trial_config["wandb"]["run_id"] = run_id
+            assert "wandb" in self.config
+            self.config["wandb"]["run_id"] = run_id
 
         learner_class, learner_kwargs, important_config = self.make_learner(
-            trial_config,
+            self.config,
             self.dummy,
-            dataset_fold=dataset_fold,
+            dataset_fold=self.curr_dataset_fold,
             optuna_trial=trial,
         )
         learner = learner_class(**learner_kwargs)
 
-        if self.use_wandb and not self.resume and trial and trial.number == 0:
-            study_id = trial.study.study_name.split(" ")[-1]
+        study_name = self.config["learn"].get("optuna_study_name")
+        assert study_name is not None
+
+        if (
+            self.use_wandb
+            and self.curr_trial_number == 0
+            and self.curr_dataset_fold == 0
+        ):
+            study_id = study_name.split(" ")[-1]
 
             wandb_login()
             wandb.init(
@@ -250,12 +261,16 @@ class Runner:
 
         if self.use_wandb:
             self.wandb_init(run_id)
-            study_name = trial_config["learn"].get("optuna_study_name")
-            assert study_name is not None
+            additional_config = {
+                "git": get_short_git_hash(),
+                "study": study_name,
+                "trial": self.curr_trial_number,
+            }
+            if self.curr_dataset_fold > 0:
+                additional_config["fold"] = self.curr_dataset_fold
             wandb.config.update(
                 {
-                    "git": get_short_git_hash(),
-                    "study": study_name.split(" ")[-1],
+                    **additional_config,
                     **important_config,
                 }
             )
