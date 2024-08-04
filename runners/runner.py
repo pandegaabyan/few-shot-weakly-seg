@@ -236,15 +236,17 @@ class Runner:
         )
         learner = learner_class(**learner_kwargs)
 
-        study_name = self.optuna_config["study_name"]
+        study_id = self.optuna_config["study_name"].split(" ")[-1]
+        additional_config: dict = {
+            "git": get_short_git_hash(),
+            "study": study_id,
+        }
 
         if (
             self.use_wandb
             and self.curr_trial_number == 0
             and self.curr_dataset_fold == 0
         ):
-            study_id = study_name.split(" ")[-1]
-
             wandb_login()
             wandb.init(
                 tags=["helper"],
@@ -253,6 +255,7 @@ class Runner:
                 name=f"log study-ref {study_id}",
                 job_type="study",
             )
+            wandb.config.update(additional_config)
 
             ref_configuration = learner.get_configuration()
             ref_configuration["optuna"] = self.optuna_config
@@ -272,19 +275,10 @@ class Runner:
 
         if self.use_wandb:
             self.wandb_init(run_id)
-            additional_config = {
-                "git": get_short_git_hash(),
-                "study": study_name.split(" ")[-1],
-                "trial": self.curr_trial_number,
-            }
+            additional_config["trial"] = self.curr_trial_number
             if self.curr_dataset_fold > 0:
                 additional_config["fold"] = self.curr_dataset_fold
-            wandb.config.update(
-                {
-                    **additional_config,
-                    **important_config,
-                }
-            )
+            wandb.config.update(additional_config | important_config)
         learner.init()
 
         trainer = self.make_trainer()
