@@ -48,7 +48,6 @@ from utils.wandb import (
     prepare_artifact_name,
     prepare_ckpt_artifact_alias,
     prepare_ckpt_artifact_name,
-    prepare_study_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
     wandb_delete_file,
     wandb_log_file,
@@ -170,7 +169,7 @@ class BaseLearner(
 
         self.wandb_log(
             {"loss": val_loss} | dict(val_score) | {"score": score_summary},
-            "summary/val_",
+            "val_",
         )
         self.log_monitor(score_summary)
         self.optuna_log_and_prune(score_summary)
@@ -180,7 +179,7 @@ class BaseLearner(
 
         train_loss = mean(self.training_step_losses)
         self.training_step_losses.clear()
-        self.wandb_log({"loss": train_loss}, "summary/train_")
+        self.wandb_log({"loss": train_loss}, "train_")
 
         self.wandb_push_table()
 
@@ -190,7 +189,6 @@ class BaseLearner(
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
         self.wandb_log_ckpt_files()
-        self.wandb_log_best_study_ckpt()
 
     def on_test_start(self) -> None:
         super().on_test_start()
@@ -205,7 +203,7 @@ class BaseLearner(
         test_score = self.metric.compute()
         test_score = self.metric.prepare_for_log(test_score)
 
-        self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
+        self.wandb_log({"loss": test_loss} | dict(test_score), "test_")
 
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
@@ -270,7 +268,7 @@ class BaseLearner(
             wandb.watch(self, log_freq=1)
 
         wandb.define_metric("epoch")
-        wandb.define_metric("summary/*", step_metric="epoch")
+        wandb.define_metric("*", step_metric="epoch")
 
     def check_and_clean_config(self, ref_type: Type[ConfigUnion]):
         config = self.config.copy()
@@ -483,12 +481,8 @@ class BaseLearner(
     def wandb_log(self, data: dict[str, Any], prefix: str = ""):
         if not self.use_wandb:
             return
-        use_epoch = prefix.startswith("summary/")
         epoch_value = 0 if "test" in prefix else self.current_epoch
-        wandb.log(
-            {prefix + k: v for k, v in data.items()}
-            | ({"epoch": epoch_value} if use_epoch else {})
-        )
+        wandb.log({prefix + k: v for k, v in data.items()} | {"epoch": epoch_value})
 
     def wandb_log_ckpt_files(self):
         if (
@@ -519,39 +513,6 @@ class BaseLearner(
                 "checkpoint",
                 [artifact_alias],
             )
-
-    def wandb_log_best_study_ckpt(self):
-        if (
-            not self.use_wandb
-            or self.optuna_trial is None
-            or not self.config["callbacks"].get("ckpt_top_k")
-        ):
-            return
-
-        study_id = self.optuna_trial.study.study_name.split(" ")[-1]
-        artifact_name = prepare_study_ckpt_artifact_name(study_id)
-        if self.optuna_trial.number != 0:
-            wandb_delete_file(
-                artifact_name,
-                "study-checkpoint",
-                dummy=self.config["learn"].get("dummy") is True,
-            )
-
-        index = 0 if self.config["callbacks"].get("monitor_mode") == "min" else -1
-        best_ckpt = sorted(
-            filter(
-                lambda x: x.endswith(".ckpt") and x != "last.ckpt",
-                os.listdir(self.log_path),
-            )
-        )[index]
-        artifact_alias = prepare_ckpt_artifact_alias(best_ckpt)
-        wandb_log_file(
-            wandb.run,
-            artifact_name,
-            os.path.join(self.log_path, best_ckpt),
-            "study-checkpoint",
-            [artifact_alias],
-        )
 
     def wandb_add_table(
         self,
