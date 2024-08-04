@@ -360,7 +360,7 @@ class Runner:
 
         self.wandb_init(run_id, resume=True)
 
-        wandb.log({"summary/study_score": new_score, "epoch": 0})
+        wandb.log({"trial_score": new_score})
 
         if pruned or not self.config["callbacks"].get("ckpt_top_k"):
             wandb.finish()
