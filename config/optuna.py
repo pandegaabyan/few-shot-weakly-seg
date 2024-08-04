@@ -64,4 +64,4 @@ def get_optuna_storage(dummy: bool = False) -> optuna.storages.BaseStorage:
         db_url = os.getenv("OPTUNA_DB_URL")
         if not db_url:
             raise ValueError("OPTUNA_DB_URL is not set")
-    return optuna.storages.RDBStorage(url=db_url)
+    return optuna.storages.RDBStorage(url=db_url, heartbeat_interval=5 * 60)
