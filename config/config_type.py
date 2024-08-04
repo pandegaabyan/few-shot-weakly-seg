@@ -24,7 +24,7 @@ class LearnConfig(TypedDict):
     cudnn_benchmark: NotRequired[bool]
     manual_optim: NotRequired[bool]
     ref_ckpt_path: NotRequired[str | None]
-    optuna_study_name: NotRequired[str | None]
+    optuna_study: NotRequired[str | None]
 
 
 class OptimizerConfig(TypedDict, total=False):

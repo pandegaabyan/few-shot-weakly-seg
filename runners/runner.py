@@ -153,7 +153,8 @@ class Runner:
             base_run_name = make_run_name()
             self.run_name = base_run_name
             self.config["learn"]["run_name"] = base_run_name
-            self.config["learn"]["optuna_study_name"] = self.optuna_config["study_name"]
+            study_id = self.optuna_config["study_name"].split(" ")[-1]
+            self.config["learn"]["optuna_study"] = study_id
 
             trial.set_user_attr("run_name", base_run_name)
             self.curr_trial_number = trial.number
@@ -273,7 +274,7 @@ class Runner:
             self.wandb_init(run_id)
             additional_config = {
                 "git": get_short_git_hash(),
-                "study": study_name,
+                "study": study_name.split(" ")[-1],
                 "trial": self.curr_trial_number,
             }
             if self.curr_dataset_fold > 0:
