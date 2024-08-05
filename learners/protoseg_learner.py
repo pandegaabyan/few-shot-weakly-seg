@@ -28,40 +28,37 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         self, supp_image: Tensor, supp_mask: Tensor, qry_image: Tensor
     ) -> Tensor:
         # tup [B C H W], tup [B H W], tup [B C H W]
-        # s_images, s_masks, qry_images = self.split_tensors(
-        #     [supp_image, supp_mask, qry_image]
-        # )
-        s_image = supp_image
-        s_mask = supp_mask
-        q_image = qry_image
+        s_images, s_masks, qry_images = self.split_tensors(
+            [supp_image, supp_mask, qry_image]
+        )
 
-        # s_emb_linear_list, s_mask_linear_list = [], []
-        # for s_image, s_mask in zip(s_images, s_masks):
-        s_emb: Tensor = self.net(s_image)  # [B E H W]
-        s_emb_linear = self.linearize_embeddings(s_emb)  # [B H*W E]
-        s_mask_linear = s_mask.view(s_mask.size(0), -1)  # [B H*W]
-        # s_emb_linear_list.append(s_emb_linear)
-        # s_mask_linear_list.append(s_mask_linear)
-        # s_emb_linear = torch.vstack(s_emb_linear_list)  # [S H*W E]
-        # s_mask_linear = torch.vstack(s_mask_linear_list)  # [S H*W]
+        s_emb_linear_list, s_mask_linear_list = [], []
+        for s_image, s_mask in zip(s_images, s_masks):
+            s_emb: Tensor = self.net(s_image)  # [B E H W]
+            s_emb_linear = self.linearize_embeddings(s_emb)  # [B H*W E]
+            s_mask_linear = s_mask.view(s_mask.size(0), -1)  # [B H*W]
+            s_emb_linear_list.append(s_emb_linear)
+            s_mask_linear_list.append(s_mask_linear)
+        s_emb_linear = torch.vstack(s_emb_linear_list)  # [S H*W E]
+        s_mask_linear = torch.vstack(s_mask_linear_list)  # [S H*W]
 
         # [S C E] if multi_pred else [C E]
         prototypes = self.get_prototypes(s_emb_linear, s_mask_linear)
 
-        # qry_pred_list = []
-        # for q_image in qry_images:
-        q_emb: Tensor = self.net(q_image)  # [B E H W]
-        q_emb_linear = self.linearize_embeddings(q_emb)  # [B H*W E]
-        q_pred_linear = self.get_predictions(
-            prototypes, q_emb_linear
-        )  # [B S C H*W] if multi_pred else [B C H*W]
-        q_pred = q_pred_linear.view(
-            *q_pred_linear.shape[:-1], *q_image.shape[2:]
-        )  # [B S C H W] if multi_pred else [B C H W]
-        # qry_pred_list.append(q_pred)
-        # qry_pred = torch.vstack(qry_pred_list)
+        qry_pred_list = []
+        for q_image in qry_images:
+            q_emb: Tensor = self.net(q_image)  # [B E H W]
+            q_emb_linear = self.linearize_embeddings(q_emb)  # [B H*W E]
+            q_pred_linear = self.get_predictions(
+                prototypes, q_emb_linear
+            )  # [B S C H*W] if multi_pred else [B C H*W]
+            q_pred = q_pred_linear.view(
+                *q_pred_linear.shape[:-1], *q_image.shape[2:]
+            )  # [B S C H W] if multi_pred else [B C H W]
+            qry_pred_list.append(q_pred)
+        qry_pred = torch.vstack(qry_pred_list)
 
-        return q_pred  # [Q S C H W] if multi_pred else [Q C H W]
+        return qry_pred  # [Q S C H W] if multi_pred else [Q C H W]
 
     def training_process(
         self, batch: FewSparseDataTuple, batch_idx: int
