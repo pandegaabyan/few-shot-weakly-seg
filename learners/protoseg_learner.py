@@ -152,16 +152,6 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
 
         return prototypes
 
-    # def get_predictions(self, prototypes: Tensor, embeddings: Tensor) -> Tensor:
-    #     if self.multi_pred:
-    #         proto = prototypes.unsqueeze(0).unsqueeze(3)
-    #         embed = embeddings.unsqueeze(1).unsqueeze(2)
-    #     else:
-    #         proto = prototypes.unsqueeze(0).unsqueeze(2)
-    #         embed = embeddings.unsqueeze(1)
-    #     squared_distances = torch.sum((proto - embed) ** 2, dim=-1)
-    #     return -squared_distances
-
     def get_predictions(self, prototypes: Tensor, embeddings: Tensor) -> Tensor:
         # multi_pred: [S C E], [B H*W E] -> [B S C H*W]
         # else: [C E], [B H*W E] -> [B C H*W]
