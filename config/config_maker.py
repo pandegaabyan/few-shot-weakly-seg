@@ -103,7 +103,7 @@ weasel_config: WeaselConfig = {
     "first_order": False,
     "update_param_rate": 0.3,
     "tune_epochs": 3,
-    "tune_val_freq": 1,
+    "tune_val_freq": None,
     "tune_multi_step": True,
 }
 

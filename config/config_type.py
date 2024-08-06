@@ -79,7 +79,7 @@ class WeaselConfig(TypedDict):
     first_order: bool
     update_param_rate: float
     tune_epochs: int
-    tune_val_freq: int
+    tune_val_freq: int | None
     tune_multi_step: bool
 
 

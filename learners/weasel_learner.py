@@ -95,7 +95,9 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
 
             self.tune_step(s_images, s_masks)
 
-            if (ep != tune_epochs - 1) and ((ep + 1) % tune_val_freq != 0):
+            if (ep != tune_epochs - 1) and (
+                tune_val_freq is None or ((ep + 1) % tune_val_freq != 0)
+            ):
                 continue
 
             with torch.inference_mode():
