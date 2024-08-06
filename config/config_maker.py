@@ -7,7 +7,6 @@ from config.config_type import (
     CallbacksConfig,
     ConfigBase,
     ConfigGuidedNets,
-    ConfigMetaLearner,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -230,15 +229,6 @@ def make_config(
             config_simple["learn"]["num_epochs"] = 200
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
-    elif learner == "meta":
-        config_meta: ConfigMetaLearner = {
-            **config_ref,
-            "meta_learner": meta_learner_config,
-        }
-        config_meta["learn"]["exp_name"] = "ML"
-        if not dummy:
-            config_meta["data"]["batch_size"] = 8
-        config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
             **config_ref,
