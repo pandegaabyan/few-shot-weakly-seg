@@ -39,6 +39,10 @@ from tasks.optic_disc_cup.datasets import (
     RefugeValSimpleDataset,
     RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
+    drishti_sparsity_params,
+    refuge_train_sparsity_params,
+    refuge_val_test_sparsity_params,
+    rim_one_3_sparsity_params,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
@@ -126,7 +130,10 @@ class SimpleRunner(Runner):
         }
         config["pruner_params"] = {
             "min_resource": 10,
-            "max_resource": self.config["learn"]["num_epochs"],
+            "max_resource": (
+                self.config["learn"]["num_epochs"]
+                / self.config["learn"].get("val_freq", 1)
+            ),
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
@@ -140,12 +147,13 @@ class SimpleRunner(Runner):
         self, val_fold: int, dummy: bool
     ) -> DatasetLists[SimpleDataset, SimpleDatasetKwargs]:
         base_kwargs: SimpleDatasetKwargs = {
-            "max_items": 6 if dummy else None,
             "seed": 0,
             "split_val_fold": val_fold,
             "split_test_fold": 0,
             "cache_data": True,
         }
+        if dummy:
+            base_kwargs["max_items"] = 6
 
         rim_one_3_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -198,55 +206,131 @@ class SimpleRunner(Runner):
 class MetaRunner(Runner):
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner"] = "median"
-        config["num_folds"] = 2
-        config["num_trials"] = 3
+        config["sampler_params"] = {
+            "n_startup_trials": 20,
+            "n_ei_candidates": 30,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
+            "seed": 0,
+        }
+        config["pruner_params"] = {
+            "min_resource": 5,
+            "max_resource": (
+                self.config["learn"]["num_epochs"]
+                / self.config["learn"].get("val_freq", 1)
+            ),
+            "reduction_factor": 2,
+            "bootstrap_count": 2,
+        }
+        config["pruner_patience"] = 5
+        if not self.dummy:
+            config["num_folds"] = 2
+            config["timeout_sec"] = 24 * 3600
         return config
 
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
         base_kwargs: FewSparseDatasetKwargs = {
-            "max_items": 6 if dummy else None,
             "seed": 0,
+            "split_val_fold": 0,
+            "split_test_fold": 0,
             "cache_data": True,
-            "query_batch_size": self.config["data"]["batch_size"],
+            "query_batch_size": 10,
+            "split_query_size": 0.5,
             "split_query_fold": query_fold,
+        }
+        if dummy:
+            base_kwargs["max_items"] = 6
+            base_kwargs["num_iterations"] = 3
+            base_kwargs["shot_sparsity_permutation"] = False
+
+        train_kwargs: FewSparseDatasetKwargs = {
+            "shot_options": (1, 20),
+            "sparsity_options": [
+                ("point", (5, 50)),
+                ("grid", (0.1, 1.0)),
+                ("contour", (0.1, 1.0)),
+                ("skeleton", (0.1, 1.0)),
+                ("region", (0.1, 1.0)),
+            ],
+            "shot_sparsity_permutation": False,
+            "homogen_support_batch": False,
+            "num_iterations": 5.0,
+        }
+
+        val_kwargs: FewSparseDatasetKwargs = {
+            "shot_options": [5, 10, 15],
+            "sparsity_options": [
+                ("point", [13, 25, 37]),
+                ("grid", [0.25, 0.5, 0.75]),
+                ("contour", [0.25, 0.5, 0.75]),
+                ("skeleton", [0.25, 0.5, 0.75]),
+                ("region", [0.25, 0.5, 0.75]),
+            ],
+            "shot_sparsity_permutation": True,
+        }
+
+        test_kwargs: FewSparseDatasetKwargs = {
+            "shot_options": [1, 5, 10, 15, 20],
+            "sparsity_options": [
+                ("point", [1, 13, 25, 37, 50]),
+                ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
+            ],
+            "shot_sparsity_permutation": True,
         }
 
         rim_one_3_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **val_kwargs,
             "dataset_name": "RIM-ONE-3-train",
             "split_val_size": 1,
+            "sparsity_params": rim_one_3_sparsity_params,
         }
         rim_one_3_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **test_kwargs,
             "dataset_name": "RIM-ONE-3-test",
             "split_test_size": 1,
+            "sparsity_params": rim_one_3_sparsity_params,
         }
         drishti_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **val_kwargs,
             "dataset_name": "DRISHTI-GS-train",
             "split_val_size": 1,
+            "sparsity_params": drishti_sparsity_params,
         }
         drishti_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **test_kwargs,
             "dataset_name": "DRISHTI-GS-test",
             "split_test_size": 1,
+            "sparsity_params": drishti_sparsity_params,
         }
         refuge_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **train_kwargs,
             "dataset_name": "REFUGE-train",
+            "sparsity_params": refuge_train_sparsity_params,
         }
         refuge_val_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **val_kwargs,
             "dataset_name": "REFUGE-val",
             "split_val_size": 1,
+            "sparsity_params": refuge_val_test_sparsity_params,
         }
         refuge_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
+            **test_kwargs,
             "dataset_name": "REFUGE-test",
             "split_test_size": 1,
+            "sparsity_params": refuge_val_test_sparsity_params,
         }
 
         return {
@@ -279,6 +363,12 @@ class WeaselRunner(MetaRunner):
         cfg: ConfigWeasel = config  # type: ignore
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
+            ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
+            ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
+            cfg["weasel"]["update_param_rate"] = ws_update_rate
+            cfg["weasel"]["tune_epochs"] = ws_tune_epochs
+            important_config["ws_update_rate"] = ws_update_rate
+            important_config["ws_tune_epochs"] = ws_tune_epochs
         else:
             important_config = {}
 
@@ -312,6 +402,9 @@ class ProtosegRunner(MetaRunner):
         cfg: ConfigProtoSeg = config  # type: ignore
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            cfg["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
         else:
             important_config = {}
 
