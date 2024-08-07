@@ -1,5 +1,6 @@
 import random
 from abc import ABC, abstractmethod
+from math import floor
 
 import numpy as np
 import torch
@@ -385,7 +386,7 @@ class FewSparseDataset(BaseDataset, ABC):
         return batch_list
 
     def make_support_query_indices(self) -> tuple[list[int], list[int]]:
-        query_size = round(self.split_query_size * len(self.items))
+        query_size = floor(self.split_query_size * len(self.items))
         support_indices_init, query_indices_init = self.split_train_test(
             list(range(len(self.items))),
             test_size=query_size,
