@@ -128,16 +128,15 @@ class SimpleRunner(Runner):
             "constant_liar": True,
             "seed": 0,
         }
+        num_epochs = self.config["learn"]["num_epochs"]
+        val_freq = self.config["learn"].get("val_freq", 1)
         config["pruner_params"] = {
-            "min_resource": 10,
-            "max_resource": (
-                self.config["learn"]["num_epochs"]
-                / self.config["learn"].get("val_freq", 1)
-            ),
+            "min_resource": max(round(num_epochs / val_freq / 20), 1),
+            "max_resource": round(num_epochs / val_freq),
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
-        config["pruner_patience"] = 5
+        config["pruner_patience"] = max(round(num_epochs / val_freq / 40), 1)
         if not self.dummy:
             config["num_folds"] = 3
             config["timeout_sec"] = 8 * 3600
@@ -214,16 +213,15 @@ class MetaRunner(Runner):
             "constant_liar": True,
             "seed": 0,
         }
+        num_epochs = self.config["learn"]["num_epochs"]
+        val_freq = self.config["learn"].get("val_freq", 1)
         config["pruner_params"] = {
-            "min_resource": 5,
-            "max_resource": (
-                self.config["learn"]["num_epochs"]
-                / self.config["learn"].get("val_freq", 1)
-            ),
+            "min_resource": max(round(num_epochs / val_freq / 20), 1),
+            "max_resource": round(num_epochs / val_freq),
             "reduction_factor": 2,
             "bootstrap_count": 2,
         }
-        config["pruner_patience"] = 5
+        config["pruner_patience"] = max(round(num_epochs / val_freq / 40), 1)
         if not self.dummy:
             config["num_folds"] = 2
             config["timeout_sec"] = 24 * 3600
