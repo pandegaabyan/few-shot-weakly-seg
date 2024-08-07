@@ -1,6 +1,7 @@
 import os
 import random
 from abc import ABC, abstractmethod
+from math import floor
 
 import numpy as np
 import torch
@@ -167,8 +168,8 @@ class BaseDataset(Dataset, ABC):
 
     def make_items(self) -> DataPathList:
         all_data = self.get_all_data_path()
-        test_size = round(self.split_test_size * len(all_data))
-        val_size = round(self.split_val_size * len(all_data))
+        test_size = floor(self.split_test_size * len(all_data))
+        val_size = floor(self.split_val_size * len(all_data))
 
         tr_val, ts = self.split_train_test(
             all_data,
