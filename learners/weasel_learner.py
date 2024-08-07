@@ -37,10 +37,11 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
         with torch.enable_grad():
             for i, (s_image, s_mask) in enumerate(zip(s_images, s_masks)):
                 s_pred = self.net(s_image)
+                new_loss = self.loss(s_pred, s_mask) * s_image.size(0)
                 if i == 0:
-                    supp_loss = self.loss(s_pred, s_mask)
+                    supp_loss = new_loss
                 else:
-                    supp_loss += self.loss(s_pred, s_mask)
+                    supp_loss += new_loss
 
         params = self.update_parameters(supp_loss)
 
@@ -94,7 +95,9 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
 
             self.tune_step(s_images, s_masks)
 
-            if (ep != tune_epochs - 1) and ((ep + 1) % tune_val_freq != 0):
+            if (ep != tune_epochs - 1) and (
+                tune_val_freq is None or ((ep + 1) % tune_val_freq != 0)
+            ):
                 continue
 
             with torch.inference_mode():
@@ -172,10 +175,11 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
             else:
                 for i, (image, mask) in enumerate(zip(images, masks)):
                     pred = self.net(image)
+                    new_loss = self.loss(pred, mask) * image.size(0)
                     if i == 0:
-                        loss = self.loss(pred, mask)
+                        loss = new_loss
                     else:
-                        loss += self.loss(pred, mask)
+                        loss += new_loss
                 self.net.zero_grad(set_to_none=True)
                 self.manual_backward(loss)
                 self.manual_optimizer_step()

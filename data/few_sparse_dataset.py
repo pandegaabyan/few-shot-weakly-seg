@@ -182,19 +182,19 @@ class FewSparseDataset(BaseDataset, ABC):
             small_msk[starting[0] :: small_spacing, starting[1] :: small_spacing]
         )
 
-        new_msk = FewSparseDataset.resize_image(small_new_msk, msk.shape, True)
-
         blobs = skdata.binary_blobs(
-            np.max(new_msk.shape),
+            np.max(small_new_msk.shape),
             blob_size_fraction=0.1,
             volume_fraction=sparsity_num,
             rng=blob_seed,
         )
-        blobs = blobs[: new_msk.shape[0], : new_msk.shape[1]]
+        blobs = blobs[: small_new_msk.shape[0], : small_new_msk.shape[1]]
 
-        final_msk = np.zeros_like(new_msk)
-        final_msk[:] = -1
-        final_msk[blobs] = new_msk[blobs]
+        small_final_msk = np.zeros_like(small_new_msk)
+        small_final_msk[:] = -1
+        small_final_msk[blobs] = small_new_msk[blobs]
+
+        final_msk = FewSparseDataset.resize_image(small_final_msk, msk.shape, True)
 
         np.random.seed(None)
 

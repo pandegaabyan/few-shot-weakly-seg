@@ -101,3 +101,43 @@ PapilaSimpleDataset, PapilaFSDataset = create_dataset_classes("PAPILA")
 RefugeTrainSimpleDataset, RefugeTrainFSDataset = create_dataset_classes("REFUGE-train")
 RefugeValSimpleDataset, RefugeValFSDataset = create_dataset_classes("REFUGE-val")
 RefugeTestSimpleDataset, RefugeTestFSDataset = create_dataset_classes("REFUGE-test")
+
+rim_one_3_sparsity_params: dict = {
+    "point_dot_size": 10,
+    "grid_spacing": 25,
+    "grid_dot_size": 7,
+    "contour_radius_dist": 5,
+    "contour_radius_thick": 2.5,
+    "skeleton_radius_thick": 5,
+    "region_compactness": 0.4,
+}
+
+drishti_sparsity_params: dict = {
+    "point_dot_size": 10,
+    "grid_spacing": 25,
+    "grid_dot_size": 7,
+    "contour_radius_dist": 5,
+    "contour_radius_thick": 2,
+    "skeleton_radius_thick": 5,
+    "region_compactness": 0.5,
+}
+
+refuge_train_sparsity_params: dict = {
+    "point_dot_size": 10,
+    "grid_spacing": 25,
+    "grid_dot_size": 7,
+    "contour_radius_dist": 7,
+    "contour_radius_thick": 3,
+    "skeleton_radius_thick": 5,
+    "region_compactness": 0.4,
+}
+
+refuge_val_test_sparsity_params: dict = {
+    "point_dot_size": 10,
+    "grid_spacing": 25,
+    "grid_dot_size": 7,
+    "contour_radius_dist": 7,
+    "contour_radius_thick": 3,
+    "skeleton_radius_thick": 5,
+    "region_compactness": 0.5,
+}

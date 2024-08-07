@@ -7,7 +7,6 @@ from config.config_type import (
     CallbacksConfig,
     ConfigBase,
     ConfigGuidedNets,
-    ConfigMetaLearner,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -104,8 +103,8 @@ weasel_config: WeaselConfig = {
     "first_order": False,
     "update_param_rate": 0.3,
     "tune_epochs": 3,
-    "tune_val_freq": 1,
-    "tune_multi_step": True,
+    "tune_val_freq": None,
+    "tune_multi_step": False,
 }
 
 protoseg_config: ProtoSegConfig = {
@@ -207,8 +206,6 @@ def make_config(
     if not dummy:
         config_ref["data"]["num_workers"] = 3
         config_ref["learn"]["dummy"] = False
-        config_ref["learn"]["num_epochs"] = 100
-        config_ref["callbacks"]["stop_patience"] = 20
         if mode != "study":
             config_ref["callbacks"]["ckpt_top_k"] = 5
 
@@ -228,17 +225,9 @@ def make_config(
         if not dummy:
             config_simple["data"]["batch_size"] = 16
             config_simple["learn"]["num_epochs"] = 200
+            config_ref["learn"]["val_freq"] = 1
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
-    elif learner == "meta":
-        config_meta: ConfigMetaLearner = {
-            **config_ref,
-            "meta_learner": meta_learner_config,
-        }
-        config_meta["learn"]["exp_name"] = "ML"
-        if not dummy:
-            config_meta["data"]["batch_size"] = 8
-        config = config_meta
     elif learner == "weasel":
         config_weasel: ConfigWeasel = {
             **config_ref,
@@ -248,7 +237,10 @@ def make_config(
         config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 8
-            config_weasel["weasel"]["tune_epochs"] = 10
+            config_ref["learn"]["num_epochs"] = 100
+            config_ref["learn"]["val_freq"] = 10
+            config_ref["callbacks"]["stop_patience"] = 2
+            config_weasel["weasel"]["tune_epochs"] = 20
         config = config_weasel
     elif learner == "protoseg":
         config_protoseg: ConfigProtoSeg = {
@@ -258,7 +250,10 @@ def make_config(
         }
         config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
-            config_protoseg["data"]["batch_size"] = 16
+            config_protoseg["data"]["batch_size"] = 12
+            config_ref["learn"]["num_epochs"] = 100
+            config_ref["learn"]["val_freq"] = 2
+            config_ref["callbacks"]["stop_patience"] = 10
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
@@ -269,6 +264,9 @@ def make_config(
         config_guidednets["learn"]["exp_name"] = "GN"
         if not dummy:
             config_guidednets["data"]["batch_size"] = 8
+            config_ref["learn"]["num_epochs"] = 100
+            config_ref["learn"]["val_freq"] = 2
+            config_ref["callbacks"]["stop_patience"] = 10
         config = config_guidednets
 
     exp_name = config["learn"]["exp_name"]
