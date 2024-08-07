@@ -7,7 +7,12 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import ConcatDataset, DataLoader
 
 from data.few_sparse_dataset import FewSparseDataset
-from data.typings import FewSparseDatasetKwargs, FewSparseDataTuple, SupportDataTuple
+from data.typings import (
+    FewSparseDatasetKwargs,
+    FewSparseDataTuple,
+    SparsityValue,
+    SupportDataTuple,
+)
 from learners.base_learner import BaseLearner
 from learners.typings import ConfigTypeMeta
 from utils.utils import make_batch_sample_indices
@@ -140,18 +145,35 @@ class MetaLearner(
     ):
         if not self.config["log"].get("table"):
             return
+
         if score is not None:
             score_tup = self.metric.prepare_for_log(score)
         else:
             score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
+
+        if isinstance(support.sparsity_mode, list):
+            sparsity_mode = " ".join(support.sparsity_mode)
+        else:
+            sparsity_mode = support.sparsity_mode
+
+        def encode_sparsity_value(value: SparsityValue) -> str:
+            return value if isinstance(value, str) else str(round(value, 3))
+
+        if isinstance(support.sparsity_value, list):
+            sparsity_value = " ".join(
+                map(encode_sparsity_value, support.sparsity_value)
+            )
+        else:
+            sparsity_value = encode_sparsity_value(support.sparsity_value)
+
         self.log_table(
             [
                 ("type", type),
                 ("epoch", epoch if epoch is not None else self.current_epoch),
                 ("batch", batch_idx),
                 ("shot", len(support.file_names)),
-                ("sparsity_mode", support.sparsity_mode),
-                ("sparsity_value", support.sparsity_value),
+                ("sparsity_mode", sparsity_mode),
+                ("sparsity_value", sparsity_value),
                 ("loss", loss.item()),
             ]
             + score_tup,
