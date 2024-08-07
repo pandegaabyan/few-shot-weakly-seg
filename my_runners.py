@@ -236,9 +236,13 @@ class MetaRunner(Runner):
             "split_query_fold": query_fold,
         }
         if dummy:
-            base_kwargs["max_items"] = 6
-            base_kwargs["num_iterations"] = 3
-            base_kwargs["shot_sparsity_permutation"] = False
+            dummy_kwargs: FewSparseDatasetKwargs = {
+                "max_items": 6,
+                "num_iterations": 3,
+                "shot_sparsity_permutation": False,
+            }
+        else:
+            dummy_kwargs = {}
 
         train_kwargs: FewSparseDatasetKwargs = {
             "shot_options": (1, 20),
@@ -284,6 +288,7 @@ class MetaRunner(Runner):
             "dataset_name": "RIM-ONE-3-train",
             "split_val_size": 1,
             "sparsity_params": rim_one_3_sparsity_params,
+            **dummy_kwargs,
         }
         rim_one_3_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
@@ -291,6 +296,7 @@ class MetaRunner(Runner):
             "dataset_name": "RIM-ONE-3-test",
             "split_test_size": 1,
             "sparsity_params": rim_one_3_sparsity_params,
+            **dummy_kwargs,
         }
         drishti_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
@@ -298,6 +304,7 @@ class MetaRunner(Runner):
             "dataset_name": "DRISHTI-GS-train",
             "split_val_size": 1,
             "sparsity_params": drishti_sparsity_params,
+            **dummy_kwargs,
         }
         drishti_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
@@ -305,12 +312,14 @@ class MetaRunner(Runner):
             "dataset_name": "DRISHTI-GS-test",
             "split_test_size": 1,
             "sparsity_params": drishti_sparsity_params,
+            **dummy_kwargs,
         }
         refuge_train_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
             **train_kwargs,
             "dataset_name": "REFUGE-train",
             "sparsity_params": refuge_train_sparsity_params,
+            **dummy_kwargs,
         }
         refuge_val_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
@@ -318,6 +327,7 @@ class MetaRunner(Runner):
             "dataset_name": "REFUGE-val",
             "split_val_size": 1,
             "sparsity_params": refuge_val_test_sparsity_params,
+            **dummy_kwargs,
         }
         refuge_test_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
@@ -325,6 +335,7 @@ class MetaRunner(Runner):
             "dataset_name": "REFUGE-test",
             "split_test_size": 1,
             "sparsity_params": refuge_val_test_sparsity_params,
+            **dummy_kwargs,
         }
 
         return {
