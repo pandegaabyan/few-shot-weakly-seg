@@ -257,11 +257,18 @@ class BaseLearner(
         for use_as, dataset_list in datasets:
             if dataset_list is None:
                 continue
-            for ds in dataset_list:
+            if len(dataset_list) == 1:
+                wandb.run.use_artifact(
+                    f"{dataset_list[0].dataset_name}:latest",
+                    type="dataset",
+                    use_as=use_as,
+                )
+                continue
+            for i, ds in enumerate(dataset_list):
                 wandb.run.use_artifact(
                     f"{ds.dataset_name}:latest",
                     type="dataset",
-                    use_as=use_as,
+                    use_as=f"{use_as}_{i}",
                 )
 
         if wandb_config.get("watch_model"):
