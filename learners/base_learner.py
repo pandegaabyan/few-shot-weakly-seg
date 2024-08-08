@@ -121,7 +121,7 @@ class BaseLearner(
         self.resume = False
         self.configuration_logged = False
         self.optuna_pruned = False
-        self.best_monitor_value = 0.0
+        self.best_monitor_value: float | None = None
         self.wandb_tables: dict[str, wandb.Table] = {}
         self.training_step_losses: list[float] = []
         self.validation_step_losses: list[float] = []
@@ -476,8 +476,10 @@ class BaseLearner(
 
     def log_monitor(self, value: float):
         monitor_mode = self.config["callbacks"].get("monitor_mode", "min")
-        if (monitor_mode == "min" and value < self.best_monitor_value) or (
-            monitor_mode == "max" and value > self.best_monitor_value
+        if (
+            (self.best_monitor_value is None)
+            or (monitor_mode == "min" and value < self.best_monitor_value)
+            or (monitor_mode == "max" and value > self.best_monitor_value)
         ):
             self.best_monitor_value = value
 

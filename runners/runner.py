@@ -287,6 +287,7 @@ class Runner:
         if self.use_wandb:
             wandb.finish()
 
+        assert learner.best_monitor_value is not None
         return learner.best_monitor_value, learner.optuna_pruned
 
     def make_callbacks(self) -> list[Callback]:
