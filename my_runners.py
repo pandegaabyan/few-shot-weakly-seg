@@ -423,6 +423,6 @@ class ProtosegRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "PS-mp REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
