@@ -401,6 +401,7 @@ class ProtosegRunner(MetaRunner):
         dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigProtoSeg = config  # type: ignore
+        cfg["protoseg"]["multi_pred"] = True
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
