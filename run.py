@@ -59,11 +59,7 @@ def main(
         raise Exception("Git is not clean, please commit your changes first")
 
     config = make_config(
-        mode=mode,
-        dummy=dummy,
-        use_wandb=not no_wandb,
-        learner=learner,
-        name_suffix="multi_pred",
+        mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
 
     for key, value in configs:

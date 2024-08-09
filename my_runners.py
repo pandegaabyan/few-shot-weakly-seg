@@ -215,7 +215,7 @@ class MetaRunner(Runner):
         }
         if not self.dummy:
             config["num_folds"] = 2
-            config["timeout_sec"] = 24 * 3600
+            config["timeout_sec"] = 13 * 3600
         return config
 
     def make_dataset_lists(
@@ -420,6 +420,11 @@ class ProtosegRunner(MetaRunner):
         important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return ProtosegUnet, kwargs, important_config
+
+    def update_config(self, config: ConfigUnion) -> ConfigUnion:
+        config = super().update_config(config)
+        config["learn"]["exp_name"] = "PS multi-pred"
+        return config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
