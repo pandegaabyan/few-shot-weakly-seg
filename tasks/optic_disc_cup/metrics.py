@@ -14,7 +14,8 @@ class DiscCupIoU(BaseMetric):
         self.add_state("iou_cup", default=torch.tensor(0), dist_reduce_fx="mean")
 
     def update(self, inputs: Tensor, targets: Tensor):
-        inputs = inputs.argmax(dim=1)
+        if inputs.is_floating_point():
+            inputs = inputs.argmax(dim=1)
         disc_targets = targets != 0
         disc_inputs = inputs != 0
         cup_targets = targets == 2
