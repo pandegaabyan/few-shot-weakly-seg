@@ -53,6 +53,7 @@ class Runner:
 
         self.config = self.update_config(config)
         self.optuna_config = self.make_optuna_config()
+        self.git_hash = get_short_git_hash()
 
         self.use_wandb = self.config.get("wandb") is not None
         self.exp_name = self.config["learn"]["exp_name"]
@@ -127,9 +128,11 @@ class Runner:
             learner = learner_class.load_from_checkpoint(ckpt_path, **learner_kwargs)
 
         if self.use_wandb:
-            wandb.config.update({"git": get_short_git_hash(), **important_config})
+            wandb.config.update({"git": self.git_hash, **important_config})
         init_ok = learner.init(
-            resume=self.resume or test_only_by_resuming, force_clear_dir=True
+            resume=self.resume or test_only_by_resuming,
+            force_clear_dir=True,
+            git_hash=self.git_hash,
         )
         if not init_ok:
             return
@@ -200,7 +203,7 @@ class Runner:
             study = optuna.create_study(
                 direction=self.optuna_config["direction"], **study_kwargs
             )
-            study.set_user_attr("git_hash", get_short_git_hash())
+            study.set_user_attr("git_hash", self.git_hash)
             for key, value in self.optuna_config.items():
                 if key == "study_name":
                     continue
@@ -238,7 +241,7 @@ class Runner:
 
         study_id = self.optuna_config["study_name"].split(" ")[-1]
         additional_config: dict = {
-            "git": get_short_git_hash(),
+            "git": self.git_hash,
             "study": study_id,
         }
 
@@ -279,7 +282,7 @@ class Runner:
             if self.curr_dataset_fold > 0:
                 additional_config["fold"] = self.curr_dataset_fold
             wandb.config.update(additional_config | important_config)
-        learner.init()
+        learner.init(git_hash=self.git_hash)
 
         trainer = self.make_trainer()
         trainer.fit(learner)

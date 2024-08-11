@@ -217,7 +217,12 @@ class BaseLearner(
     def test_dataloader(self) -> DataLoader:
         return self.make_dataloader(self.test_datasets)
 
-    def init(self, resume: bool = False, force_clear_dir: bool = False) -> bool:
+    def init(
+        self,
+        resume: bool = False,
+        force_clear_dir: bool = False,
+        git_hash: str | None = None,
+    ) -> bool:
         self.resume = resume
         if self.log_path == "":
             pass
@@ -236,7 +241,12 @@ class BaseLearner(
 
         self.wandb_init()
 
-        self.print_initial_info()
+        if git_hash is None:
+            git_hash = get_short_git_hash()
+        print("-" * 30)
+        print("Git hash:", git_hash)
+        print("Command:", " ".join(sys.argv))
+
         self.init_ok = True
         return True
 
@@ -338,11 +348,6 @@ class BaseLearner(
         if isinstance(sched, list):
             return sched
         return [sched]
-
-    def print_initial_info(self):
-        print("-" * 30)
-        print("Git hash:", get_short_git_hash())
-        print("Command:", " ".join(sys.argv))
 
     def update_progress_bar_fields(self, task: ProgressBarTaskType, **kwargs):
         if isinstance(self.trainer.progress_bar_callback, CustomRichProgressBar):
