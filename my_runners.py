@@ -34,10 +34,14 @@ from tasks.optic_disc_cup.datasets import (
     DrishtiTrainFSDataset,
     DrishtiTrainSimpleDataset,
     RefugeTestFSDataset,
+    RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
+    RefugeValSimpleDataset,
     RimOne3TestFSDataset,
+    RimOne3TestSimpleDataset,
     RimOne3TrainFSDataset,
+    RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -118,7 +122,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "S REF" + " " + gen_id(5)
+        config["study_name"] = "S REF-RO3-DGS" + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -136,7 +140,7 @@ class SimpleRunner(Runner):
         config["pruner_patience"] = 5
         if not self.dummy:
             config["num_folds"] = 3
-            config["timeout_sec"] = 65 * 60
+            config["timeout_sec"] = 600 * 60
         return config
 
     def make_dataset_lists(
@@ -178,7 +182,7 @@ class SimpleRunner(Runner):
         refuge_val_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             "dataset_name": "REFUGE-val",
-            "split_val_size": 1,
+            "split_val_size": 0.2,
         }
         refuge_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -189,9 +193,13 @@ class SimpleRunner(Runner):
         return {
             "dataset_list": [
                 (DrishtiTrainSimpleDataset, drishti_train_kwargs),
+                (RimOne3TrainSimpleDataset, rim_one_3_train_kwargs),
+                (RefugeValSimpleDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
                 (DrishtiTestSimpleDataset, drishti_test_kwargs),
+                (RimOne3TestSimpleDataset, rim_one_3_test_kwargs),
+                (RefugeTestSimpleDataset, refuge_test_kwargs),
             ],
         }
 
