@@ -128,21 +128,25 @@ def wandb_download_ckpt(
     study: bool = False,
     dummy: bool = False,
 ) -> str:
-    # PROBLEM: some aliases ("latest", "v2", etc) can't be resolved to fold number
     type_name = "study-checkpoint" if study else "checkpoint"
+    artifact_path = f"{wandb_path(dummy)}/{name}"
     if alias is None:
         alias = "latest"
     if alias in ["max", "min"]:
-        arts = wandb.Api().artifacts(type_name, f"{wandb_path(dummy)}/{name}")
+        arts = wandb.Api().artifacts(type_name, artifact_path)
         aliases = [alias for art in arts for alias in art.aliases]
         index = -1 if alias == "max" else 0
-        alias = sorted(filter(lambda x: x != "latest" and len(x) > 4, aliases))[index]
+        alias = sorted(filter(lambda x: len(x) > 6, aliases))[index]
     assert alias is not None
+    if study:
+        if len(alias) < 6:
+            all_alias = wandb.Api().artifact(artifact_path, type=type_name).aliases
+            alias = sorted(filter(lambda x: len(x) > 6, all_alias))[0]
+        if "fold" in alias:
+            fold = alias[alias.index("fold_") + 5 :].split("-")[0]
+            if fold != "0":
+                log_path += f" F{fold}"
     artifact = f"{name}:{alias}"
-    if "fold" in alias:
-        fold = alias[alias.index("fold_") + 5 :].split("-")[0]
-        if fold != "0":
-            log_path += f" F{fold}"
     if wandb.run is None:
         return wandb_download_file(artifact, log_path, type_name, dummy)
     return wandb_use_and_download_file(wandb.run, artifact, log_path, type_name)
