@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 
 import wandb
 from config.constants import FILENAMES, WANDB_SETTINGS
-from utils.logging import split_path
 from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 from wandb.sdk.wandb_run import Run
 
@@ -74,7 +73,7 @@ def prepare_study_ckpt_artifact_name(study_id: str) -> str:
     return f"{study_id}-study-ckpt"
 
 
-def wandb_delete_file(
+def wandb_delete_files(
     name: str,
     type: str,
     excluded_aliases: list[str] | None = None,
@@ -106,33 +105,50 @@ def wandb_log_file(
     return artifact
 
 
-def wandb_download_file(name: str, root: str, type: str, dummy: bool = False):
+def wandb_download_file(name: str, root: str, type: str, dummy: bool = False) -> str:
     artifact: wandb.Artifact = wandb.Api().artifact(
         f"{wandb_path(dummy)}/{name}", type=type
     )
-    artifact.download(root)
+    return str(artifact.file(root))
 
 
-def wandb_use_and_download_file(run: Run | None, name: str, root: str, type: str):
+def wandb_use_and_download_file(
+    run: Run | None, name: str, root: str, type: str
+) -> str:
     if run is None:
-        return
+        return ""
     artifact: wandb.Artifact = run.use_artifact(name, type=type)
-    artifact.download(root)
+    return str(artifact.file(root))
 
 
-def wandb_download_ckpt(ckpt_path: str):
-    splitted_path = split_path(ckpt_path)
-    ckpt_name = prepare_ckpt_artifact_name(*splitted_path[1:-1])
-    ckpt_alias = prepare_ckpt_artifact_alias(splitted_path[-1])
-    wandb_use_and_download_file(
-        wandb.run,
-        f"{ckpt_name}:{ckpt_alias}",
-        os.path.split(ckpt_path)[0],
-        "checkpoint",
-    )
+def wandb_download_ckpt(
+    name: str,
+    log_path: str,
+    alias: str | None = None,
+    study: bool = False,
+    dummy: bool = False,
+) -> str:
+    # PROBLEM: some aliases ("latest", "v2", etc) can't be resolved to fold number
+    type_name = "study-checkpoint" if study else "checkpoint"
+    if alias is None:
+        alias = "latest"
+    if alias in ["max", "min"]:
+        arts = wandb.Api().artifacts(type_name, f"{wandb_path(dummy)}/{name}")
+        aliases = [alias for art in arts for alias in art.aliases]
+        index = -1 if alias == "max" else 0
+        alias = sorted(filter(lambda x: x != "latest" and len(x) > 4, aliases))[index]
+    assert alias is not None
+    artifact = f"{name}:{alias}"
+    if "fold" in alias:
+        fold = alias[alias.index("fold_") + 5 :].split("-")[0]
+        if fold != "0":
+            log_path += f" F{fold}"
+    if wandb.run is None:
+        return wandb_download_file(artifact, log_path, type_name, dummy)
+    return wandb_use_and_download_file(wandb.run, artifact, log_path, type_name)
 
 
-def wandb_download_config(exp_name: str, run_name: str):
+def wandb_download_config(exp_name: str, run_name: str) -> tuple[str, str]:
     artifact_name = prepare_artifact_name(
         exp_name,
         run_name,
@@ -143,18 +159,19 @@ def wandb_download_config(exp_name: str, run_name: str):
         exp_name,
         run_name,
     )
-    wandb_use_and_download_file(
+    base_config_path = wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":base",
         root,
         "configuration",
     )
-    wandb_use_and_download_file(
+    latest_config_path = wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":latest",
         root,
         "configuration",
     )
+    return base_config_path, latest_config_path
 
 
 def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):

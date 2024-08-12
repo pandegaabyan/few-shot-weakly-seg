@@ -14,7 +14,6 @@ from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
     OptunaConfig,
     default_optuna_config,
-    get_optuna_storage,
     pruner_classes,
     sampler_classes,
 )
@@ -24,15 +23,16 @@ from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_th
 from utils.logging import (
     check_mkdir,
     dump_json,
-    get_full_ckpt_path,
+    get_ckpt_file,
     get_short_git_hash,
 )
+from utils.optuna import get_optuna_storage, get_study_best_name
 from utils.utils import mean
 from utils.wandb import (
     prepare_ckpt_artifact_alias,
     prepare_study_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
-    wandb_delete_file,
+    wandb_delete_files,
     wandb_download_ckpt,
     wandb_download_config,
     wandb_get_run_id_by_name,
@@ -98,26 +98,22 @@ class Runner:
         fit_only: bool = False,
         test_only: bool = False,
     ):
-        ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
-        test_only_by_resuming = test_only and ref_ckpt_path is None
-        if (self.resume and not test_only) or test_only_by_resuming:
-            ckpt_path = get_full_ckpt_path(self.exp_name, self.run_name, "last.ckpt")
-        else:
-            ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
+        if test_only and self.config["learn"].get("ref_ckpt") is None:
+            self.resume = True
 
         if self.use_wandb:
             wandb_login()
-            if self.resume or test_only_by_resuming:
+            if self.resume:
                 run_id = wandb_get_run_id_by_name(self.run_name, dummy=self.dummy)
             else:
                 run_id = wandb.util.generate_id()
             assert "wandb" in self.config
             self.config["wandb"]["run_id"] = run_id
-            self.wandb_init(run_id, resume=self.resume or test_only_by_resuming)
-            if ckpt_path is not None:
-                wandb_download_ckpt(ckpt_path)
-            if self.resume or test_only_by_resuming:
+            self.wandb_init(run_id, resume=self.resume)
+            if self.resume:
                 wandb_download_config(self.exp_name, self.run_name)
+
+        ckpt_path = self.resolve_ckpt()
 
         learner_class, learner_kwargs, important_config = self.make_learner(
             self.config, self.dummy
@@ -130,7 +126,7 @@ class Runner:
         if self.use_wandb:
             wandb.config.update({"git": self.git_hash, **important_config})
         init_ok = learner.init(
-            resume=self.resume or test_only_by_resuming,
+            resume=self.resume,
             force_clear_dir=True,
             git_hash=self.git_hash,
         )
@@ -204,6 +200,7 @@ class Runner:
                 direction=self.optuna_config["direction"], **study_kwargs
             )
             study.set_user_attr("git_hash", self.git_hash)
+            study.set_user_attr("exp_name", self.exp_name)
             for key, value in self.optuna_config.items():
                 if key == "study_name":
                     continue
@@ -384,7 +381,7 @@ class Runner:
         study_id = self.optuna_config["study_name"].split(" ")[-1]
         artifact_name = prepare_study_ckpt_artifact_name(study_id)
         try:
-            wandb_delete_file(
+            wandb_delete_files(
                 artifact_name,
                 "study-checkpoint",
                 dummy=self.config["learn"].get("dummy") is True,
@@ -395,12 +392,12 @@ class Runner:
         index = 0 if self.config["callbacks"].get("monitor_mode") == "min" else -1
         base_run_name = " ".join(self.config["learn"]["run_name"].split(" ")[:3])
         exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
-        run_paths = filter(
+        run_names = filter(
             lambda x: x.startswith(base_run_name),
             os.listdir(exp_path),
         )
-        for run_path in run_paths:
-            log_path = os.path.join(exp_path, run_path)
+        for run_name in run_names:
+            log_path = os.path.join(exp_path, run_name)
             best_ckpt = sorted(
                 filter(
                     lambda x: x.endswith(".ckpt") and x != "last.ckpt",
@@ -417,3 +414,76 @@ class Runner:
             )
 
         wandb.finish()
+
+    def resolve_ckpt(self) -> str | None:
+        # ref_ckpt:
+        # "{exp}/{run}" | "{exp}/{run}:{direction}" | "{exp}/{run}/{file}.ckpt"
+        # "wandb:{ckpt_art}" | "wandb:{ckpt_art}:{direction}" | "wandb:{ckpt_art}:{alias}"
+        # "study:{study_id}:{direction}" | "study:{study_id}:{direction}-{fold}"
+        # "wandb_study:{study_ckpt_art}" | "wandb_study:{study_ckpt_art}:{direction}" | "wandb_study:{study_ckpt_art}:{alias}"
+        # direction: "max" | "min"
+        # ckpt_art: "{exp}-{run}-ckpt"
+        # study_ckpt_art: "{study_id}-study-ckpt"
+        log = FILENAMES["log_folder"]
+        if self.resume:
+            return os.path.join(log, self.exp_name, self.run_name, "last.ckpt")
+        ref_ckpt = self.config["learn"].get("ref_ckpt")
+        if ref_ckpt is None:
+            return None
+        if ref_ckpt.startswith("wandb"):
+            splitted = ref_ckpt.split(":")
+            ckpt_art = splitted[1]
+            alias = splitted[2] if len(splitted) == 3 else None
+            if ref_ckpt.startswith("wandb_study"):
+                study = True
+                run_name, exp_name = get_study_best_name(
+                    ckpt_art.split("-")[0], self.dummy
+                )
+                exp_name = exp_name or self.exp_name
+            else:
+                study = False
+                exp_name, run_date, run_time, run_id, _ = ckpt_art.split("-")
+                run_date = run_date[:4] + "-" + run_date[4:6] + "-" + run_date[6:]
+                run_time = run_time[:2] + "-" + run_time[2:]
+                run_name = f"{run_date} {run_time} {run_id}"
+            return wandb_download_ckpt(
+                ckpt_art,
+                os.path.join(log, exp_name, run_name),
+                alias,
+                dummy=self.dummy,
+                study=study,
+            )
+        if ref_ckpt.startswith("study"):
+            exp_path = os.path.join(log, self.exp_name)
+            _, study_id, direction = ref_ckpt.split(":")
+            if "-" in direction:
+                direction, fold = direction.split("-")
+            else:
+                fold = None
+            index = -1 if direction == "max" else 0
+            base_run_name, exp_name = get_study_best_name(study_id, self.dummy)
+            exp_name = exp_name or self.exp_name
+            if fold is not None:
+                run_name = f"{base_run_name} F{int(fold)}"
+                ckpt = get_ckpt_file(self.exp_name, run_name, index)
+                return os.path.join(exp_path, run_name, ckpt)
+            run_names = sorted(
+                filter(lambda x: x.startswith(base_run_name), os.listdir(exp_path))
+            )
+            run_ckpts = [
+                (rn, get_ckpt_file(self.exp_name, rn, index)) for rn in run_names
+            ]
+            reduce_func = max if direction == "max" else min
+            run_name, ckpt = reduce_func(run_ckpts, key=lambda x: x[1])
+            return os.path.join(exp_path, run_name, ckpt)
+        splitted = ref_ckpt.split("/")
+        if len(splitted) == 3:
+            return os.path.join(log, *splitted)
+        exp_name, run_name = splitted
+        if ":" in run_name:
+            run_name, direction = run_name.split(":")
+            index = -1 if direction == "max" else 0
+            ckpt = get_ckpt_file(exp_name, run_name, index)
+        else:
+            ckpt = "last.ckpt"
+        return os.path.join(log, exp_name, run_name, ckpt)

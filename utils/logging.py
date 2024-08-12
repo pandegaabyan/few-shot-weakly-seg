@@ -124,15 +124,17 @@ def get_configuration(exp_name: str = "", run_name: str = "") -> dict:
     return config
 
 
-def get_full_ckpt_path(*paths: str, extension: str = ".ckpt") -> str:
+def get_ckpt_file(exp_name: str, run_name: str, index: int) -> str:
     import os
 
     from config.constants import FILENAMES
 
-    path = os.path.join(FILENAMES["log_folder"], *paths)
-    if not path.endswith(extension):
-        path += extension
-    return path
+    return sorted(
+        filter(
+            lambda x: x.endswith(".ckpt") and x != "last.ckpt",
+            os.listdir(os.path.join(FILENAMES["log_folder"], exp_name, run_name)),
+        )
+    )[index]
 
 
 def get_run_paths(
