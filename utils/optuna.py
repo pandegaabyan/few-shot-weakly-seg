@@ -35,7 +35,6 @@ def load_study(study_id: str, dummy: bool = False) -> optuna.Study:
     )
 
 
-def get_study_best_run_name(study_id: str, dummy: bool = False) -> tuple[str, str]:
+def get_study_best_name(study_id: str, dummy: bool = False) -> tuple[str, str | None]:
     study = load_study(study_id, dummy)
-
-    return study.best_trial.user_attrs["run_name"], study.direction.name
+    return study.best_trial.user_attrs["run_name"], study.user_attrs.get("exp_name")
