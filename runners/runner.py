@@ -276,8 +276,7 @@ class Runner:
         if self.use_wandb:
             self.wandb_init(run_id)
             additional_config["trial"] = self.curr_trial_number
-            if self.curr_dataset_fold > 0:
-                additional_config["fold"] = self.curr_dataset_fold
+            additional_config["fold"] = self.curr_dataset_fold
             wandb.config.update(additional_config | important_config)
         learner.init(git_hash=self.git_hash)
 
@@ -285,6 +284,7 @@ class Runner:
         trainer.fit(learner)
 
         if self.use_wandb:
+            wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
 
         assert learner.best_monitor_value is not None
