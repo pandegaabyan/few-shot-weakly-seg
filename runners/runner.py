@@ -442,7 +442,9 @@ class Runner:
                 exp_name = exp_name or self.exp_name
             else:
                 study = False
-                exp_name, run_date, run_time, run_id, _ = ckpt_art.split("-")
+                exp_name, run_date, run_time, run_id, _ = ckpt_art.rsplit(
+                    "-", maxsplit=4
+                )
                 run_date = run_date[:4] + "-" + run_date[4:6] + "-" + run_date[6:]
                 run_time = run_time[:2] + "-" + run_time[2:]
                 run_name = f"{run_date} {run_time} {run_id}"
