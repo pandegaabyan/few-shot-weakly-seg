@@ -14,7 +14,6 @@ from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
     OptunaConfig,
     default_optuna_config,
-    get_optuna_storage,
     pruner_classes,
     sampler_classes,
 )
@@ -27,6 +26,7 @@ from utils.logging import (
     get_full_ckpt_path,
     get_short_git_hash,
 )
+from utils.optuna import get_optuna_storage
 from utils.utils import mean
 from utils.wandb import (
     prepare_ckpt_artifact_alias,
