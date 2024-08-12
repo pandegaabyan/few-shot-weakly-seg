@@ -43,7 +43,7 @@ learn_config: LearnConfig = {
     "cudnn_deterministic": "warn",
     "cudnn_benchmark": False,
     "manual_optim": False,
-    "ref_ckpt_path": None,
+    "ref_ckpt": None,
     "optuna_study": None,
 }
 

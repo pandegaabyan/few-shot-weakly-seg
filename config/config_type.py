@@ -23,7 +23,7 @@ class LearnConfig(TypedDict):
     cudnn_deterministic: NotRequired[bool | Literal["warn"]]
     cudnn_benchmark: NotRequired[bool]
     manual_optim: NotRequired[bool]
-    ref_ckpt_path: NotRequired[str | None]
+    ref_ckpt: NotRequired[str | None]
     optuna_study: NotRequired[str | None]
 
 
