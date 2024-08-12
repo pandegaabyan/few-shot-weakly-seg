@@ -74,7 +74,7 @@ def prepare_study_ckpt_artifact_name(study_id: str) -> str:
     return f"{study_id}-study-ckpt"
 
 
-def wandb_delete_file(
+def wandb_delete_files(
     name: str,
     type: str,
     excluded_aliases: list[str] | None = None,
@@ -106,25 +106,27 @@ def wandb_log_file(
     return artifact
 
 
-def wandb_download_file(name: str, root: str, type: str, dummy: bool = False):
+def wandb_download_file(name: str, root: str, type: str, dummy: bool = False) -> str:
     artifact: wandb.Artifact = wandb.Api().artifact(
         f"{wandb_path(dummy)}/{name}", type=type
     )
-    artifact.download(root)
+    return artifact.download(root)
 
 
-def wandb_use_and_download_file(run: Run | None, name: str, root: str, type: str):
+def wandb_use_and_download_file(
+    run: Run | None, name: str, root: str, type: str
+) -> str:
     if run is None:
-        return
+        return ""
     artifact: wandb.Artifact = run.use_artifact(name, type=type)
-    artifact.download(root)
+    return artifact.download(root)
 
 
-def wandb_download_ckpt(ckpt_path: str):
+def wandb_download_ckpt(ckpt_path: str) -> str:
     splitted_path = split_path(ckpt_path)
     ckpt_name = prepare_ckpt_artifact_name(*splitted_path[1:-1])
     ckpt_alias = prepare_ckpt_artifact_alias(splitted_path[-1])
-    wandb_use_and_download_file(
+    return wandb_use_and_download_file(
         wandb.run,
         f"{ckpt_name}:{ckpt_alias}",
         os.path.split(ckpt_path)[0],
@@ -132,7 +134,7 @@ def wandb_download_ckpt(ckpt_path: str):
     )
 
 
-def wandb_download_config(exp_name: str, run_name: str):
+def wandb_download_config(exp_name: str, run_name: str) -> tuple[str, str]:
     artifact_name = prepare_artifact_name(
         exp_name,
         run_name,
@@ -143,18 +145,19 @@ def wandb_download_config(exp_name: str, run_name: str):
         exp_name,
         run_name,
     )
-    wandb_use_and_download_file(
+    base_config_path = wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":base",
         root,
         "configuration",
     )
-    wandb_use_and_download_file(
+    latest_config_path = wandb_use_and_download_file(
         wandb.run,
         artifact_name + ":latest",
         root,
         "configuration",
     )
+    return base_config_path, latest_config_path
 
 
 def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):

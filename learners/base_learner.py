@@ -49,7 +49,7 @@ from utils.wandb import (
     prepare_ckpt_artifact_alias,
     prepare_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
-    wandb_delete_file,
+    wandb_delete_files,
     wandb_log_file,
 )
 
@@ -417,7 +417,7 @@ class BaseLearner(
 
             dump_json(diff_filepath, new_diff_list)
             if self.use_wandb:
-                wandb_delete_file(
+                wandb_delete_files(
                     artifact_name,
                     "configuration",
                     excluded_aliases=["base"],
@@ -514,7 +514,7 @@ class BaseLearner(
             self.config["learn"]["exp_name"], self.config["learn"]["run_name"]
         )
         if self.resume:
-            wandb_delete_file(
+            wandb_delete_files(
                 artifact_name,
                 "checkpoint",
                 dummy=self.config["learn"].get("dummy") is True,

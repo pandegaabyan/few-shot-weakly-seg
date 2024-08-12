@@ -32,7 +32,7 @@ from utils.wandb import (
     prepare_ckpt_artifact_alias,
     prepare_study_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
-    wandb_delete_file,
+    wandb_delete_files,
     wandb_download_ckpt,
     wandb_download_config,
     wandb_get_run_id_by_name,
@@ -384,7 +384,7 @@ class Runner:
         study_id = self.optuna_config["study_name"].split(" ")[-1]
         artifact_name = prepare_study_ckpt_artifact_name(study_id)
         try:
-            wandb_delete_file(
+            wandb_delete_files(
                 artifact_name,
                 "study-checkpoint",
                 dummy=self.config["learn"].get("dummy") is True,
