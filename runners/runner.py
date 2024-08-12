@@ -26,7 +26,7 @@ from utils.logging import (
     get_full_ckpt_path,
     get_short_git_hash,
 )
-from utils.optuna import get_optuna_storage
+from utils.optuna import get_optuna_storage, get_study_best_run_name
 from utils.utils import mean
 from utils.wandb import (
     prepare_ckpt_artifact_alias,
@@ -35,6 +35,7 @@ from utils.wandb import (
     wandb_delete_files,
     wandb_download_ckpt,
     wandb_download_config,
+    wandb_download_study_ckpt,
     wandb_get_run_id_by_name,
     wandb_log_file,
     wandb_login,
@@ -98,9 +99,17 @@ class Runner:
         fit_only: bool = False,
         test_only: bool = False,
     ):
+        study_id = None
         ref_ckpt_path = self.config["learn"].get("ref_ckpt_path")
         test_only_by_resuming = test_only and ref_ckpt_path is None
-        if (self.resume and not test_only) or test_only_by_resuming:
+        if ref_ckpt_path and ref_ckpt_path.startswith("study:"):
+            study_id_fold = ref_ckpt_path.split(":")[1:]
+            study_id = study_id_fold[0]
+            study_fold = int(study_id_fold[1]) if len(study_id_fold) == 2 else None
+            study_best_run_name, study_direction = get_study_best_run_name(
+                study_id, self.dummy
+            )
+        elif (self.resume and not test_only) or test_only_by_resuming:
             ckpt_path = get_full_ckpt_path(self.exp_name, self.run_name, "last.ckpt")
         else:
             ckpt_path = ref_ckpt_path and get_full_ckpt_path(ref_ckpt_path)
@@ -114,7 +123,16 @@ class Runner:
             assert "wandb" in self.config
             self.config["wandb"]["run_id"] = run_id
             self.wandb_init(run_id, resume=self.resume or test_only_by_resuming)
-            if ckpt_path is not None:
+            if study_id:
+                ckpt_path = wandb_download_study_ckpt(
+                    study_id,
+                    study_direction,
+                    self.exp_name,
+                    study_best_run_name,
+                    study_fold,
+                    self.dummy,
+                )
+            elif ckpt_path is not None:
                 wandb_download_ckpt(ckpt_path)
             if self.resume or test_only_by_resuming:
                 wandb_download_config(self.exp_name, self.run_name)
@@ -395,12 +413,12 @@ class Runner:
         index = 0 if self.config["callbacks"].get("monitor_mode") == "min" else -1
         base_run_name = " ".join(self.config["learn"]["run_name"].split(" ")[:3])
         exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
-        run_paths = filter(
+        run_names = filter(
             lambda x: x.startswith(base_run_name),
             os.listdir(exp_path),
         )
-        for run_path in run_paths:
-            log_path = os.path.join(exp_path, run_path)
+        for run_name in run_names:
+            log_path = os.path.join(exp_path, run_name)
             best_ckpt = sorted(
                 filter(
                     lambda x: x.endswith(".ckpt") and x != "last.ckpt",

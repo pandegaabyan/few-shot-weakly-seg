@@ -110,7 +110,7 @@ def wandb_download_file(name: str, root: str, type: str, dummy: bool = False) ->
     artifact: wandb.Artifact = wandb.Api().artifact(
         f"{wandb_path(dummy)}/{name}", type=type
     )
-    return artifact.download(root)
+    return str(artifact.file(root))
 
 
 def wandb_use_and_download_file(
@@ -119,7 +119,7 @@ def wandb_use_and_download_file(
     if run is None:
         return ""
     artifact: wandb.Artifact = run.use_artifact(name, type=type)
-    return artifact.download(root)
+    return str(artifact.file(root))
 
 
 def wandb_download_ckpt(ckpt_path: str) -> str:
@@ -131,6 +131,30 @@ def wandb_download_ckpt(ckpt_path: str) -> str:
         f"{ckpt_name}:{ckpt_alias}",
         os.path.split(ckpt_path)[0],
         "checkpoint",
+    )
+
+
+def wandb_download_study_ckpt(
+    study_id: str,
+    direction: str,
+    exp_name: str,
+    run_name: str,
+    fold: int | None = None,
+    dummy: bool = False,
+) -> str:
+    ckpt_name = prepare_study_ckpt_artifact_name(study_id)
+    arts = wandb.Api().artifacts("study-checkpoint", f"{wandb_path(dummy)}/{ckpt_name}")
+    aliases = [alias for art in arts for alias in art.aliases]
+    if fold is not None:
+        ckpt_alias = list(filter(lambda x: f"fold_{fold}" in x, aliases))[0]
+    else:
+        index = -1 if direction == "MAXIMIZE" else 0
+        ckpt_alias = sorted(filter(lambda x: x != "latest", aliases))[index]
+    return wandb_use_and_download_file(
+        wandb.run,
+        f"{ckpt_name}:{ckpt_alias}",
+        os.path.join(FILENAMES["log_folder"], exp_name, run_name),
+        "study-checkpoint",
     )
 
 

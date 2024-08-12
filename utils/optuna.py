@@ -22,3 +22,20 @@ def get_optuna_storage(
     return optuna.storages.RDBStorage(
         url=db_url, heartbeat_interval=5 * 60, engine_kwargs=engine_kwargs
     )
+
+
+def load_study(study_id: str, dummy: bool = False) -> optuna.Study:
+    study_names = optuna.get_all_study_names(
+        get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
+    )
+    study_name = list(filter(lambda x: x.endswith(study_id), study_names))[0]
+    return optuna.load_study(
+        study_name=study_name,
+        storage=get_optuna_storage(dummy, engine_kwargs={"pool_size": 1}),
+    )
+
+
+def get_study_best_run_name(study_id: str, dummy: bool = False) -> tuple[str, str]:
+    study = load_study(study_id, dummy)
+
+    return study.best_trial.user_attrs["run_name"], study.direction.name
