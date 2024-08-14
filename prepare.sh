@@ -12,8 +12,8 @@ apt-get update
 apt-get upgrade -y
 apt-get install libffi-dev
 
-LDFLAGS="-Wl,-rpath,/opt/conda/lib" CONFIGURE_OPTS="--with-openssl=/opt/conda" pyenv install -v 3.10.9
+# LDFLAGS="-Wl,-rpath,/opt/conda/lib" CONFIGURE_OPTS="--with-openssl=/opt/conda" pyenv install -v 3.10.9
 
-pip install pipenv
+# pip install pipenv
 # pipenv lock
 # pipenv sync
