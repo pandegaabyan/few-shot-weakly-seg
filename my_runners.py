@@ -370,6 +370,7 @@ class WeaselRunner(MetaRunner):
         cfg["scheduler"]["step_size"] = 40
         cfg["callbacks"]["stop_patience"] = 2
         cfg["weasel"]["tune_multi_step"] = True
+        cfg["weasel"]["first_order"] = True
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -394,12 +395,12 @@ class WeaselRunner(MetaRunner):
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
         config = super().update_config(config)
-        config["learn"]["exp_name"] = "WS original"
+        config["learn"]["exp_name"] = "WS original first-order"
         return config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS-ori REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "WS-ori-fo REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 1
         return config
 
