@@ -229,14 +229,12 @@ class MetaRunner(Runner):
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
-        batch_size = self.config["data"]["batch_size"]
-
         base_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "split_val_fold": 0,
             "split_test_fold": 0,
             "cache_data": True,
-            "query_batch_size": batch_size,
+            "query_batch_size": 10,
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
         }
@@ -250,11 +248,17 @@ class MetaRunner(Runner):
             dummy_kwargs = {}
 
         train_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": batch_size,
-            "sparsity_options": [("random", "random")],
+            "shot_options": (1, 20),
+            "sparsity_options": [
+                ("point", (5, 50)),
+                ("grid", (0.1, 1.0)),
+                ("contour", (0.1, 1.0)),
+                ("skeleton", (0.1, 1.0)),
+                ("region", (0.1, 1.0)),
+            ],
             "shot_sparsity_permutation": False,
             "homogen_support_batch": False,
-            "num_iterations": 5,
+            "num_iterations": 5.0,
         }
 
         val_kwargs: FewSparseDatasetKwargs = {
@@ -365,12 +369,6 @@ class WeaselRunner(MetaRunner):
         dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigWeasel = config  # type: ignore
-        cfg["learn"]["num_epochs"] = 200
-        cfg["learn"]["val_freq"] = 20
-        cfg["scheduler"]["step_size"] = 40
-        cfg["callbacks"]["stop_patience"] = 2
-        cfg["weasel"]["tune_multi_step"] = True
-        cfg["weasel"]["first_order"] = True
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -395,12 +393,12 @@ class WeaselRunner(MetaRunner):
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
         config = super().update_config(config)
-        config["learn"]["exp_name"] = "WS original first-order"
+        config["learn"]["exp_name"] = "WS"
         return config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS-ori-fo REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 1
         return config
 
@@ -416,15 +414,11 @@ class ProtosegRunner(MetaRunner):
         dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigProtoSeg = config  # type: ignore
-        cfg["learn"]["num_epochs"] = 200
-        cfg["learn"]["val_freq"] = 4
-        cfg["scheduler"]["step_size"] = 40
-        cfg["callbacks"]["stop_patience"] = 10
-        cfg["protoseg"]["embedding_size"] = 3
-        cfg["protoseg"]["multi_pred"] = True
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
-            important_config["ps_embedding"] = cfg["protoseg"]["embedding_size"]
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            cfg["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
         else:
             important_config = {}
 
@@ -441,11 +435,11 @@ class ProtosegRunner(MetaRunner):
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
         config = super().update_config(config)
-        config["learn"]["exp_name"] = "PS original"
+        config["learn"]["exp_name"] = "PS"
         return config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "PS-ori REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
