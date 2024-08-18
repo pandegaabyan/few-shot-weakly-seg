@@ -35,7 +35,7 @@ data_config: DataConfig = {
 }
 
 learn_config: LearnConfig = {
-    "num_epochs": 5,
+    "num_epochs": 4,
     "exp_name": "dummy",
     "run_name": "",
     "dummy": True,
@@ -59,8 +59,10 @@ scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 log_config: LogConfig = {
     "configuration": True,
     "table": True,
-    "model_onnx": True,
-    "tensorboard_graph": True,
+    # "model_onnx": True,
+    # "tensorboard_graph": True,
+    "model_onnx": False,
+    "tensorboard_graph": False,
 }
 
 callbacks_config: CallbacksConfig = {
@@ -225,7 +227,7 @@ def make_config(
         if not dummy:
             config_simple["data"]["batch_size"] = 16
             config_simple["learn"]["num_epochs"] = 200
-            config_ref["learn"]["val_freq"] = 1
+            config_simple["learn"]["val_freq"] = 1
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
     elif learner == "weasel":
@@ -237,10 +239,13 @@ def make_config(
         config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 8
-            config_ref["learn"]["num_epochs"] = 100
-            config_ref["learn"]["val_freq"] = 10
-            config_ref["callbacks"]["stop_patience"] = 2
+            config_weasel["learn"]["num_epochs"] = 100
+            config_weasel["learn"]["val_freq"] = 10
+            config_weasel["callbacks"]["stop_patience"] = 2
             config_weasel["weasel"]["tune_epochs"] = 20
+        else:
+            config_weasel["data"]["batch_size"] = 1
+            config_weasel["learn"]["num_epochs"] = 2
         config = config_weasel
     elif learner == "protoseg":
         config_protoseg: ConfigProtoSeg = {
@@ -251,9 +256,12 @@ def make_config(
         config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
             config_protoseg["data"]["batch_size"] = 12
-            config_ref["learn"]["num_epochs"] = 100
-            config_ref["learn"]["val_freq"] = 2
-            config_ref["callbacks"]["stop_patience"] = 10
+            config_protoseg["learn"]["num_epochs"] = 100
+            config_protoseg["learn"]["val_freq"] = 2
+            config_protoseg["callbacks"]["stop_patience"] = 10
+        else:
+            config_protoseg["data"]["batch_size"] = 1
+            config_protoseg["learn"]["num_epochs"] = 2
         config = config_protoseg
     elif learner == "guidednets":
         config_guidednets: ConfigGuidedNets = {
@@ -264,9 +272,13 @@ def make_config(
         config_guidednets["learn"]["exp_name"] = "GN"
         if not dummy:
             config_guidednets["data"]["batch_size"] = 8
-            config_ref["learn"]["num_epochs"] = 100
-            config_ref["learn"]["val_freq"] = 2
-            config_ref["callbacks"]["stop_patience"] = 10
+            config_guidednets["learn"]["num_epochs"] = 100
+            config_guidednets["learn"]["val_freq"] = 2
+            config_guidednets["callbacks"]["stop_patience"] = 10
+        else:
+            config_guidednets["data"]["batch_size"] = 1
+            config_guidednets["learn"]["num_epochs"] = 2
+
         config = config_guidednets
 
     exp_name = config["learn"]["exp_name"]
