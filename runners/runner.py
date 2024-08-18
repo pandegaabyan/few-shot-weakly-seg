@@ -20,6 +20,7 @@ from config.optuna import (
 from learners.base_learner import BaseLearner
 from learners.typings import BaseLearnerKwargs
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
+from runners.profilers import resolve_profiler
 from utils.logging import (
     check_mkdir,
     dump_json,
@@ -80,6 +81,10 @@ class Runner:
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
         progress = self.config["callbacks"].get("progress", True)
+        profiler = resolve_profiler(
+            self.config["learn"].get("profiler"),
+            os.path.join(self.exp_name, self.run_name),
+        )
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
@@ -90,6 +95,7 @@ class Runner:
             enable_progress_bar=progress,
             enable_model_summary=progress,
             inference_mode=not self.config["learn"].get("manual_optim", False),
+            profiler=profiler,
             **kwargs,
         )
 

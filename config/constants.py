@@ -6,6 +6,7 @@ class FilenamesDict(TypedDict):
     model_onnx: str
     configuration: str
     configuration_diff: str
+    profile: str
     dummy_file: str
 
 
@@ -14,6 +15,7 @@ FILENAMES: FilenamesDict = {
     "model_onnx": "model.onnx",
     "configuration": "configuration.json",
     "configuration_diff": "configuration_diff.json",
+    "profile": "profile",
     "dummy_file": "dummy_sign",
 }
 

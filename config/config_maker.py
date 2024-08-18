@@ -42,6 +42,7 @@ learn_config: LearnConfig = {
     "val_freq": 1,
     "cudnn_deterministic": "warn",
     "cudnn_benchmark": False,
+    "profiler": None,
     "manual_optim": False,
     "ref_ckpt": None,
     "optuna_study": None,

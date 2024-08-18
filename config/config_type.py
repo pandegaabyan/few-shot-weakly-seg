@@ -4,6 +4,7 @@ from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study"]
 LearnerType = Literal["simple", "weasel", "protoseg", "guidednets", None]
+ProfilerType = Literal["simple", "advanced", "pytorch", "custom", None]
 
 
 class DataConfig(TypedDict):
@@ -22,6 +23,7 @@ class LearnConfig(TypedDict):
     val_freq: NotRequired[int]
     cudnn_deterministic: NotRequired[bool | Literal["warn"]]
     cudnn_benchmark: NotRequired[bool]
+    profiler: NotRequired[ProfilerType]
     manual_optim: NotRequired[bool]
     ref_ckpt: NotRequired[str | None]
     optuna_study: NotRequired[str | None]
