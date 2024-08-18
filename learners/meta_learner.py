@@ -74,7 +74,8 @@ class MetaLearner(
 
     def training_step(self, batch: FewSparseDataTuple, batch_idx: int):
         support, query, dataset_name = batch
-        pred, loss = self.training_process(batch, batch_idx)
+        with self.profile("training_process"):
+            pred, loss = self.training_process(batch, batch_idx)
         self.training_step_losses.append(loss.item())
 
         self.log_to_table_metrics(
@@ -97,7 +98,8 @@ class MetaLearner(
 
     def validation_step(self, batch: FewSparseDataTuple, batch_idx: int):
         support, query, dataset_name = batch
-        pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
+        with self.profile("evaluation_process:validation"):
+            pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
         self.validation_step_losses.append(loss.item())
 
         if self.trainer.sanity_checking:
@@ -118,7 +120,8 @@ class MetaLearner(
 
     def test_step(self, batch: FewSparseDataTuple, batch_idx: int):
         support, query, dataset_name = batch
-        pred, loss, score = self.evaluation_process("TS", batch, batch_idx)
+        with self.profile("evaluation_process:test"):
+            pred, loss, score = self.evaluation_process("TS", batch, batch_idx)
         self.test_step_losses.append(loss.item())
 
         self.log_to_table_metrics("TS", batch_idx, loss, support, score=score, epoch=0)

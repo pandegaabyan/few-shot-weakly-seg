@@ -43,7 +43,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 else:
                     supp_loss += new_loss
 
-        params = self.update_parameters(supp_loss)
+        with self.profile("update_parameters"):
+            params = self.update_parameters(supp_loss)
 
         qry_pred_list = []
         for q_image in qry_images:
@@ -57,7 +58,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
         self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
         support, query, _ = batch
-        pred = self.forward(support.images, support.masks, query.images)
+        with self.profile("forward:training"):
+            pred = self.forward(support.images, support.masks, query.images)
         loss = self.loss(pred, query.masks)
 
         self.net.zero_grad(set_to_none=True)
@@ -93,7 +95,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 progress_task, tune_epoch=f"{ep}/{tune_epochs-1}"
             )
 
-            self.tune_step(s_images, s_masks)
+            with self.profile(f"tune_step:{'validation' if type == 'VL' else 'test'}"):
+                self.tune_step(s_images, s_masks)
 
             if (ep != tune_epochs - 1) and (
                 tune_val_freq is None or ((ep + 1) % tune_val_freq != 0)
