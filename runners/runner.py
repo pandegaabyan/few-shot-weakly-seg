@@ -20,6 +20,7 @@ from config.optuna import (
 from learners.base_learner import BaseLearner
 from learners.typings import BaseLearnerKwargs
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
+from runners.profilers import resolve_profiler
 from utils.logging import (
     check_mkdir,
     dump_json,
@@ -80,6 +81,10 @@ class Runner:
     def make_trainer(self, **kwargs) -> Trainer:
         callbacks = self.make_callbacks()
         progress = self.config["callbacks"].get("progress", True)
+        profiler = resolve_profiler(
+            self.config["learn"].get("profiler"),
+            os.path.join(self.exp_name, self.run_name),
+        )
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
@@ -90,6 +95,7 @@ class Runner:
             enable_progress_bar=progress,
             enable_model_summary=progress,
             inference_mode=not self.config["learn"].get("manual_optim", False),
+            profiler=profiler,
             **kwargs,
         )
 
@@ -276,8 +282,7 @@ class Runner:
         if self.use_wandb:
             self.wandb_init(run_id)
             additional_config["trial"] = self.curr_trial_number
-            if self.curr_dataset_fold > 0:
-                additional_config["fold"] = self.curr_dataset_fold
+            additional_config["fold"] = self.curr_dataset_fold
             wandb.config.update(additional_config | important_config)
         learner.init(git_hash=self.git_hash)
 
@@ -285,6 +290,7 @@ class Runner:
         trainer.fit(learner)
 
         if self.use_wandb:
+            wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
 
         assert learner.best_monitor_value is not None
@@ -442,7 +448,9 @@ class Runner:
                 exp_name = exp_name or self.exp_name
             else:
                 study = False
-                exp_name, run_date, run_time, run_id, _ = ckpt_art.split("-")
+                exp_name, run_date, run_time, run_id, _ = ckpt_art.rsplit(
+                    "-", maxsplit=4
+                )
                 run_date = run_date[:4] + "-" + run_date[4:6] + "-" + run_date[6:]
                 run_time = run_time[:2] + "-" + run_time[2:]
                 run_name = f"{run_date} {run_time} {run_id}"

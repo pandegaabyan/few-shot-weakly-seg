@@ -2,11 +2,13 @@ import os
 import sys
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Generic, Literal, Type
+from contextlib import contextmanager
+from typing import Any, Generator, Generic, Literal, Type
 
 import numpy as np
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
+from pytorch_lightning.profilers.profiler import Profiler
 from torch import Tensor
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
@@ -352,6 +354,22 @@ class BaseLearner(
     def update_progress_bar_fields(self, task: ProgressBarTaskType, **kwargs):
         if isinstance(self.trainer.progress_bar_callback, CustomRichProgressBar):
             self.trainer.progress_bar_callback.update_fields(task, **kwargs)
+
+    @contextmanager
+    def profile(self, name: str) -> Generator:
+        if self.config["learn"].get("profiler") is None:
+            yield
+            return
+        if not hasattr(self.trainer, "profiler"):
+            yield
+            return
+        profiler = self.trainer.profiler  # type: ignore
+        if not isinstance(profiler, Profiler):
+            yield
+            return
+        action_name = f"[Learner]{self.__class__.__name__}.{name}"
+        with profiler.profile(action_name) as p:
+            yield p
 
     def get_configuration(self) -> dict:
         def serialize_datasets(

@@ -43,7 +43,8 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         s_mask_linear = torch.vstack(s_mask_linear_list)  # [S H*W]
 
         # [S C E] if multi_pred else [C E]
-        prototypes = self.get_prototypes(s_emb_linear, s_mask_linear)
+        with self.profile("get_prototypes"):
+            prototypes = self.get_prototypes(s_emb_linear, s_mask_linear)
 
         qry_pred_list = []
         for q_image in qry_images:
@@ -64,7 +65,8 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
         support, query, _ = batch
-        pred = self.forward(support.images, support.masks, query.images)
+        with self.profile("forward:training"):
+            pred = self.forward(support.images, support.masks, query.images)
         if self.multi_pred:
             loss = self.loss(pred.mean(dim=1), query.masks)
         else:
@@ -76,7 +78,8 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         self, type: Literal["VL", "TS"], batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         support, query, _ = batch
-        pred = self.forward(support.images, support.masks, query.images)
+        with self.profile(f"forward:{'validation' if type == 'VL' else 'test'}"):
+            pred = self.forward(support.images, support.masks, query.images)
         if self.multi_pred:
             loss = self.loss(pred.mean(dim=1), query.masks)
             score = self.metric(pred.argmax(dim=2).mode(dim=1).values, query.masks)

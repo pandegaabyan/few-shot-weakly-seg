@@ -240,9 +240,11 @@ class MetaRunner(Runner):
         }
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
-                "max_items": 6,
-                "num_iterations": 3,
+                "max_items": 4,
+                "shot_options": self.config["data"]["batch_size"],
                 "shot_sparsity_permutation": False,
+                "query_batch_size": self.config["data"]["batch_size"],
+                "num_iterations": 2,
             }
         else:
             dummy_kwargs = {}

@@ -53,6 +53,7 @@ def wandb_get_runs(
 
 
 def prepare_artifact_name(exp_name: str, run_name: str, suffix: str) -> str:
+    exp_name = exp_name.replace(" ", "-")
     run_name = run_name.replace("-", "").replace(" ", "-")
     return f"{exp_name}-{run_name}-{suffix}"
 
