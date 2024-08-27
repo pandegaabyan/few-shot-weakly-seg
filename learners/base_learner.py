@@ -90,6 +90,7 @@ class BaseLearner(
             any(lv for lv in self.config["log"].values())
             or self.config["callbacks"].get("ckpt_last")
             or self.config["callbacks"].get("ckpt_top_k")
+            or self.config["learn"].get("profiler")
         ):
             self.log_path = os.path.join(
                 FILENAMES["log_folder"],
