@@ -26,10 +26,12 @@ from utils.logging import (
     dump_json,
     get_ckpt_file,
     get_short_git_hash,
+    read_from_csv,
 )
 from utils.optuna import get_optuna_storage, get_study_best_name
 from utils.utils import mean
 from utils.wandb import (
+    prepare_artifact_name,
     prepare_ckpt_artifact_alias,
     prepare_study_ckpt_artifact_name,
     prepare_study_ref_artifact_name,
@@ -148,6 +150,7 @@ class Runner:
                 ckpt_path = trainer.checkpoint_callback.best_model_path
                 trainer = self.make_trainer()
             trainer.test(learner, ckpt_path=ckpt_path)
+        self.wandb_log_profiles()
 
         if self.use_wandb:
             wandb.finish()
@@ -288,6 +291,7 @@ class Runner:
 
         trainer = self.make_trainer()
         trainer.fit(learner)
+        self.wandb_log_profiles()
 
         if self.use_wandb:
             wandb.log({"pruned": learner.optuna_pruned})
@@ -420,6 +424,26 @@ class Runner:
             )
 
         wandb.finish()
+
+    def wandb_log_profiles(self):
+        if not self.use_wandb or self.config["learn"].get("profiler") is None:
+            return
+
+        log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
+        if not os.path.exists(log_path):
+            return
+        filenames = filter(lambda x: FILENAMES["profile"] in x, os.listdir(log_path))
+        for filename in filenames:
+            name, ext = filename.rsplit(".", maxsplit=1)
+            filepath = os.path.join(log_path, filename)
+            if ext == "csv":
+                data = read_from_csv(filepath)
+                columns = data.pop(0)
+                wandb.log({name: wandb.Table(data=data, columns=columns)})
+            artifact_name = prepare_artifact_name(
+                self.config["learn"]["exp_name"], self.config["learn"]["run_name"], name
+            )
+            wandb_log_file(wandb.run, artifact_name, filepath, "profile")
 
     def resolve_ckpt(self) -> str | None:
         # ref_ckpt:

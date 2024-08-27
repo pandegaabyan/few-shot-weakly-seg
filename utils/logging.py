@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Sequence
 
 from utils.time import convert_iso_timestamp_to_epoch
 
@@ -106,6 +106,21 @@ def write_to_csv(filename: str, row: list[tuple[str, Any]]):
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerow(rowdict)
+
+
+def read_from_csv(
+    filename: str, parse: bool = True
+) -> list[Sequence[bool | int | float | str]]:
+    import csv
+
+    from utils.utils import parse_string
+
+    with open(filename, "r") as f:
+        reader = csv.reader(f)
+        data = list(reader)
+    if parse:
+        data = [[parse_string(d) for d in row] for row in data]
+    return list(data)
 
 
 def get_configuration(exp_name: str = "", run_name: str = "") -> dict:
