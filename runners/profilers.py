@@ -26,11 +26,13 @@ class CustomSimpleProfiler(Profiler):
         self,
         dirpath: Optional[Union[str, Path]] = None,
         filename: Optional[str] = None,
+        percentage_limit: float = 0,
     ) -> None:
         super().__init__(dirpath=dirpath, filename=filename)
         self.current_actions: Dict[str, float] = {}
         self.recorded_durations: Dict = defaultdict(list)
         self.start_time = time.monotonic()
+        self.percentage_limit = percentage_limit
 
     def _prepare_filename(
         self,
@@ -60,18 +62,20 @@ class CustomSimpleProfiler(Profiler):
     def summary(self) -> str:
         total_duration = time.monotonic() - self.start_time
         report: _TABLE_DATA = []
+        total_calls = 0
 
         for a, d in self.recorded_durations.items():
-            d_tensor = torch.tensor(d)
-            mean_d = torch.mean(d_tensor).item()
-            std_d = torch.std(d_tensor).item()
             len_d = len(d)
+            total_calls += len_d
+            d_tensor = torch.tensor(d)
             sum_d = torch.sum(d_tensor).item()
             percentage_d = 100.0 * sum_d / total_duration
-
+            if percentage_d < self.percentage_limit:
+                continue
+            mean_d = torch.mean(d_tensor).item()
+            std_d = torch.std(d_tensor).item()
             report.append((a, mean_d, std_d, len_d, sum_d, percentage_d))
 
-        total_calls = sum(x[3] for x in report)
         report.append(
             ("Total", float("nan"), float("nan"), total_calls, total_duration, 100.0)
         )
@@ -87,16 +91,21 @@ class CustomSimpleProfiler(Profiler):
         return output.getvalue()
 
 
-def resolve_profiler(profiler_type: ProfilerType, exp_path: str) -> Profiler | None:
-    dirpath = os.path.join(FILENAMES["log_folder"], exp_path)
+def resolve_profiler(profiler_type: ProfilerType, run_path: str) -> Profiler | None:
+    dirpath = os.path.join(FILENAMES["log_folder"], run_path)
     filename = FILENAMES["profile"]
-    if profiler_type == "simple":
+    if profiler_type is None:
+        return None
+    elif profiler_type == "simple":
         return SimpleProfiler(dirpath=dirpath, filename=filename)
     elif profiler_type == "advanced":
         return AdvancedProfiler(dirpath=dirpath, filename=filename)
     elif profiler_type == "pytorch":
         return PyTorchProfiler(dirpath=dirpath, filename=filename)
-    elif profiler_type == "custom":
-        return CustomSimpleProfiler(dirpath=dirpath, filename=filename)
+    elif profiler_type.startswith("custom"):
+        percentage_limit = float(profiler_type.split("-")[-1])
+        return CustomSimpleProfiler(
+            dirpath=dirpath, filename=filename, percentage_limit=percentage_limit
+        )
     else:
         return None
