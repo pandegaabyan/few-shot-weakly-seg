@@ -1,7 +1,6 @@
 from typing import Type
 
 import optuna
-from typing_extensions import Generic, Required, TypedDict
 
 from config.config_maker import gen_id
 from config.config_type import (
@@ -19,8 +18,7 @@ from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import (
-    DatasetClass,
-    DatasetKwargs,
+    DatasetLists,
     ProtoSegLearnerKwargs,
     SimpleLearnerKwargs,
     WeaselLearnerKwargs,
@@ -49,24 +47,6 @@ from tasks.optic_disc_cup.datasets import (
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
-
-
-class DatasetLists(TypedDict, Generic[DatasetClass, DatasetKwargs], total=False):
-    dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
-    val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
-    test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
-
-
-def get_names_from_dataset_list(dataset_lists: DatasetLists) -> dict[str, str]:
-    return {
-        key.replace("_list", ""): ",".join(
-            [
-                (kwargs.get("dataset_name") or "NO-NAME")
-                for _, kwargs in dataset_lists[key]
-            ]
-        )
-        for key in dataset_lists
-    }
 
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
@@ -116,7 +96,6 @@ class SimpleRunner(Runner):
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return SimpleUnet, kwargs, important_config
 
@@ -390,7 +369,6 @@ class WeaselRunner(MetaRunner):
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return WeaselUnet, kwargs, important_config
 
@@ -432,7 +410,6 @@ class ProtosegRunner(MetaRunner):
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
-        important_config.update(get_names_from_dataset_list(dataset_lists))
 
         return ProtosegUnet, kwargs, important_config
 
