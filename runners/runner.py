@@ -18,7 +18,7 @@ from config.optuna import (
     sampler_classes,
 )
 from learners.base_learner import BaseLearner
-from learners.typings import BaseLearnerKwargs
+from learners.typings import BaseLearnerKwargs, DatasetLists
 from runners.callbacks import CustomRichProgressBar, custom_rich_progress_bar_theme
 from runners.profilers import resolve_profiler
 from utils.logging import (
@@ -132,7 +132,10 @@ class Runner:
             learner = learner_class.load_from_checkpoint(ckpt_path, **learner_kwargs)
 
         if self.use_wandb:
-            wandb.config.update({"git": self.git_hash, **important_config})
+            dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
+            wandb.config.update(
+                {"git": self.git_hash, **dataset_names, **important_config}
+            )
         init_ok = learner.init(
             resume=self.resume,
             force_clear_dir=True,
@@ -250,6 +253,7 @@ class Runner:
             "git": self.git_hash,
             "study": study_id,
         }
+        dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
 
         if (
             self.use_wandb
@@ -264,7 +268,7 @@ class Runner:
                 name=f"log study-ref {study_id}",
                 job_type="study",
             )
-            wandb.config.update(additional_config)
+            wandb.config.update(additional_config, **dataset_names)
 
             ref_configuration = learner.get_configuration()
             ref_configuration["optuna"] = self.optuna_config
@@ -286,7 +290,7 @@ class Runner:
             self.wandb_init(run_id)
             additional_config["trial"] = self.curr_trial_number
             additional_config["fold"] = self.curr_dataset_fold
-            wandb.config.update(additional_config | important_config)
+            wandb.config.update(additional_config | dataset_names | important_config)
         learner.init(git_hash=self.git_hash)
 
         trainer = self.make_trainer()
@@ -348,6 +352,28 @@ class Runner:
             )
 
         return callbacks
+
+    def get_dataset_names_from_kwargs(
+        self, kwargs: BaseLearnerKwargs
+    ) -> dict[str, str]:
+        dataset_lists: DatasetLists = {
+            "dataset_list": kwargs["dataset_list"],
+        }
+        val_dataset_list = kwargs.get("val_dataset_list")
+        if val_dataset_list is not None:
+            dataset_lists["val_dataset_list"] = val_dataset_list
+        test_dataset_list = kwargs.get("test_dataset_list")
+        if test_dataset_list is not None:
+            dataset_lists["test_dataset_list"] = test_dataset_list
+        return {
+            key.replace("_list", ""): ",".join(
+                [
+                    (kwargs.get("dataset_name") or "NO-NAME")
+                    for _, kwargs in dataset_lists[key]
+                ]
+            )
+            for key in dataset_lists
+        }
 
     def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config

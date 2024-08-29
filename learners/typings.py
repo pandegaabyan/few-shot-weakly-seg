@@ -28,6 +28,12 @@ Optimizer = optim.Optimizer
 Scheduler = LRSchedulerPLType
 
 
+class DatasetLists(TypedDict, Generic[DatasetClass, DatasetKwargs], total=False):
+    dataset_list: Required[list[tuple[Type[DatasetClass], DatasetKwargs]]]
+    val_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+    test_dataset_list: list[tuple[Type[DatasetClass], DatasetKwargs]]
+
+
 class BaseLearnerKwargs(
     TypedDict, Generic[ConfigType, DatasetClass, DatasetKwargs], total=False
 ):
@@ -48,8 +54,7 @@ SimpleLearnerKwargs = BaseLearnerKwargs[
 class MetaLearnerKwargs(
     Generic[ConfigTypeMeta],
     BaseLearnerKwargs[ConfigTypeMeta, FewSparseDataset, FewSparseDatasetKwargs],
-):
-    ...
+): ...
 
 
 WeaselLearnerKwargs = MetaLearnerKwargs[ConfigWeasel]
