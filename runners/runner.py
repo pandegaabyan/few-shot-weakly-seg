@@ -268,7 +268,7 @@ class Runner:
                 name=f"log study-ref {study_id}",
                 job_type="study",
             )
-            wandb.config.update(additional_config, **dataset_names)
+            wandb.config.update(additional_config | dataset_names)
 
             ref_configuration = learner.get_configuration()
             ref_configuration["optuna"] = self.optuna_config
