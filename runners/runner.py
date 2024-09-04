@@ -492,10 +492,10 @@ class Runner:
             alias = splitted[2] if len(splitted) == 3 else None
             if ref_ckpt.startswith("wandb_study"):
                 study = True
-                run_name, exp_name = get_study_best_name(
-                    ckpt_art.split("-")[0], self.dummy
-                )
+                study_id = ckpt_art.split("-")[0]
+                run_name, exp_name = get_study_best_name(study_id, self.dummy)
                 exp_name = exp_name or self.exp_name
+                run_name = run_name or f"best {study_id}"
             else:
                 study = False
                 exp_name, run_date, run_time, run_id, _ = ckpt_art.rsplit(
@@ -520,6 +520,8 @@ class Runner:
                 fold = None
             index = -1 if direction == "max" else 0
             base_run_name, exp_name = get_study_best_name(study_id, self.dummy)
+            if base_run_name is None:
+                raise ValueError(f"Name of the best run for study {study_id} not found")
             exp_name = exp_name or self.exp_name
             if fold is not None:
                 run_name = f"{base_run_name} F{int(fold)}"
