@@ -30,13 +30,12 @@ from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
     RefugeTestFSDataset,
-    RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
-    RefugeTrainSimpleDataset,
     RefugeValFSDataset,
-    RefugeValSimpleDataset,
     RimOne3TestFSDataset,
+    RimOne3TestSimpleDataset,
     RimOne3TrainFSDataset,
+    RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -168,13 +167,10 @@ class SimpleRunner(Runner):
 
         return {
             "dataset_list": [
-                (RefugeTrainSimpleDataset, refuge_train_kwargs),
-            ],
-            "val_dataset_list": [
-                (RefugeValSimpleDataset, refuge_val_kwargs),
+                (RimOne3TrainSimpleDataset, rim_one_3_train_kwargs),
             ],
             "test_dataset_list": [
-                (RefugeTestSimpleDataset, refuge_test_kwargs),
+                (RimOne3TestSimpleDataset, rim_one_3_test_kwargs),
             ],
         }
 
