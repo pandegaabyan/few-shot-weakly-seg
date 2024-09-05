@@ -27,8 +27,9 @@ class BaseMetric(Metric, ABC):
         self.metrics.add(name)
         return super().add_state(name, default, dist_reduce_fx, persistent)
 
+    @staticmethod
     @abstractmethod
-    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         pass
 
     def update(self, inputs: Tensor, targets: Tensor):
@@ -52,7 +53,8 @@ class MultiIoUMetric(BaseMetric):
         super().__init__(**kwargs)
         self.add_state("iou", default=torch.tensor(0), dist_reduce_fx="mean")
 
-    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    @staticmethod
+    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         return {
             "iou": multiclass_jaccard_index(inputs, targets, targets.unique().numel())
         }

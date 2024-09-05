@@ -11,7 +11,8 @@ class DiscCupIoU(BaseMetric):
         self.add_state("iou_disc", default=torch.tensor(0), dist_reduce_fx="mean")
         self.add_state("iou_cup", default=torch.tensor(0), dist_reduce_fx="mean")
 
-    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    @staticmethod
+    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         if inputs.is_floating_point():
             inputs = inputs.argmax(dim=1)
         disc_targets = targets != 0
