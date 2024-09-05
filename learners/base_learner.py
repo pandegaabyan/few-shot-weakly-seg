@@ -646,7 +646,7 @@ class BaseLearner(
             if isinstance(dataset, list):
                 dataset = dataset[i]
             self.last_prediction_data[type].append(
-                (img and img[i], gt[i], pred[i], file_name, dataset)
+                (None if img is None else img[i], gt[i], pred[i], file_name, dataset)
             )
 
     def wandb_add_preds(self):
