@@ -173,8 +173,8 @@ def make_config(
                 "watch_model": True,
                 "save_model": True,
                 "push_table_freq": 5,
-                "save_train_preds": 20,
-                "save_val_preds": 20,
+                "save_train_preds": 40,
+                "save_val_preds": 40,
                 "save_test_preds": 0,
             }
     elif mode == "test":
@@ -190,7 +190,7 @@ def make_config(
                 "push_table_freq": 1,
                 "save_train_preds": 0,
                 "save_val_preds": 0,
-                "save_test_preds": 20,
+                "save_test_preds": 40,
             }
     else:
         if use_wandb:
@@ -201,9 +201,9 @@ def make_config(
                 "watch_model": True,
                 "save_model": True,
                 "push_table_freq": 5,
-                "save_train_preds": 20,
-                "save_val_preds": 20,
-                "save_test_preds": 20,
+                "save_train_preds": 40,
+                "save_val_preds": 40,
+                "save_test_preds": 40,
             }
 
     if not dummy:
