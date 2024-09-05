@@ -88,6 +88,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "TR",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,
@@ -110,6 +111,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "VL",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,
@@ -129,6 +131,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "TS",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,

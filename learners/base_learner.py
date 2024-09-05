@@ -590,34 +590,29 @@ class BaseLearner(
         if image is not None:
             image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
         else:
-            image_arr = np.zeros(gt_arr.shape + (1,), dtype=np.uint8)
+            image_arr = np.ones(gt_arr.shape + (1,), dtype=np.uint8) * 255
 
-        gt_img = wandb.Image(
+        wandb_image = wandb.Image(
             image_arr,
             masks={
-                "ground_truth": {
+                "truth": {
                     "mask_data": gt_arr,
                     "class_labels": self.class_labels,
                 },
-            },
-        )
-        pred_img = wandb.Image(
-            image_arr,
-            masks={
-                "prediction": {
+                "pred": {
                     "mask_data": pred_arr,
                     "class_labels": self.class_labels,
                 },
             },
         )
-        img_data = [("ground_truth", gt_img), ("prediction", pred_img)]
 
-        self.wandb_add_table(img_data + data, group)
+        self.wandb_add_table([("image", wandb_image)] + data, group)
 
     def wandb_handle_preds(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
+        img: Tensor | None,
         gt: Tensor,
         pred: Tensor,
         file_name: str | list[str],
@@ -636,6 +631,8 @@ class BaseLearner(
         if indices_to_save is None:
             return
 
+        if self.config.get("wandb", {}).get("save_mask_only"):
+            img = None
         if batch_idx == 0:
             self.prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
@@ -643,11 +640,13 @@ class BaseLearner(
                 file_name = file_name[i]
             if isinstance(dataset, list):
                 dataset = dataset[i]
-            self.prediction_data[type].append((gt[i], pred[i], file_name, dataset))
+            self.prediction_data[type].append(
+                (img and img[i], gt[i], pred[i], file_name, dataset)
+            )
 
     def wandb_add_preds(self):
         for type, data in self.prediction_data.items():
-            for gt, pred, file_name, dataset in data:
+            for img, gt, pred, file_name, dataset in data:
                 self.wandb_add_mask(
                     gt,
                     pred,
@@ -657,6 +656,7 @@ class BaseLearner(
                         ("dataset", dataset),
                     ],
                     "preds",
+                    image=img,
                 )
         self.prediction_data = {}
 
