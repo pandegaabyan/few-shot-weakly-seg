@@ -66,6 +66,7 @@ class WandbConfig(TypedDict, total=False):
     watch_model: bool
     save_model: bool
     push_table_freq: int | None
+    save_mask_only: bool
     save_train_preds: int
     save_val_preds: int
     save_test_preds: int

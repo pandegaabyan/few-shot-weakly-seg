@@ -88,6 +88,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "TR",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,
@@ -110,6 +111,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "VL",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,
@@ -129,6 +131,7 @@ class MetaLearner(
         self.wandb_handle_preds(
             "TS",
             batch_idx,
+            query.images,
             query.masks,
             pred,
             query.file_names,
@@ -152,7 +155,7 @@ class MetaLearner(
         if score is not None:
             score_tup = self.metric.prepare_for_log(score)
         else:
-            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
+            score_tup = [(key, None) for key in sorted(self.metric.metrics)]
 
         if isinstance(support.sparsity_mode, list):
             sparsity_mode = " ".join(support.sparsity_mode)

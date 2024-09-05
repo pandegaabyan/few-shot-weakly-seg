@@ -28,11 +28,13 @@ class SimpleLearner(
         pass
 
     def make_dataloader(self, datasets: list[SimpleDataset]):
+        mode = datasets[0].mode
         num_workers = self.config["data"]["num_workers"]
+        batch_size = 1 if mode == "test" else self.config["data"]["batch_size"]
         return DataLoader(
             ConcatDataset(datasets),
-            batch_size=self.config["data"]["batch_size"],
-            shuffle=datasets[0].mode == "train",
+            batch_size=batch_size,
+            shuffle=mode == "train",
             num_workers=num_workers,
             persistent_workers=num_workers > 0,
             pin_memory=self.device.type != "cpu",
@@ -41,7 +43,8 @@ class SimpleLearner(
     def make_indices_to_save(
         self, datasets: list[SimpleDataset], sample_size: int
     ) -> list[list[int]] | None:
-        batch_size = self.config["data"]["batch_size"]
+        mode = datasets[0].mode
+        batch_size = 1 if mode == "test" else self.config["data"]["batch_size"]
         return make_batch_sample_indices(
             sum(len(ds) for ds in datasets),
             sample_size,
@@ -69,7 +72,9 @@ class SimpleLearner(
 
         self.log_to_table_metrics("TR", batch_idx, loss)
 
-        self.wandb_handle_preds("TR", batch_idx, mask, pred, file_names, dataset_names)
+        self.wandb_handle_preds(
+            "TR", batch_idx, image, mask, pred, file_names, dataset_names
+        )
 
         return loss
 
@@ -87,7 +92,9 @@ class SimpleLearner(
 
         self.log_to_table_metrics("VL", batch_idx, loss, score=score)
 
-        self.wandb_handle_preds("VL", batch_idx, mask, pred, file_names, dataset_names)
+        self.wandb_handle_preds(
+            "VL", batch_idx, image, mask, pred, file_names, dataset_names
+        )
 
         return loss
 
@@ -102,7 +109,9 @@ class SimpleLearner(
 
         self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
-        self.wandb_handle_preds("TS", batch_idx, mask, pred, file_names, dataset_names)
+        self.wandb_handle_preds(
+            "TS", batch_idx, image, mask, pred, file_names, dataset_names
+        )
 
         return loss
 
@@ -119,7 +128,7 @@ class SimpleLearner(
         if score is not None:
             score_tup = self.metric.prepare_for_log(score)
         else:
-            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
+            score_tup = [(key, None) for key in sorted(self.metric.metrics)]
         self.log_table(
             [
                 ("type", type),

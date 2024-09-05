@@ -129,7 +129,8 @@ class BaseLearner(
         self.training_step_losses: list[float] = []
         self.validation_step_losses: list[float] = []
         self.test_step_losses: list[float] = []
-        self.prediction_data: PredictionDataDict = {}
+        self.last_prediction_data: PredictionDataDict = {}
+        self.best_prediction_data: PredictionDataDict = {}
 
     @abstractmethod
     def make_dataloader(self, datasets: list[DatasetClass]) -> DataLoader:
@@ -174,6 +175,8 @@ class BaseLearner(
             {"loss": val_loss} | dict(val_score) | {"score": score_summary},
             "summary/val_",
         )
+        if self.check_if_best(score_summary):
+            self.best_prediction_data = self.last_prediction_data.copy()
         self.log_monitor(score_summary)
         self.optuna_log_and_prune(score_summary)
 
@@ -183,7 +186,6 @@ class BaseLearner(
         train_loss = mean(self.training_step_losses)
         self.training_step_losses.clear()
         self.wandb_log({"loss": train_loss}, "summary/train_")
-
         self.wandb_push_table()
 
     def on_fit_end(self):
@@ -207,7 +209,7 @@ class BaseLearner(
         test_score = self.metric.prepare_for_log(test_score)
 
         self.wandb_log({"loss": test_loss} | dict(test_score), "summary/test_")
-
+        self.best_prediction_data = self.last_prediction_data.copy()
         self.wandb_add_preds()
         self.wandb_push_table(force=True)
 
@@ -372,6 +374,14 @@ class BaseLearner(
         with profiler.profile(action_name) as p:
             yield p
 
+    def check_if_best(self, value: float) -> bool:
+        monitor_mode = self.config["callbacks"].get("monitor_mode", "min")
+        return (
+            (self.best_monitor_value is None)
+            or (monitor_mode == "min" and value < self.best_monitor_value)
+            or (monitor_mode == "max" and value > self.best_monitor_value)
+        )
+
     def get_configuration(self) -> dict:
         def serialize_datasets(
             datasets: list[tuple[Type[DatasetClass], DatasetKwargs]],
@@ -499,12 +509,7 @@ class BaseLearner(
         write_to_csv(csv_filename, data)
 
     def log_monitor(self, value: float):
-        monitor_mode = self.config["callbacks"].get("monitor_mode", "min")
-        if (
-            (self.best_monitor_value is None)
-            or (monitor_mode == "min" and value < self.best_monitor_value)
-            or (monitor_mode == "max" and value > self.best_monitor_value)
-        ):
+        if self.check_if_best(value):
             self.best_monitor_value = value
 
         name = self.config["callbacks"].get("monitor")
@@ -590,34 +595,29 @@ class BaseLearner(
         if image is not None:
             image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
         else:
-            image_arr = np.zeros(gt_arr.shape + (1,), dtype=np.uint8)
+            image_arr = np.ones(gt_arr.shape + (1,), dtype=np.uint8) * 255
 
-        gt_img = wandb.Image(
+        wandb_image = wandb.Image(
             image_arr,
             masks={
-                "ground_truth": {
+                "truth": {
                     "mask_data": gt_arr,
                     "class_labels": self.class_labels,
                 },
-            },
-        )
-        pred_img = wandb.Image(
-            image_arr,
-            masks={
-                "prediction": {
+                "pred": {
                     "mask_data": pred_arr,
                     "class_labels": self.class_labels,
                 },
             },
         )
-        img_data = [("ground_truth", gt_img), ("prediction", pred_img)]
 
-        self.wandb_add_table(img_data + data, group)
+        self.wandb_add_table([("image", wandb_image)] + data, group)
 
     def wandb_handle_preds(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
+        img: Tensor | None,
         gt: Tensor,
         pred: Tensor,
         file_name: str | list[str],
@@ -636,18 +636,22 @@ class BaseLearner(
         if indices_to_save is None:
             return
 
+        if self.config.get("wandb", {}).get("save_mask_only"):
+            img = None
         if batch_idx == 0:
-            self.prediction_data[type] = []
+            self.last_prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
             if isinstance(file_name, list):
                 file_name = file_name[i]
             if isinstance(dataset, list):
                 dataset = dataset[i]
-            self.prediction_data[type].append((gt[i], pred[i], file_name, dataset))
+            self.last_prediction_data[type].append(
+                (img and img[i], gt[i], pred[i], file_name, dataset)
+            )
 
     def wandb_add_preds(self):
-        for type, data in self.prediction_data.items():
-            for gt, pred, file_name, dataset in data:
+        for type, data in self.best_prediction_data.items():
+            for img, gt, pred, file_name, dataset in data:
                 self.wandb_add_mask(
                     gt,
                     pred,
@@ -657,8 +661,9 @@ class BaseLearner(
                         ("dataset", dataset),
                     ],
                     "preds",
+                    image=img,
                 )
-        self.prediction_data = {}
+        self.best_prediction_data = {}
 
     def optuna_log_and_prune(self, value: float):
         if self.optuna_trial is None:

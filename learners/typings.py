@@ -66,4 +66,4 @@ GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 
 SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]
 
-PredictionDataDict = dict[str, list[tuple[Tensor, Tensor, str, str]]]
+PredictionDataDict = dict[str, list[tuple[Tensor | None, Tensor, Tensor, str, str]]]
