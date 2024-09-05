@@ -588,9 +588,10 @@ class BaseLearner(
         if not self.use_wandb:
             return
 
-        gt_arr = gt.cpu().numpy()
         if pred.is_floating_point():
             pred = pred.argmax(dim=0)
+        scores = self.metric.prepare_for_log(self.metric.measure(pred, gt))
+        gt_arr = gt.cpu().numpy()
         pred_arr = pred.cpu().numpy()
         if image is not None:
             image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
@@ -611,7 +612,7 @@ class BaseLearner(
             },
         )
 
-        self.wandb_add_table([("image", wandb_image)] + data, group)
+        self.wandb_add_table([("image", wandb_image)] + scores + data, group)
 
     def wandb_handle_preds(
         self,
@@ -646,7 +647,7 @@ class BaseLearner(
             if isinstance(dataset, list):
                 dataset = dataset[i]
             self.last_prediction_data[type].append(
-                (img and img[i], gt[i], pred[i], file_name, dataset)
+                (None if img is None else img[i], gt[i], pred[i], file_name, dataset)
             )
 
     def wandb_add_preds(self):
