@@ -119,7 +119,7 @@ class SimpleLearner(
         if score is not None:
             score_tup = self.metric.prepare_for_log(score)
         else:
-            score_tup = [(key, None) for key in sorted(self.metric.additional_params())]
+            score_tup = [(key, None) for key in sorted(self.metric.metrics)]
         self.log_table(
             [
                 ("type", type),
