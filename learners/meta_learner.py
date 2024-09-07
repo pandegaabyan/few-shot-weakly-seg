@@ -93,6 +93,8 @@ class MetaLearner(
             pred,
             file=query.file_names,
             dataset=dataset_name,
+            sparsity_mode=support.sparsity_mode,
+            sparsity_value=support.sparsity_value,
         )
 
         return loss
@@ -116,6 +118,8 @@ class MetaLearner(
             pred,
             file=query.file_names,
             dataset=dataset_name,
+            sparsity_mode=support.sparsity_mode,
+            sparsity_value=support.sparsity_value,
         )
 
         return loss
@@ -136,6 +140,8 @@ class MetaLearner(
             pred,
             file=query.file_names,
             dataset=dataset_name,
+            sparsity_mode=support.sparsity_mode,
+            sparsity_value=support.sparsity_value,
         )
 
         return loss
