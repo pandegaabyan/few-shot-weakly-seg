@@ -209,6 +209,7 @@ class MetaRunner(Runner):
             "split_val_fold": 0,
             "split_test_fold": 0,
             "cache_data": True,
+            "support_query_data": "split",
             "query_batch_size": 10,
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
@@ -217,7 +218,7 @@ class MetaRunner(Runner):
             dummy_kwargs: FewSparseDatasetKwargs = {
                 "max_items": 4,
                 "shot_options": self.config["data"]["batch_size"],
-                "shot_sparsity_permutation": False,
+                "support_batch_mode": "mixed",
                 "query_batch_size": self.config["data"]["batch_size"],
                 "num_iterations": 2,
             }
@@ -233,8 +234,7 @@ class MetaRunner(Runner):
                 ("skeleton", (0.1, 1.0)),
                 ("region", (0.1, 1.0)),
             ],
-            "shot_sparsity_permutation": False,
-            "homogen_support_batch": False,
+            "support_batch_mode": "mixed",
             "num_iterations": 5.0,
         }
 
@@ -247,7 +247,7 @@ class MetaRunner(Runner):
                 ("skeleton", [0.25, 0.5, 0.75]),
                 ("region", [0.25, 0.5, 0.75]),
             ],
-            "shot_sparsity_permutation": True,
+            "support_batch_mode": "permutation",
         }
 
         test_kwargs: FewSparseDatasetKwargs = {
@@ -259,7 +259,8 @@ class MetaRunner(Runner):
                 ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
                 ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
             ],
-            "shot_sparsity_permutation": True,
+            "support_query_data": "mixed",
+            "support_batch_mode": "full_permutation",
         }
 
         rim_one_3_train_kwargs: FewSparseDatasetKwargs = {

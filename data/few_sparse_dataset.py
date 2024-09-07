@@ -35,15 +35,21 @@ class FewSparseDataset(BaseDataset, ABC):
         self.shot_options = kwargs.get("shot_options", "all")
         self.sparsity_options = kwargs.get("sparsity_options") or [("random", "random")]
         self.sparsity_params = kwargs.get("sparsity_params") or {}
-        self.shot_sparsity_permutation = kwargs.get("shot_sparsity_permutation", False)
-        self.homogen_support_batch = (
-            kwargs.get("homogen_support_batch", False) or self.shot_sparsity_permutation
-        )
+        self.support_query_data = kwargs.get("support_query_data", "split")
+        self.support_batch_mode = kwargs.get("support_batch_mode", "mixed")
         self.query_batch_size = kwargs.get("query_batch_size", 1)
         self.split_query_size = kwargs.get("split_query_size", 0)
         self.split_query_fold = kwargs.get("split_query_fold", 0)
 
-        if self.shot_sparsity_permutation:
+        if (
+            self.support_query_data == "split"
+            and self.support_batch_mode == "full_permutation"
+        ):
+            raise ValueError(
+                "support_query_data='split' and support_batch_mode='full_permutation' are incompatible"
+            )
+
+        if self.support_batch_mode in ["permutation", "full_permutation"]:
             (
                 self.num_iterations,
                 self.support_batches,
@@ -352,15 +358,21 @@ class FewSparseDataset(BaseDataset, ABC):
             if not isinstance(sparsity[1], list):
                 raise ValueError(value_error)
             sparsity_list_init.extend([(sparsity[0], value) for value in sparsity[1]])
+
+        if self.support_batch_mode == "full_permutation":
+            num_query_batch = len(self.items) // self.query_batch_size
+        else:
+            num_query_batch = 1
+
         num_iterations = len(self.shot_options) * len(sparsity_list_init)
         batch_list: list[int] = []
         sparsity_list: list[SparsityTuple] = []
         for i in range(num_iterations):
             shot = self.shot_options[i // len(sparsity_list_init)]
             sparsity = sparsity_list_init[i % len(sparsity_list_init)]
-            batch_list.append(shot)
-            sparsity_list.append(sparsity)
-        return num_iterations, batch_list, sparsity_list
+            batch_list.extend([shot] * num_query_batch)
+            sparsity_list.extend([sparsity] * num_query_batch)
+        return num_iterations * num_query_batch, batch_list, sparsity_list
 
     def make_support_batches(self) -> list[int]:
         if isinstance(self.shot_options, list) and len(self.shot_options) == 0:
@@ -386,9 +398,67 @@ class FewSparseDataset(BaseDataset, ABC):
         return batch_list
 
     def make_support_query_indices(self) -> tuple[list[int], list[int]]:
+        if self.support_query_data == "mixed":
+            return self.make_mixed_support_query_indices()
+        elif self.support_query_data == "mixed_replaced":
+            return self.make_mixed_replaced_support_query_indices()
+        elif self.support_query_data == "split":
+            return self.make_split_support_query_indices()
+        else:
+            return [], []
+
+    def make_mixed_support_query_indices(self) -> tuple[list[int], list[int]]:
+        indices_init = list(range(len(self.items)))
+        query_indices = self.extend_data(
+            indices_init, self.num_iterations * self.query_batch_size, self.seed
+        )
+        support_indices = []
+        support_indices_pool = indices_init.copy()
+        for i, support_batch in enumerate(self.support_batches):
+            query_indices_batch = query_indices[
+                i * self.query_batch_size : (i + 1) * self.query_batch_size
+            ]
+            remainder = support_batch
+            while remainder > 0:
+                filtered_pool = list(
+                    filter(lambda x: x not in query_indices_batch, support_indices_pool)
+                )
+                if len(filtered_pool) < remainder:
+                    new_indices = filtered_pool
+                    remainder -= len(filtered_pool)
+                    support_indices_pool.extend(indices_init)
+                else:
+                    new_indices = random.sample(filtered_pool, remainder)
+                    remainder = 0
+                for x in new_indices:
+                    support_indices_pool.remove(x)
+                support_indices.extend(new_indices)
+        return support_indices, query_indices
+
+    def make_mixed_replaced_support_query_indices(self) -> tuple[list[int], list[int]]:
+        indices_init = list(range(len(self.items)))
+        query_indices = self.extend_data(
+            indices_init, self.num_iterations * self.query_batch_size
+        )
+        indices_init_set = set(indices_init)
+        support_indices = []
+        random.seed(self.seed)
+        for i, support_batch in enumerate(self.support_batches):
+            query_indices_batch = query_indices[
+                i * self.query_batch_size : (i + 1) * self.query_batch_size
+            ]
+            support_indices_batch = random.sample(
+                indices_init_set - set(query_indices_batch), support_batch
+            )
+            support_indices.extend(support_indices_batch)
+        random.seed(None)
+        return support_indices, query_indices
+
+    def make_split_support_query_indices(self) -> tuple[list[int], list[int]]:
+        indices_init = list(range(len(self.items)))
         query_size = floor(self.split_query_size * len(self.items))
         support_indices_init, query_indices_init = self.split_train_test(
-            list(range(len(self.items))),
+            indices_init,
             test_size=query_size,
             random_state=self.seed,
             shuffle=False,
@@ -542,13 +612,14 @@ class FewSparseDataset(BaseDataset, ABC):
         support_name_list = []
         support_sparsity_modes: list[SparsityMode] = []
         support_sparsity_values: list[SparsityValue] = []
-        if self.homogen_support_batch:
-            if self.shot_sparsity_permutation:
-                sparsity_mode, sparsity_value = self.support_sparsities[index]
-            else:
-                sparsity_mode, sparsity_value = self.select_sparsity(index)
+
+        if self.support_batch_mode in ["permutation", "full_permutation"]:
+            sparsity_mode, sparsity_value = self.support_sparsities[index]
+        elif self.support_batch_mode == "homogen":
+            sparsity_mode, sparsity_value = self.select_sparsity(index)
         else:
             sparsity_mode, sparsity_value = None, None
+
         for i in range(support_batch_size):
             item_index = sum(self.support_batches[:index]) + i
             img, msk, name, mode, value = self.get_support_data(
@@ -559,12 +630,14 @@ class FewSparseDataset(BaseDataset, ABC):
             support_images_list.append(img)
             support_masks_list.append(msk)
             support_name_list.append(name)
-            if not self.homogen_support_batch:
+            if self.support_batch_mode == "mixed":
                 support_sparsity_modes.append(mode)
                 support_sparsity_values.append(value)
-        if not self.homogen_support_batch:
+
+        if self.support_batch_mode == "mixed":
             sparsity_mode = support_sparsity_modes
             sparsity_value = support_sparsity_values
+
         assert sparsity_mode is not None and sparsity_value is not None
 
         query_images_list = []
