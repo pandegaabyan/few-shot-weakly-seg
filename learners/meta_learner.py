@@ -91,8 +91,8 @@ class MetaLearner(
             query.images,
             query.masks,
             pred,
-            query.file_names,
-            dataset_name,
+            file=query.file_names,
+            dataset=dataset_name,
         )
 
         return loss
@@ -114,8 +114,8 @@ class MetaLearner(
             query.images,
             query.masks,
             pred,
-            query.file_names,
-            dataset_name,
+            file=query.file_names,
+            dataset=dataset_name,
         )
 
         return loss
@@ -134,8 +134,8 @@ class MetaLearner(
             query.images,
             query.masks,
             pred,
-            query.file_names,
-            dataset_name,
+            file=query.file_names,
+            dataset=dataset_name,
         )
 
         return loss

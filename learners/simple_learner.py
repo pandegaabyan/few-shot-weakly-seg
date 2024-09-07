@@ -73,7 +73,7 @@ class SimpleLearner(
         self.log_to_table_metrics("TR", batch_idx, loss)
 
         self.wandb_handle_preds(
-            "TR", batch_idx, image, mask, pred, file_names, dataset_names
+            "TR", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
         )
 
         return loss
@@ -93,7 +93,7 @@ class SimpleLearner(
         self.log_to_table_metrics("VL", batch_idx, loss, score=score)
 
         self.wandb_handle_preds(
-            "VL", batch_idx, image, mask, pred, file_names, dataset_names
+            "VL", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
         )
 
         return loss
@@ -110,7 +110,7 @@ class SimpleLearner(
         self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
         self.wandb_handle_preds(
-            "TS", batch_idx, image, mask, pred, file_names, dataset_names
+            "TS", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
         )
 
         return loss

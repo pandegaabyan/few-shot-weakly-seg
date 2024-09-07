@@ -3,7 +3,7 @@ import sys
 import time
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
-from typing import Any, Generator, Generic, Literal, Type
+from typing import Any, Generator, Generic, Literal, Mapping, Sequence, Type
 
 import numpy as np
 from pytorch_lightning import LightningModule
@@ -26,8 +26,10 @@ from learners.typings import (
     ConfigType,
     DatasetClass,
     DatasetKwargs,
+    ListValues,
     PredictionDataDict,
     Scheduler,
+    Values,
 )
 from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
 from utils.diff_dict import diff_dict
@@ -497,7 +499,7 @@ class BaseLearner(
 
     def log_table(
         self,
-        data: list[tuple[str, Any]],
+        data: list[tuple[str, Values]],
         group: str,
     ):
         if not self.config["log"].get("table"):
@@ -516,7 +518,7 @@ class BaseLearner(
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
 
-    def wandb_log(self, data: dict[str, Any], prefix: str = ""):
+    def wandb_log(self, data: Mapping[str, Values], prefix: str = ""):
         if not self.use_wandb:
             return
         use_epoch = prefix.startswith("summary/")
@@ -558,7 +560,7 @@ class BaseLearner(
 
     def wandb_add_table(
         self,
-        data: list[tuple[str, Any]],
+        data: Sequence[tuple[str, Values | wandb.Image]],
         group: str,
     ):
         use_wandb_table = self.config.get("wandb", {}).get("push_table_freq")
@@ -581,7 +583,7 @@ class BaseLearner(
         self,
         gt: Tensor,
         pred: Tensor,
-        data: list[tuple[str, Any]],
+        data: list[tuple[str, Values]],
         group: str,
         image: Tensor | None = None,
     ):
@@ -621,8 +623,7 @@ class BaseLearner(
         img: Tensor | None,
         gt: Tensor,
         pred: Tensor,
-        file_name: str | list[str],
-        dataset: str | list[str],
+        **kwargs: Values | ListValues,
     ):
         if not self.use_wandb:
             return
@@ -642,25 +643,23 @@ class BaseLearner(
         if batch_idx == 0:
             self.last_prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
-            if isinstance(file_name, list):
-                file_name = file_name[i]
-            if isinstance(dataset, list):
-                dataset = dataset[i]
+            data: list[tuple[str, Values]] = []
+            for k, v in kwargs.items():
+                if isinstance(v, list):
+                    data.append((k, v[i]))
+                else:
+                    data.append((k, v))
             self.last_prediction_data[type].append(
-                (None if img is None else img[i], gt[i], pred[i], file_name, dataset)
+                (None if img is None else img[i], gt[i], pred[i], data)
             )
 
     def wandb_add_preds(self):
-        for type, data in self.best_prediction_data.items():
-            for img, gt, pred, file_name, dataset in data:
+        for type, pred_data in self.best_prediction_data.items():
+            for img, gt, pred, data in pred_data:
                 self.wandb_add_mask(
                     gt,
                     pred,
-                    [
-                        ("type", type),
-                        ("file_name", file_name),
-                        ("dataset", dataset),
-                    ],
+                    [("type", type)] + data,
                     "preds",
                     image=img,
                 )
