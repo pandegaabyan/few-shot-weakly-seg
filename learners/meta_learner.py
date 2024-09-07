@@ -89,7 +89,7 @@ class MetaLearner(
         return loss
 
     def validation_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        with self.profile("evaluation_process:validation"):
+        with self.profile("evaluation_process"):
             pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
         self.validation_step_losses.append(loss.item())
 
@@ -103,7 +103,7 @@ class MetaLearner(
         return loss
 
     def test_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        with self.profile("evaluation_process:test"):
+        with self.profile("evaluation_process"):
             pred, loss, score = self.evaluation_process("TS", batch, batch_idx)
         self.test_step_losses.append(loss.item())
 

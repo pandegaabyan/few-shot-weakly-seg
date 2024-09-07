@@ -58,7 +58,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
         self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
         support, query, _ = batch
-        with self.profile("forward:training"):
+        with self.profile("forward"):
             pred = self.forward(support.images, support.masks, query.images)
         loss = self.loss(pred, query.masks)
 
@@ -83,7 +83,6 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
 
         tune_epochs = self.config["weasel"]["tune_epochs"]
         tune_val_freq = self.config["weasel"]["tune_val_freq"]
-        tune_profile_name = f"tune_process:{'validation' if type == 'VL' else 'test'}"
         for ep in range(tune_epochs):
             if type == "VL":
                 if self.trainer.sanity_checking:
@@ -96,7 +95,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 progress_task, tune_epoch=f"{ep}/{tune_epochs-1}"
             )
 
-            with self.profile(tune_profile_name):
+            with self.profile("tune_process"):
                 self.tune_process(s_images, s_masks)
 
             if (ep != tune_epochs - 1) and (
@@ -108,7 +107,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 self.net.eval()
                 qry_pred_list = []
                 for q_image in qry_images:
-                    q_pred = self.net(q_image)
+                    with self.profile("inference"):
+                        q_pred = self.net(q_image)
                     qry_pred_list.append(q_pred)
                 qry_pred = torch.vstack(qry_pred_list)
                 qry_loss = self.loss(qry_pred, query.masks)

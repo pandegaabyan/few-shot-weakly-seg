@@ -65,7 +65,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
         support, query, _ = batch
-        with self.profile("forward:training"):
+        with self.profile("forward"):
             pred = self.forward(support.images, support.masks, query.images)
         if self.multi_pred:
             loss = self.loss(pred.mean(dim=1), query.masks)
@@ -78,7 +78,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         self, type: Literal["VL", "TS"], batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         support, query, _ = batch
-        with self.profile(f"forward:{'validation' if type == 'VL' else 'test'}"):
+        with self.profile("forward"):
             pred = self.forward(support.images, support.masks, query.images)
         if self.multi_pred:
             loss = self.loss(pred.mean(dim=1), query.masks)

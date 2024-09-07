@@ -64,7 +64,7 @@ class SimpleLearner(
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, _, _ = batch
-        with self.profile("forward:training"):
+        with self.profile("forward"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
 
@@ -78,7 +78,7 @@ class SimpleLearner(
 
     def validation_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, _, _ = batch
-        with self.profile("forward:validation"):
+        with self.profile("forward"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
 
@@ -96,7 +96,7 @@ class SimpleLearner(
 
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
         image, mask, _, _ = batch
-        with self.profile("forward:test"):
+        with self.profile("forward"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
 
