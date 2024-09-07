@@ -58,7 +58,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
         self, batch: FewSparseDataTuple, batch_idx: int
     ) -> tuple[Tensor, Tensor]:
         support, query, _ = batch
-        with self.profile("forward:training"):
+        with self.profile("forward"):
             pred = self.forward(support.images, support.masks, query.images)
         loss = self.loss(pred, query.masks)
 
@@ -95,8 +95,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 progress_task, tune_epoch=f"{ep}/{tune_epochs-1}"
             )
 
-            with self.profile(f"tune_step:{'validation' if type == 'VL' else 'test'}"):
-                self.tune_step(s_images, s_masks)
+            with self.profile("tune_process"):
+                self.tune_process(s_images, s_masks)
 
             if (ep != tune_epochs - 1) and (
                 tune_val_freq is None or ((ep + 1) % tune_val_freq != 0)
@@ -107,7 +107,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 self.net.eval()
                 qry_pred_list = []
                 for q_image in qry_images:
-                    q_pred = self.net(q_image)
+                    with self.profile("inference"):
+                        q_pred = self.net(q_image)
                     qry_pred_list.append(q_pred)
                 qry_pred = torch.vstack(qry_pred_list)
                 qry_loss = self.loss(qry_pred, query.masks)
@@ -165,7 +166,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
 
         return params
 
-    def tune_step(self, images: tuple[Tensor, ...], masks: tuple[Tensor, ...]):
+    def tune_process(self, images: tuple[Tensor, ...], masks: tuple[Tensor, ...]):
         with torch.enable_grad():
             self.net.train()
             if self.config["weasel"]["tune_multi_step"]:

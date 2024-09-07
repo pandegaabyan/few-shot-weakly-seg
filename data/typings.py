@@ -78,16 +78,15 @@ class BaseDatasetKwargs(TypedDict, total=False):
     dataset_name: str | None
 
 
-class SimpleDatasetKwargs(BaseDatasetKwargs):
-    ...
+class SimpleDatasetKwargs(BaseDatasetKwargs): ...
 
 
 class FewSparseDatasetKwargs(BaseDatasetKwargs, total=False):
     shot_options: ShotOptions
     sparsity_options: SparsityOptions
     sparsity_params: dict | None
-    shot_sparsity_permutation: bool
-    homogen_support_batch: bool
+    support_query_data: Literal["split", "mixed", "mixed_replaced"]
+    support_batch_mode: Literal["mixed", "homogen", "permutation", "full_permutation"]
     query_batch_size: int
     split_query_size: float
     split_query_fold: int

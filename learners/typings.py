@@ -1,7 +1,7 @@
 import optuna
 from pytorch_lightning.utilities.types import LRSchedulerPLType
 from torch import Tensor, nn, optim
-from typing_extensions import Any, Generic, Required, Type, TypedDict, TypeVar
+from typing_extensions import Any, Generic, Required, Type, TypedDict, TypeVar, Union
 
 from config.config_type import (
     ConfigBase,
@@ -14,13 +14,25 @@ from config.config_type import (
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import BaseDatasetKwargs, FewSparseDatasetKwargs, SimpleDatasetKwargs
+from data.typings import (
+    BaseDatasetKwargs,
+    FewSparseDatasetKwargs,
+    SimpleDatasetKwargs,
+)
 from learners.metrics import BaseMetric
 
 ConfigType = TypeVar("ConfigType", bound=ConfigBase)
 ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)
 DatasetClass = TypeVar("DatasetClass", bound=BaseDataset)
 DatasetKwargs = TypeVar("DatasetKwargs", bound=BaseDatasetKwargs)
+
+Primitives = Union[bool, str, int, float, None]
+ListPrimitives = Union[
+    list[bool],
+    list[str],
+    list[int],
+    list[float],
+]
 
 Loss = nn.Module
 Metric = BaseMetric
@@ -66,4 +78,6 @@ GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 
 SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]
 
-PredictionDataDict = dict[str, list[tuple[Tensor | None, Tensor, Tensor, str, str]]]
+PredictionDataDict = dict[
+    str, list[tuple[Tensor | None, Tensor, Tensor, list[tuple[str, Primitives]]]]
+]
