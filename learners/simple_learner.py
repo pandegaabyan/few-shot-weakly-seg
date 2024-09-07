@@ -63,23 +63,21 @@ class SimpleLearner(
         return self.net(image)
 
     def training_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        image, mask, file_names, dataset_names = batch
+        image, mask, _, _ = batch
         with self.profile("forward:training"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
 
         self.training_step_losses.append(loss.item())
 
-        self.log_to_table_metrics("TR", batch_idx, loss)
+        self.handle_metrics("TR", batch_idx, loss)
 
-        self.wandb_handle_preds(
-            "TR", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
-        )
+        self.handle_preds("TR", batch, batch_idx, pred)
 
         return loss
 
     def validation_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        image, mask, file_names, dataset_names = batch
+        image, mask, _, _ = batch
         with self.profile("forward:validation"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
@@ -90,16 +88,14 @@ class SimpleLearner(
         if self.trainer.sanity_checking:
             return loss
 
-        self.log_to_table_metrics("VL", batch_idx, loss, score=score)
+        self.handle_metrics("VL", batch_idx, loss, score=score)
 
-        self.wandb_handle_preds(
-            "VL", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
-        )
+        self.handle_preds("VL", batch, batch_idx, pred)
 
         return loss
 
     def test_step(self, batch: SimpleDataBatchTuple, batch_idx: int):
-        image, mask, file_names, dataset_names = batch
+        image, mask, _, _ = batch
         with self.profile("forward:test"):
             pred = self.forward(image)
         loss = self.loss(pred, mask)
@@ -107,15 +103,13 @@ class SimpleLearner(
         self.test_step_losses.append(loss.item())
         score = self.metric(pred, mask)
 
-        self.log_to_table_metrics("TS", batch_idx, loss, score=score, epoch=0)
+        self.handle_metrics("TS", batch_idx, loss, score=score, epoch=0)
 
-        self.wandb_handle_preds(
-            "TS", batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
-        )
+        self.handle_preds("TS", batch, batch_idx, pred)
 
         return loss
 
-    def log_to_table_metrics(
+    def handle_metrics(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
@@ -138,4 +132,16 @@ class SimpleLearner(
             ]
             + score_tup,
             "metrics",
+        )
+
+    def handle_preds(
+        self,
+        type: Literal["TR", "VL", "TS"],
+        batch: SimpleDataBatchTuple,
+        batch_idx: int,
+        pred: Tensor,
+    ):
+        image, mask, file_names, dataset_names = batch
+        self.wandb_handle_preds(
+            type, batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
         )

@@ -73,34 +73,22 @@ class MetaLearner(
         return (supp_image_example, supp_mask_example, qry_image_example)
 
     def training_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        support, query, dataset_name = batch
         with self.profile("training_process"):
             pred, loss = self.training_process(batch, batch_idx)
         self.training_step_losses.append(loss.item())
 
-        self.log_to_table_metrics(
+        self.handle_metrics(
             "TR",
             batch_idx,
             loss,
-            support,
+            batch.support,
         )
 
-        self.wandb_handle_preds(
-            "TR",
-            batch_idx,
-            query.images,
-            query.masks,
-            pred,
-            file=query.file_names,
-            dataset=dataset_name,
-            sparsity_mode=support.sparsity_mode,
-            sparsity_value=support.sparsity_value,
-        )
+        self.handle_preds("TS", batch, batch_idx, pred)
 
         return loss
 
     def validation_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        support, query, dataset_name = batch
         with self.profile("evaluation_process:validation"):
             pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
         self.validation_step_losses.append(loss.item())
@@ -108,45 +96,27 @@ class MetaLearner(
         if self.trainer.sanity_checking:
             return loss
 
-        self.log_to_table_metrics("VL", batch_idx, loss, support, score=score)
+        self.handle_metrics("VL", batch_idx, loss, batch.support, score=score)
 
-        self.wandb_handle_preds(
-            "VL",
-            batch_idx,
-            query.images,
-            query.masks,
-            pred,
-            file=query.file_names,
-            dataset=dataset_name,
-            sparsity_mode=support.sparsity_mode,
-            sparsity_value=support.sparsity_value,
-        )
+        self.handle_preds("VL", batch, batch_idx, pred)
 
         return loss
 
     def test_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        support, query, dataset_name = batch
         with self.profile("evaluation_process:test"):
             pred, loss, score = self.evaluation_process("TS", batch, batch_idx)
         self.test_step_losses.append(loss.item())
 
-        self.log_to_table_metrics("TS", batch_idx, loss, support, score=score, epoch=0)
+        self.handle_metrics("TS", batch_idx, loss, batch.support, score=score, epoch=0)
 
-        self.wandb_handle_preds(
-            "TS",
-            batch_idx,
-            query.images,
-            query.masks,
-            pred,
-            file=query.file_names,
-            dataset=dataset_name,
-            sparsity_mode=support.sparsity_mode,
-            sparsity_value=support.sparsity_value,
-        )
+        self.handle_preds("TS", batch, batch_idx, pred)
 
         return loss
 
-    def log_to_table_metrics(
+    def encode_sparsity_value(self, value: SparsityValue) -> str:
+        return value if isinstance(value, str) else str(round(value, 3))
+
+    def handle_metrics(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
@@ -168,15 +138,12 @@ class MetaLearner(
         else:
             sparsity_mode = support.sparsity_mode
 
-        def encode_sparsity_value(value: SparsityValue) -> str:
-            return value if isinstance(value, str) else str(round(value, 3))
-
         if isinstance(support.sparsity_value, list):
             sparsity_value = " ".join(
-                map(encode_sparsity_value, support.sparsity_value)
+                map(self.encode_sparsity_value, support.sparsity_value)
             )
         else:
-            sparsity_value = encode_sparsity_value(support.sparsity_value)
+            sparsity_value = self.encode_sparsity_value(support.sparsity_value)
 
         self.log_table(
             [
@@ -190,6 +157,32 @@ class MetaLearner(
             ]
             + score_tup,
             "metrics",
+        )
+
+    def handle_preds(
+        self,
+        type: Literal["TR", "VL", "TS"],
+        batch: FewSparseDataTuple,
+        batch_idx: int,
+        pred: Tensor,
+    ):
+        support, query, dataset_name = batch
+        if isinstance(support.sparsity_value, list):
+            sparsity_value = list(
+                map(self.encode_sparsity_value, support.sparsity_value)
+            )
+        else:
+            sparsity_value = support.sparsity_value
+        self.wandb_handle_preds(
+            type,
+            batch_idx,
+            query.images,
+            query.masks,
+            pred,
+            file=query.file_names,
+            dataset=dataset_name,
+            sparsity_mode=support.sparsity_mode,
+            sparsity_value=sparsity_value,
         )
 
     def split_tensors(

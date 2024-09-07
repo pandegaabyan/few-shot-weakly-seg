@@ -26,10 +26,10 @@ from learners.typings import (
     ConfigType,
     DatasetClass,
     DatasetKwargs,
-    ListValues,
+    ListPrimitives,
     PredictionDataDict,
+    Primitives,
     Scheduler,
-    Values,
 )
 from runners.callbacks import CustomRichProgressBar, ProgressBarTaskType
 from utils.diff_dict import diff_dict
@@ -499,7 +499,7 @@ class BaseLearner(
 
     def log_table(
         self,
-        data: list[tuple[str, Values]],
+        data: list[tuple[str, Primitives]],
         group: str,
     ):
         if not self.config["log"].get("table"):
@@ -518,7 +518,7 @@ class BaseLearner(
         if name is not None:
             self.log(name, value, on_step=False, on_epoch=True, batch_size=1)
 
-    def wandb_log(self, data: Mapping[str, Values], prefix: str = ""):
+    def wandb_log(self, data: Mapping[str, Primitives], prefix: str = ""):
         if not self.use_wandb:
             return
         use_epoch = prefix.startswith("summary/")
@@ -560,7 +560,7 @@ class BaseLearner(
 
     def wandb_add_table(
         self,
-        data: Sequence[tuple[str, Values | wandb.Image]],
+        data: Sequence[tuple[str, Primitives | wandb.Image]],
         group: str,
     ):
         use_wandb_table = self.config.get("wandb", {}).get("push_table_freq")
@@ -583,7 +583,7 @@ class BaseLearner(
         self,
         gt: Tensor,
         pred: Tensor,
-        data: list[tuple[str, Values]],
+        data: list[tuple[str, Primitives]],
         group: str,
         image: Tensor | None = None,
     ):
@@ -623,7 +623,7 @@ class BaseLearner(
         img: Tensor | None,
         gt: Tensor,
         pred: Tensor,
-        **kwargs: Values | ListValues,
+        **kwargs: Primitives | ListPrimitives,
     ):
         if not self.use_wandb:
             return
@@ -643,7 +643,7 @@ class BaseLearner(
         if batch_idx == 0:
             self.last_prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
-            data: list[tuple[str, Values]] = []
+            data: list[tuple[str, Primitives]] = []
             for k, v in kwargs.items():
                 if isinstance(v, list):
                     data.append((k, v[i]))

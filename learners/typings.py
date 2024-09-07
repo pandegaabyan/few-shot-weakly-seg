@@ -18,7 +18,6 @@ from data.typings import (
     BaseDatasetKwargs,
     FewSparseDatasetKwargs,
     SimpleDatasetKwargs,
-    SparsityValue,
 )
 from learners.metrics import BaseMetric
 
@@ -27,14 +26,12 @@ ConfigTypeMeta = TypeVar("ConfigTypeMeta", bound=ConfigMetaLearner)
 DatasetClass = TypeVar("DatasetClass", bound=BaseDataset)
 DatasetKwargs = TypeVar("DatasetKwargs", bound=BaseDatasetKwargs)
 
-Values = Union[bool, str, int, float, SparsityValue, None]
-ListValues = Union[
+Primitives = Union[bool, str, int, float, None]
+ListPrimitives = Union[
     list[bool],
     list[str],
     list[int],
     list[float],
-    list[bool | str | int | float],
-    list[SparsityValue],
 ]
 
 Loss = nn.Module
@@ -82,5 +79,5 @@ GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]
 
 PredictionDataDict = dict[
-    str, list[tuple[Tensor | None, Tensor, Tensor, list[tuple[str, Values]]]]
+    str, list[tuple[Tensor | None, Tensor, Tensor, list[tuple[str, Primitives]]]]
 ]
