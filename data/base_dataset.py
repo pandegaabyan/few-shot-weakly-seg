@@ -79,18 +79,6 @@ class BaseDataset(Dataset, ABC):
         return img
 
     @staticmethod
-    def prepare_img_as_tensor(img: NDArray) -> Tensor:
-        new_img = BaseDataset.norm(img)
-        new_img = BaseDataset.ensure_channels(new_img)
-        new_img = torch.from_numpy(new_img)
-        return new_img
-
-    @staticmethod
-    def prepare_msk_as_tensor(msk: NDArray) -> Tensor:
-        new_msk = torch.from_numpy(msk).type(torch.int64)
-        return new_msk
-
-    @staticmethod
     def resize_image(img: NDArray, resize_to: tuple[int, ...], is_mask: bool):
         if is_mask:
             order = 0
