@@ -8,18 +8,13 @@ def merge_dicts(dicts: list[dict]) -> dict:
     return {k: v for d in dicts for k, v in d.items()}
 
 
-def parse_string(s: str) -> bool | int | float | str:
-    if s == "True":
-        return True
-    elif s == "False":
-        return False
+def parse_string(s: str):
+    import ast
+
     try:
-        return int(s)
-    except ValueError:
-        try:
-            return float(s)
-        except ValueError:
-            return s
+        return ast.literal_eval(s)
+    except (ValueError, SyntaxError):
+        return s
 
 
 def make_batch_sample_indices(
