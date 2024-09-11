@@ -98,7 +98,8 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
             with self.profile("tune_process"):
                 self.tune_process(s_images, s_masks)
 
-            if (ep != tune_epochs - 1) and (
+            last_epoch = ep == tune_epochs - 1
+            if (not last_epoch) and (
                 tune_val_freq is None or ((ep + 1) % tune_val_freq != 0)
             ):
                 continue
@@ -112,7 +113,10 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                     qry_pred_list.append(q_pred)
                 qry_pred = torch.vstack(qry_pred_list)
                 qry_loss = self.loss(qry_pred, query.masks)
-                qry_score = self.metric(qry_pred, query.masks)
+                if last_epoch:
+                    qry_score = self.metric(qry_pred, query.masks)
+                else:
+                    qry_score = self.metric.measure(qry_pred, query.masks)
 
             if self.trainer.sanity_checking:
                 continue
