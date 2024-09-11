@@ -17,7 +17,8 @@ from typing_extensions import Unpack
 import wandb
 from config.config_type import ConfigUnion
 from config.constants import FILENAMES
-from data.typings import DatasetModes
+from data.base_dataset import BaseDataset
+from data.typings import BaseDataTuple, DatasetModes
 from learners.losses import CustomLoss
 from learners.metrics import MultiIoUMetric
 from learners.optimizers import get_optimizer_and_scheduler_names
@@ -333,6 +334,22 @@ class BaseLearner(
         end_time = time.perf_counter()
         self.print(f"val datasets prep done in {(end_time - inter_time):.2f} s")
 
+    def get_dataset_item(
+        self, type: Literal["TR", "VL", "TS"], dataset_name: str, index: int
+    ) -> BaseDataTuple | None:
+        if type == "TR":
+            datasets = self.train_datasets
+        elif type == "VL":
+            datasets = self.val_datasets
+        elif type == "TS":
+            datasets = self.test_datasets
+        else:
+            raise ValueError(f"Invalid dataset type: {type}")
+        for ds in datasets:
+            if ds.dataset_name == dataset_name:
+                return ds.get_data(index)
+        return None
+
     def cast_example_input_array(self):
         if isinstance(self.example_input_array, tuple):
             self.example_input_array = tuple(
@@ -581,48 +598,58 @@ class BaseLearner(
 
     def wandb_add_mask(
         self,
-        gt: Tensor,
+        type: Literal["TR", "VL", "TS"],
         pred: Tensor,
-        data: list[tuple[str, Primitives]],
-        group: str,
-        image: Tensor | None = None,
+        index: int,
+        dataset: str,
+        aux_data: list[tuple[str, Primitives]],
     ):
         if not self.use_wandb:
             return
 
+        dataset_item = self.get_dataset_item(type, dataset, index)
+        if dataset_item is None:
+            return
+        img, msk, file = dataset_item
+
         if pred.is_floating_point():
             pred = pred.argmax(dim=0)
-        scores = self.metric.prepare_for_log(self.metric.measure(pred, gt))
-        gt_arr = gt.cpu().numpy()
-        pred_arr = pred.cpu().numpy()
-        if image is not None:
-            image_arr = np.moveaxis(image.cpu().numpy(), 0, -1).astype(np.uint8)
-        else:
-            image_arr = np.ones(gt_arr.shape + (1,), dtype=np.uint8) * 255
+        scores = self.metric.prepare_for_log(
+            self.metric.measure(pred, BaseDataset.prepare_mask_as_tensor(msk))
+        )
+
+        if self.config.get("wandb", {}).get("save_mask_only"):
+            img = np.ones_like(msk) * 255
 
         wandb_image = wandb.Image(
-            image_arr,
+            img,
             masks={
                 "truth": {
-                    "mask_data": gt_arr,
+                    "mask_data": msk,
                     "class_labels": self.class_labels,
                 },
                 "pred": {
-                    "mask_data": pred_arr,
+                    "mask_data": pred.cpu().numpy(),
                     "class_labels": self.class_labels,
                 },
             },
         )
 
-        self.wandb_add_table([("image", wandb_image)] + scores + data, group)
+        self.wandb_add_table(
+            [("image", wandb_image)]
+            + scores
+            + [("type", type), ("dataset", dataset), ("file", file)]
+            + aux_data,
+            f"preds/{type}",
+        )
 
     def wandb_handle_preds(
         self,
         type: Literal["TR", "VL", "TS"],
         batch_idx: int,
-        img: Tensor | None,
-        gt: Tensor,
-        pred: Tensor,
+        preds: Tensor,
+        indices: int | list[int],
+        datasets: str | list[str],
         **kwargs: Primitives | ListPrimitives,
     ):
         if not self.use_wandb:
@@ -638,30 +665,28 @@ class BaseLearner(
         if indices_to_save is None:
             return
 
-        if self.config.get("wandb", {}).get("save_mask_only"):
-            img = None
         if batch_idx == 0:
             self.last_prediction_data[type] = []
         for i in indices_to_save[batch_idx]:
-            data: list[tuple[str, Primitives]] = []
+            dataset = datasets[i] if isinstance(datasets, list) else datasets
+            index = indices[i] if isinstance(indices, list) else indices
+            aux_data: list[tuple[str, Primitives]] = []
             for k, v in kwargs.items():
                 if isinstance(v, list):
-                    data.append((k, v[i]))
+                    aux_data.append((k, v[i]))
                 else:
-                    data.append((k, v))
-            self.last_prediction_data[type].append(
-                (None if img is None else img[i], gt[i], pred[i], data)
-            )
+                    aux_data.append((k, v))
+            self.last_prediction_data[type].append((preds[i], index, dataset, aux_data))
 
     def wandb_add_preds(self):
         for type, pred_data in self.best_prediction_data.items():
-            for img, gt, pred, data in pred_data:
+            for pred, index, dataset, aux_data in pred_data:
                 self.wandb_add_mask(
-                    gt,
+                    type,  # type: ignore
                     pred,
-                    [("type", type)] + data,
-                    "preds",
-                    image=img,
+                    index,
+                    dataset,
+                    aux_data,
                 )
         self.best_prediction_data = {}
 

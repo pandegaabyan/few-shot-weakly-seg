@@ -150,7 +150,7 @@ class MetaLearner(
                 ("type", type),
                 ("epoch", epoch if epoch is not None else self.current_epoch),
                 ("batch", batch_idx),
-                ("shot", len(support.file_names)),
+                ("shot", len(support.indices)),
                 ("sparsity_mode", sparsity_mode),
                 ("sparsity_value", sparsity_value),
                 ("loss", loss.item()),
@@ -164,9 +164,9 @@ class MetaLearner(
         type: Literal["TR", "VL", "TS"],
         batch: FewSparseDataTuple,
         batch_idx: int,
-        pred: Tensor,
+        preds: Tensor,
     ):
-        support, query, dataset_name = batch
+        support, query, dataset = batch
         if isinstance(support.sparsity_value, list):
             sparsity_value = list(
                 map(self.encode_sparsity_value, support.sparsity_value)
@@ -176,11 +176,10 @@ class MetaLearner(
         self.wandb_handle_preds(
             type,
             batch_idx,
-            query.images,
-            query.masks,
-            pred,
-            file=query.file_names,
-            dataset=dataset_name,
+            preds,
+            query.indices,
+            dataset,
+            shot=len(support.indices),
             sparsity_mode=support.sparsity_mode,
             sparsity_value=sparsity_value,
         )

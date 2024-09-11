@@ -139,9 +139,7 @@ class SimpleLearner(
         type: Literal["TR", "VL", "TS"],
         batch: SimpleDataBatchTuple,
         batch_idx: int,
-        pred: Tensor,
+        preds: Tensor,
     ):
-        image, mask, file_names, dataset_names = batch
-        self.wandb_handle_preds(
-            type, batch_idx, image, mask, pred, file=file_names, dataset=dataset_names
-        )
+        _, _, indices, datasets = batch
+        self.wandb_handle_preds(type, batch_idx, preds, indices, datasets)
