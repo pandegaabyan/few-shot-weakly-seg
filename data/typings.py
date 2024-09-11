@@ -43,14 +43,14 @@ class BaseDataTuple(NamedTuple):
 class SimpleDataTuple(NamedTuple):
     image: Tensor
     mask: Tensor
-    file_name: str
+    index: int
     dataset_name: str
 
 
 class SupportDataTuple(NamedTuple):
     images: Tensor
     masks: Tensor
-    file_names: list[str]
+    indices: list[int]
     sparsity_mode: Union[SparsityMode, list[SparsityMode]]
     sparsity_value: Union[SparsityValue, list[SparsityValue]]
 
@@ -58,7 +58,7 @@ class SupportDataTuple(NamedTuple):
 class QueryDataTuple(NamedTuple):
     images: Tensor
     masks: Tensor
-    file_names: list[str]
+    indices: list[int]
 
 
 class FewSparseDataTuple(NamedTuple):

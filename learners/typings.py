@@ -76,8 +76,8 @@ ProtoSegLearnerKwargs = MetaLearnerKwargs[ConfigProtoSeg]
 GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 
 
-SimpleDataBatchTuple = tuple[Tensor, Tensor, list[str], list[str]]
+SimpleDataBatchTuple = tuple[Tensor, Tensor, list[int], list[str]]
 
 PredictionDataDict = dict[
-    str, list[tuple[Tensor | None, Tensor, Tensor, list[tuple[str, Primitives]]]]
+    str, list[tuple[Tensor, int, str, list[tuple[str, Primitives]]]]
 ]

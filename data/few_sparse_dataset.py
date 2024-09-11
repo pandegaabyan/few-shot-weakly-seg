@@ -587,8 +587,9 @@ class FewSparseDataset(BaseDataset, ABC):
         index: int,
         sparsity_mode: SparsityMode | None = None,
         sparsity_value: SparsityValue | None = None,
-    ) -> tuple[NDArray, NDArray, str, SparsityMode, SparsityValue]:
-        img, msk, img_filename = self.get_data(self.support_indices[index])
+    ) -> tuple[NDArray, NDArray, int, SparsityMode, SparsityValue]:
+        img_idx = self.support_indices[index]
+        img, msk, _ = self.get_data(img_idx)
         if sparsity_mode is None or sparsity_value is None:
             sparsity_mode, sparsity_value = self.select_sparsity(index)
 
@@ -600,16 +601,18 @@ class FewSparseDataset(BaseDataset, ABC):
             index,
         )
 
-        return img, sparse_msk, img_filename, sparsity_mode, sparsity_value
+        return img, sparse_msk, img_idx, sparsity_mode, sparsity_value
 
-    def get_query_data(self, index: int) -> tuple[NDArray, NDArray, str]:
-        return self.get_data(self.query_indices[index])
+    def get_query_data(self, index: int) -> tuple[NDArray, NDArray, int]:
+        img_idx = self.query_indices[index]
+        img, msk, _ = self.get_data(img_idx)
+        return img, msk, img_idx
 
     def __getitem__(self, index: int) -> FewSparseDataTuple:
         support_batch_size = self.support_batches[index]
         support_images_list = []
         support_masks_list = []
-        support_name_list = []
+        support_indices = []
         support_sparsity_modes: list[SparsityMode] = []
         support_sparsity_values: list[SparsityValue] = []
 
@@ -622,14 +625,14 @@ class FewSparseDataset(BaseDataset, ABC):
 
         for i in range(support_batch_size):
             item_index = sum(self.support_batches[:index]) + i
-            img, msk, name, mode, value = self.get_support_data(
+            img, msk, img_idx, mode, value = self.get_support_data(
                 item_index, sparsity_mode, sparsity_value
             )
             img = self.prepare_image_as_tensor(img)
             msk = self.prepare_mask_as_tensor(msk)
             support_images_list.append(img)
             support_masks_list.append(msk)
-            support_name_list.append(name)
+            support_indices.append(img_idx)
             if self.support_batch_mode == "mixed":
                 support_sparsity_modes.append(mode)
                 support_sparsity_values.append(value)
@@ -642,15 +645,15 @@ class FewSparseDataset(BaseDataset, ABC):
 
         query_images_list = []
         query_masks_list = []
-        query_names_list = []
+        query_indices = []
         for i in range(self.query_batch_size):
             item_index = self.query_batch_size * index + i
-            img, msk, name = self.get_query_data(item_index)
+            img, msk, img_idx = self.get_query_data(item_index)
             img = self.prepare_image_as_tensor(img)
             msk = self.prepare_mask_as_tensor(msk)
             query_images_list.append(img)
             query_masks_list.append(msk)
-            query_names_list.append(name)
+            query_indices.append(img_idx)
 
         support_images = torch.stack(support_images_list, dim=0)
         support_masks = torch.stack(support_masks_list, dim=0)
@@ -661,12 +664,12 @@ class FewSparseDataset(BaseDataset, ABC):
             support=SupportDataTuple(
                 images=support_images,
                 masks=support_masks,
-                file_names=support_name_list,
+                indices=support_indices,
                 sparsity_mode=sparsity_mode,
                 sparsity_value=sparsity_value,
             ),
             query=QueryDataTuple(
-                images=query_images, masks=query_masks, file_names=query_names_list
+                images=query_images, masks=query_masks, indices=query_indices
             ),
             dataset_name=self.dataset_name,
         )
