@@ -30,10 +30,9 @@ class SimpleLearner(
     def make_dataloader(self, datasets: list[SimpleDataset]):
         mode = datasets[0].mode
         num_workers = self.config["data"]["num_workers"]
-        batch_size = 1 if mode == "test" else self.config["data"]["batch_size"]
         return DataLoader(
             ConcatDataset(datasets),
-            batch_size=batch_size,
+            batch_size=self.config["data"]["batch_size"],
             shuffle=mode == "train",
             num_workers=num_workers,
             persistent_workers=num_workers > 0,
@@ -43,12 +42,10 @@ class SimpleLearner(
     def make_indices_to_save(
         self, datasets: list[SimpleDataset], sample_size: int
     ) -> list[list[int]] | None:
-        mode = datasets[0].mode
-        batch_size = 1 if mode == "test" else self.config["data"]["batch_size"]
         return make_batch_sample_indices(
             sum(len(ds) for ds in datasets),
             sample_size,
-            batch_size,
+            self.config["data"]["batch_size"],
         )
 
     def make_input_example(self) -> tuple[Any, ...]:
