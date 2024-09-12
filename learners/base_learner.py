@@ -642,7 +642,7 @@ class BaseLearner(
             + scores
             + [("type", type), ("dataset", dataset), ("file", file)]
             + aux_data,
-            f"preds/{type}",
+            "preds",
         )
 
     def wandb_handle_preds(
