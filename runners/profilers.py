@@ -76,9 +76,7 @@ class CustomSimpleProfiler(Profiler):
             std_d = torch.std(d_tensor).item()
             report.append((a, mean_d, std_d, len_d, sum_d, percentage_d))
 
-        report.append(
-            ("Total", float("nan"), float("nan"), total_calls, total_duration, 100.0)
-        )
+        report.append(("Total", -1, -1, total_calls, total_duration, 100.0))
         report.sort(key=lambda x: x[5], reverse=True)
 
         output = io.StringIO()
