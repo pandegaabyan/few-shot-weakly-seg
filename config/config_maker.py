@@ -154,7 +154,7 @@ def make_config(
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 0
-        config_ref["callbacks"]["stop_patience"] = 1000
+        config_ref["callbacks"]["stop_patience"] = 500
         if use_wandb:
             config_ref["wandb"] = {
                 "run_id": "",

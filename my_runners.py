@@ -1,4 +1,4 @@
-from typing import Generator, Type
+from typing import Type
 
 import optuna
 
@@ -32,7 +32,6 @@ from tasks.optic_disc_cup.datasets import (
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
-    RefugeTrainSimpleDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
     RimOne3TestFSDataset,
@@ -90,25 +89,6 @@ class SimpleRunner(Runner):
 
         return SimpleUnet, kwargs, important_config
 
-    def update_profile_fit_configs(self) -> Generator[None, None, None]:
-        homogen_batch_size = 10
-        homogen_iterations = 30
-        batch_size_range = range(2, 33, 2)
-
-        self.config["data"]["batch_size"] = homogen_batch_size
-        for _ in range(homogen_iterations):
-            yield
-
-        for batch_size in batch_size_range:
-            self.config["data"]["batch_size"] = batch_size
-            yield
-
-    def update_profile_test_configs(self) -> Generator[None, None, None]:
-        batch_size_range = range(2, 33, 2)
-        for batch_size in batch_size_range:
-            self.config["data"]["batch_size"] = batch_size
-            yield
-
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
         config["study_name"] = "S REF" + " " + gen_id(5)
@@ -135,15 +115,25 @@ class SimpleRunner(Runner):
     def update_config(
         self, optuna_trial: optuna.Trial | None
     ) -> tuple[ConfigSimpleLearner, dict]:
-        cfg: ConfigSimpleLearner = self.config  # type: ignore
+        config: ConfigSimpleLearner = self.config  # type: ignore
 
         if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
+            important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = {}
 
-        self.config = cfg
-        return cfg, important_config
+        if self.mode in ["profile-fit", "profile-test"]:
+            config["learn"]["val_freq"] = 1
+            config["data"]["batch_size"] = self.number_of_multi + 1
+        if self.mode == "profile-fit" and (self.number_of_multi > 31):
+            config["data"]["batch_size"] = 10
+        if self.mode == "profile-fit" and (self.number_of_multi == 61):
+            self.last_of_multi = True
+        if self.mode == "profile-test" and (self.number_of_multi == 31):
+            self.last_of_multi = True
+
+        self.config = config
+        return config, important_config
 
     def make_dataset_lists(
         self, val_fold: int, dummy: bool
@@ -184,7 +174,7 @@ class SimpleRunner(Runner):
         refuge_val_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             "dataset_name": "REFUGE-val",
-            "split_val_size": 1,
+            "split_val_size": 0.2,
         }
         refuge_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -194,14 +184,12 @@ class SimpleRunner(Runner):
 
         return {
             "dataset_list": [
-                (RefugeTrainSimpleDataset, refuge_train_kwargs),
-            ],
-            "val_dataset_list": [
                 (RefugeValSimpleDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
                 (RefugeTestSimpleDataset, refuge_test_kwargs),
-            ],
+            ]
+            * (2 if self.mode in ["profile-fit", "profile-test"] else 1),
         }
 
 
@@ -391,22 +379,22 @@ class WeaselRunner(MetaRunner):
     def update_config(
         self, optuna_trial: optuna.Trial | None
     ) -> tuple[ConfigWeasel, dict]:
-        cfg: ConfigWeasel = self.config  # type: ignore
-        cfg["learn"]["exp_name"] = "WS"
+        config: ConfigWeasel = self.config  # type: ignore
+        config["learn"]["exp_name"] = "WS"
 
         if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
+            important_config = suggest_basic(config, optuna_trial)
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
             ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
-            cfg["weasel"]["update_param_rate"] = ws_update_rate
-            cfg["weasel"]["tune_epochs"] = ws_tune_epochs
+            config["weasel"]["update_param_rate"] = ws_update_rate
+            config["weasel"]["tune_epochs"] = ws_tune_epochs
             important_config["ws_update_rate"] = ws_update_rate
             important_config["ws_tune_epochs"] = ws_tune_epochs
         else:
             important_config = {}
 
-        self.config = cfg
-        return cfg, important_config
+        self.config = config
+        return config, important_config
 
 
 class ProtosegRunner(MetaRunner):
@@ -438,16 +426,16 @@ class ProtosegRunner(MetaRunner):
     def update_config(
         self, optuna_trial: optuna.Trial | None
     ) -> tuple[ConfigProtoSeg, dict]:
-        cfg: ConfigProtoSeg = self.config  # type: ignore
-        cfg["learn"]["exp_name"] = "PS"
+        config: ConfigProtoSeg = self.config  # type: ignore
+        config["learn"]["exp_name"] = "PS"
 
         if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
+            important_config = suggest_basic(config, optuna_trial)
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
-            cfg["protoseg"]["embedding_size"] = ps_embedding
+            config["protoseg"]["embedding_size"] = ps_embedding
             important_config["ps_embedding"] = ps_embedding
         else:
             important_config = {}
 
-        self.config = cfg
-        return cfg, important_config
+        self.config = config
+        return config, important_config

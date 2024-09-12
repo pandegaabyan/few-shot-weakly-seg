@@ -72,17 +72,17 @@ def main(
         "weasel": WeaselRunner,
         "protoseg": ProtosegRunner,
     }
-    runner = runner_classes[learner](config, dummy, resume)
+    runner = runner_classes[learner](config, mode, dummy, resume)
 
     if mode in ["fit-test", "fit", "test"]:
         runner.run_fit_test(mode == "fit", mode == "test")
         return
 
     if mode == "profile-fit":
-        runner.run_profile("fit")
+        runner.run_multi_fit_test(True, False)
         return
     if mode == "profile-test":
-        runner.run_profile("test")
+        runner.run_multi_fit_test(False, True)
         return
 
     for key, value in optuna_configs:
