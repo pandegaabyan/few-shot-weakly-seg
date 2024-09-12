@@ -76,10 +76,10 @@ class Runner(ABC):
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         pass
 
-    def update_profile_fit_configs(self) -> Generator[None]:
+    def update_profile_fit_configs(self) -> Generator[None, None, None]:
         yield None
 
-    def update_profile_test_configs(self) -> Generator[None]:
+    def update_profile_test_configs(self) -> Generator[None, None, None]:
         yield None
 
     def make_optuna_config(self) -> OptunaConfig:
