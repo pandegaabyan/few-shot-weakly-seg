@@ -27,13 +27,13 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
     DrishtiTrainSimpleDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
+    RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
     RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
@@ -327,7 +327,7 @@ class MetaRunner(Runner):
                 (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
-                (DrishtiTestFSDataset, drishti_test_kwargs),
+                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
             ],
         }
 
