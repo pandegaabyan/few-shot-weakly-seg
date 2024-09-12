@@ -1,5 +1,5 @@
 import os
-from typing import Type
+from abc import ABC, abstractmethod
 
 import optuna
 from pytorch_lightning import Callback, Trainer
@@ -44,7 +44,7 @@ from utils.wandb import (
 )
 
 
-class Runner:
+class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
@@ -65,6 +65,7 @@ class Runner:
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
 
+    @abstractmethod
     def make_learner(
         self,
         config: ConfigUnion,
@@ -72,7 +73,7 @@ class Runner:
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
-        raise NotImplementedError
+        pass
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
         return config
