@@ -73,22 +73,16 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
 class SimpleRunner(Runner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigSimpleLearner = config  # type: ignore
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: SimpleLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
@@ -137,6 +131,19 @@ class SimpleRunner(Runner):
             config["num_folds"] = 3
             config["timeout_sec"] = 8 * 3600
         return config
+
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigSimpleLearner, dict]:
+        cfg: ConfigSimpleLearner = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(cfg, optuna_trial)
+        else:
+            important_config = {}
+
+        self.config = cfg
+        return cfg, important_config
 
     def make_dataset_lists(
         self, val_fold: int, dummy: bool
@@ -358,28 +365,16 @@ class MetaRunner(Runner):
 class WeaselRunner(MetaRunner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigWeasel = config  # type: ignore
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-            ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
-            ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
-            cfg["weasel"]["update_param_rate"] = ws_update_rate
-            cfg["weasel"]["tune_epochs"] = ws_tune_epochs
-            important_config["ws_update_rate"] = ws_update_rate
-            important_config["ws_tune_epochs"] = ws_tune_epochs
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: WeaselLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
@@ -393,29 +388,40 @@ class WeaselRunner(MetaRunner):
         config["pruner_patience"] = 1
         return config
 
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigWeasel, dict]:
+        cfg: ConfigWeasel = self.config  # type: ignore
+        cfg["learn"]["exp_name"] = "WS"
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(cfg, optuna_trial)
+            ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
+            ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
+            cfg["weasel"]["update_param_rate"] = ws_update_rate
+            cfg["weasel"]["tune_epochs"] = ws_tune_epochs
+            important_config["ws_update_rate"] = ws_update_rate
+            important_config["ws_tune_epochs"] = ws_tune_epochs
+        else:
+            important_config = {}
+
+        self.config = cfg
+        return cfg, important_config
+
 
 class ProtosegRunner(MetaRunner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigProtoSeg = config  # type: ignore
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
-            cfg["protoseg"]["embedding_size"] = ps_embedding
-            important_config["ps_embedding"] = ps_embedding
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
@@ -428,3 +434,20 @@ class ProtosegRunner(MetaRunner):
         config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
+
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigProtoSeg, dict]:
+        cfg: ConfigProtoSeg = self.config  # type: ignore
+        cfg["learn"]["exp_name"] = "PS"
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(cfg, optuna_trial)
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            cfg["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
+        else:
+            important_config = {}
+
+        self.config = cfg
+        return cfg, important_config

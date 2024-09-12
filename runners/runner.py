@@ -69,8 +69,6 @@ class Runner(ABC):
     @abstractmethod
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
@@ -128,9 +126,7 @@ class Runner(ABC):
 
         ckpt_path = self.resolve_ckpt()
 
-        learner_class, learner_kwargs, important_config = self.make_learner(
-            self.config, self.dummy
-        )
+        learner_class, learner_kwargs, important_config = self.make_learner()
         if ckpt_path is None:
             learner = learner_class(**learner_kwargs)
         else:
@@ -257,8 +253,6 @@ class Runner(ABC):
             self.config["wandb"]["run_id"] = run_id
 
         learner_class, learner_kwargs, important_config = self.make_learner(
-            self.config,
-            self.dummy,
             dataset_fold=self.curr_dataset_fold,
             optuna_trial=trial,
         )
@@ -481,7 +475,11 @@ class Runner(ABC):
             if ext == "csv":
                 data = read_from_csv(filepath)
                 columns = data.pop(0)
-                wandb.log({name: wandb.Table(data=data, columns=columns)})
+                try:
+                    wandb.log({name: wandb.Table(data=data, columns=columns)})
+                    continue
+                except Exception:
+                    pass
             artifact_name = prepare_artifact_name(
                 self.config["learn"]["exp_name"], self.config["learn"]["run_name"], name
             )
