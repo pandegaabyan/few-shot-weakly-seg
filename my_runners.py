@@ -28,12 +28,12 @@ from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
-    DrishtiTestSimpleDataset,
     DrishtiTrainFSDataset,
-    DrishtiTrainSimpleDataset,
     RefugeTestFSDataset,
+    RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
+    RefugeValSimpleDataset,
     RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
     drishti_sparsity_params,
@@ -167,10 +167,10 @@ class SimpleRunner(Runner):
 
         return {
             "dataset_list": [
-                (DrishtiTrainSimpleDataset, drishti_train_kwargs),
+                (RefugeValSimpleDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
-                (DrishtiTestSimpleDataset, drishti_test_kwargs),
+                (RefugeTestSimpleDataset, refuge_test_kwargs),
             ],
         }
 
