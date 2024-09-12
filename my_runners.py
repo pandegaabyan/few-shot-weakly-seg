@@ -96,7 +96,7 @@ class SimpleRunner(Runner):
 
         return SimpleUnet, kwargs, important_config
 
-    def update_profile_fit_configs(self) -> Generator[None]:
+    def update_profile_fit_configs(self) -> Generator[None, None, None]:
         homogen_batch_size = 10
         homogen_iterations = 30
         batch_size_range = range(2, 33, 2)
@@ -109,7 +109,7 @@ class SimpleRunner(Runner):
             self.config["data"]["batch_size"] = batch_size
             yield
 
-    def update_profile_test_configs(self) -> Generator[None]:
+    def update_profile_test_configs(self) -> Generator[None, None, None]:
         batch_size_range = range(2, 33, 2)
         for batch_size in batch_size_range:
             self.config["data"]["batch_size"] = batch_size
