@@ -214,7 +214,7 @@ class MetaRunner(Runner):
             "split_test_fold": 0,
             "cache_data": True,
             "support_query_data": "split",
-            "query_batch_size": 10,
+            "query_batch_size": 5,
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
         }
@@ -351,7 +351,6 @@ class WeaselRunner(MetaRunner):
         dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
 
         cfg: ConfigWeasel = config  # type: ignore
-        cfg["weasel"]["first_order"] = True
         if optuna_trial is not None:
             important_config = suggest_basic(cfg, optuna_trial)
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -375,12 +374,12 @@ class WeaselRunner(MetaRunner):
 
     def update_config(self, config: ConfigUnion) -> ConfigUnion:
         config = super().update_config(config)
-        config["learn"]["exp_name"] = "WS first-order"
+        config["learn"]["exp_name"] = "WS"
         return config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS-fo REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 1
         return config
 
