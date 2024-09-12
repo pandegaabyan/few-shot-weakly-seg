@@ -54,7 +54,7 @@ class Runner(ABC):
         self.dummy = dummy
         self.resume = resume
 
-        self.config = self.update_config(config)
+        self.config = config
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
 
@@ -74,9 +74,6 @@ class Runner(ABC):
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         pass
-
-    def update_config(self, config: ConfigUnion) -> ConfigUnion:
-        return config
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
