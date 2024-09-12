@@ -1,5 +1,6 @@
 import os
-from typing import Type
+from abc import ABC, abstractmethod
+from typing import Generator, Literal, Type
 
 import optuna
 from pytorch_lightning import Callback, Trainer
@@ -44,7 +45,7 @@ from utils.wandb import (
 )
 
 
-class Runner:
+class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
@@ -54,7 +55,7 @@ class Runner:
         self.dummy = dummy
         self.resume = resume
 
-        self.config = self.update_config(config)
+        self.config = config
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
 
@@ -65,6 +66,7 @@ class Runner:
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
 
+    @abstractmethod
     def make_learner(
         self,
         config: ConfigUnion,
@@ -72,10 +74,13 @@ class Runner:
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
-        raise NotImplementedError
+        pass
 
-    def update_config(self, config: ConfigUnion) -> ConfigUnion:
-        return config
+    def update_profile_fit_configs(self) -> Generator[None]:
+        yield None
+
+    def update_profile_test_configs(self) -> Generator[None]:
+        yield None
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
@@ -157,6 +162,17 @@ class Runner:
 
         if self.use_wandb:
             wandb.finish()
+
+    def run_profile(
+        self,
+        mode: Literal["fit", "test"],
+    ):
+        if mode == "fit":
+            for _ in self.update_profile_fit_configs():
+                self.run_fit_test(fit_only=True)
+        elif mode == "test":
+            for _ in self.update_profile_test_configs():
+                self.run_fit_test(test_only=True)
 
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:
