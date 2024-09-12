@@ -143,7 +143,32 @@ def make_config(
 ) -> ConfigUnion:
     config_ref = deepcopy(config_base)
 
-    if mode == "study":
+    if mode in ["profile-fit", "profile-test"]:
+        config_ref["learn"]["cudnn_deterministic"] = False
+        config_ref["learn"]["cudnn_benchmark"] = False
+        config_ref["learn"]["profiler"] = "custom-1"
+        config_ref["log"]["configuration"] = False
+        config_ref["log"]["table"] = False
+        config_ref["log"]["model_onnx"] = False
+        config_ref["log"]["tensorboard_graph"] = False
+        config_ref["callbacks"]["progress"] = False
+        config_ref["callbacks"]["ckpt_last"] = False
+        config_ref["callbacks"]["ckpt_top_k"] = 0
+        config_ref["callbacks"]["stop_patience"] = 1000
+        if use_wandb:
+            config_ref["wandb"] = {
+                "run_id": "",
+                "tags": [],
+                "job_type": mode,
+                "watch_model": False,
+                "save_model": False,
+                "push_table_freq": None,
+                "save_mask_only": False,
+                "save_train_preds": 0,
+                "save_val_preds": 0,
+                "save_test_preds": 0,
+            }
+    elif mode == "study":
         config_ref["learn"]["cudnn_deterministic"] = False
         config_ref["learn"]["cudnn_benchmark"] = True
         config_ref["log"]["configuration"] = False

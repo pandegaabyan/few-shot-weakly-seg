@@ -1,4 +1,4 @@
-from typing import Type
+from typing import Generator, Type
 
 import optuna
 
@@ -95,6 +95,25 @@ class SimpleRunner(Runner):
         }
 
         return SimpleUnet, kwargs, important_config
+
+    def update_profile_fit_configs(self) -> Generator[None]:
+        homogen_batch_size = 10
+        homogen_iterations = 30
+        batch_size_range = range(2, 33, 2)
+
+        self.config["data"]["batch_size"] = homogen_batch_size
+        for _ in range(homogen_iterations):
+            yield
+
+        for batch_size in batch_size_range:
+            self.config["data"]["batch_size"] = batch_size
+            yield
+
+    def update_profile_test_configs(self) -> Generator[None]:
+        batch_size_range = range(2, 33, 2)
+        for batch_size in batch_size_range:
+            self.config["data"]["batch_size"] = batch_size
+            yield
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()

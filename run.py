@@ -25,7 +25,9 @@ from utils.utils import parse_string
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(["fit-test", "fit", "test", "study"]),
+    type=click.Choice(
+        ["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
+    ),
     default="fit-test",
 )
 @click.option(
@@ -74,11 +76,19 @@ def main(
 
     if mode in ["fit-test", "fit", "test"]:
         runner.run_fit_test(mode == "fit", mode == "test")
+        return
+
+    if mode == "profile-fit":
+        runner.run_profile("fit")
+        return
+    if mode == "profile-test":
+        runner.run_profile("test")
+        return
 
     for key, value in optuna_configs:
         runner.optuna_config[key] = parse_string(value)
 
-    if mode in ["study"]:
+    if mode == "study":
         runner.run_study()
 
 

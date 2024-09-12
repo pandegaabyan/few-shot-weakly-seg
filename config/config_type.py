@@ -2,9 +2,11 @@ from typing import Literal, Union
 
 from typing_extensions import NotRequired, Required, TypedDict
 
-RunMode = Literal["fit-test", "fit", "test", "study"]
+RunMode = Literal["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
 LearnerType = Literal["simple", "weasel", "protoseg", "guidednets", None]
-ProfilerType = Literal["simple", "advanced", "pytorch", "custom", None]
+ProfilerType = Literal[
+    "simple", "advanced", "pytorch", "custom", "custom-1", "custom-10", None
+]
 
 
 class DataConfig(TypedDict):

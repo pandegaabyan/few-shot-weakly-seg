@@ -1,5 +1,6 @@
 import os
 from abc import ABC, abstractmethod
+from typing import Generator, Literal, Type
 
 import optuna
 from pytorch_lightning import Callback, Trainer
@@ -74,6 +75,12 @@ class Runner(ABC):
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         pass
+
+    def update_profile_fit_configs(self) -> Generator[None]:
+        yield None
+
+    def update_profile_test_configs(self) -> Generator[None]:
+        yield None
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
@@ -155,6 +162,17 @@ class Runner(ABC):
 
         if self.use_wandb:
             wandb.finish()
+
+    def run_profile(
+        self,
+        mode: Literal["fit", "test"],
+    ):
+        if mode == "fit":
+            for _ in self.update_profile_fit_configs():
+                self.run_fit_test(fit_only=True)
+        elif mode == "test":
+            for _ in self.update_profile_test_configs():
+                self.run_fit_test(test_only=True)
 
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:
