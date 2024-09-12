@@ -30,12 +30,10 @@ from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
     DrishtiTrainSimpleDataset,
-    RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
-    RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
     RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
@@ -271,7 +269,7 @@ class MetaRunner(Runner):
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
-        rim_one_3_test_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "RIM-ONE-3-test",
@@ -287,7 +285,7 @@ class MetaRunner(Runner):
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
-        drishti_test_kwargs: FewSparseDatasetKwargs = {
+        drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "DRISHTI-GS-test",
@@ -310,7 +308,7 @@ class MetaRunner(Runner):
             "sparsity_params": refuge_val_test_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_test_kwargs: FewSparseDatasetKwargs = {
+        refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "REFUGE-test",
@@ -329,8 +327,6 @@ class MetaRunner(Runner):
                 (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
-                (RefugeTestFSDataset, refuge_test_kwargs),
-                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
                 (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
