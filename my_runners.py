@@ -32,6 +32,7 @@ from tasks.optic_disc_cup.datasets import (
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
+    RefugeTrainSimpleDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
     RimOne3TestFSDataset,
@@ -157,7 +158,7 @@ class SimpleRunner(Runner):
         refuge_val_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             "dataset_name": "REFUGE-val",
-            "split_val_size": 0.2,
+            "split_val_size": 1,
         }
         refuge_test_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -167,6 +168,9 @@ class SimpleRunner(Runner):
 
         return {
             "dataset_list": [
+                (RefugeTrainSimpleDataset, refuge_train_kwargs),
+            ],
+            "val_dataset_list": [
                 (RefugeValSimpleDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
