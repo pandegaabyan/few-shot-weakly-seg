@@ -615,7 +615,9 @@ class BaseLearner(
         if pred.is_floating_point():
             pred = pred.argmax(dim=0)
         scores = self.metric.prepare_for_log(
-            self.metric.measure(pred, BaseDataset.prepare_mask_as_tensor(msk))
+            self.metric.measure(
+                pred, BaseDataset.prepare_mask_as_tensor(msk).to(self.device)
+            )
         )
 
         if self.config.get("wandb", {}).get("save_mask_only"):
