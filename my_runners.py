@@ -72,9 +72,9 @@ class SimpleRunner(Runner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: SimpleLearnerKwargs = {
             **dataset_lists,
@@ -176,7 +176,7 @@ class SimpleRunner(Runner):
             "test_dataset_list": [
                 (RefugeTestSimpleDataset, refuge_test_kwargs),
             ]
-            * (2 if self.mode in ["profile-fit", "profile-test"] else 1),
+            * (2 if self.mode == "profile-test" else 1),
         }
 
 
@@ -352,9 +352,9 @@ class WeaselRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: WeaselLearnerKwargs = {
             **dataset_lists,
@@ -379,6 +379,7 @@ class WeaselRunner(MetaRunner):
 
         config: ConfigWeasel = self.config  # type: ignore
         config["learn"]["exp_name"] = "WS"
+        self.exp_name = "WS"
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -398,9 +399,9 @@ class ProtosegRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
@@ -425,6 +426,7 @@ class ProtosegRunner(MetaRunner):
 
         config: ConfigProtoSeg = self.config  # type: ignore
         config["learn"]["exp_name"] = "PS"
+        self.exp_name = "PS"
 
         if optuna_trial is not None:
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
