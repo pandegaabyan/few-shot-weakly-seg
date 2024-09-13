@@ -1,9 +1,10 @@
-from typing import Generator, Type
+from typing import Type
 
 import optuna
 
 from config.config_maker import gen_id
 from config.config_type import (
+    ConfigMetaLearner,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -72,47 +73,22 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
 class SimpleRunner(Runner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigSimpleLearner = config  # type: ignore
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: SimpleLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
         return SimpleUnet, kwargs, important_config
-
-    def update_profile_fit_configs(self) -> Generator[None, None, None]:
-        homogen_batch_size = 10
-        homogen_iterations = 30
-        batch_size_range = range(2, 33, 2)
-
-        self.config["data"]["batch_size"] = homogen_batch_size
-        for _ in range(homogen_iterations):
-            yield
-
-        for batch_size in batch_size_range:
-            self.config["data"]["batch_size"] = batch_size
-            yield
-
-    def update_profile_test_configs(self) -> Generator[None, None, None]:
-        batch_size_range = range(2, 33, 2)
-        for batch_size in batch_size_range:
-            self.config["data"]["batch_size"] = batch_size
-            yield
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
@@ -136,6 +112,19 @@ class SimpleRunner(Runner):
             config["num_folds"] = 3
             config["timeout_sec"] = 600 * 60
         return config
+
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigSimpleLearner, dict]:
+        config: ConfigSimpleLearner = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(config, optuna_trial)
+        else:
+            important_config = {}
+
+        self.config = config
+        return self.config, important_config
 
     def make_dataset_lists(
         self, val_fold: int, dummy: bool
@@ -192,7 +181,8 @@ class SimpleRunner(Runner):
             ],
             "test_dataset_list": [
                 (RefugeTestSimpleDataset, refuge_test_kwargs),
-            ],
+            ]
+            * (2 if self.mode in ["profile-fit", "profile-test"] else 1),
         }
 
 
@@ -217,6 +207,19 @@ class MetaRunner(Runner):
             config["num_folds"] = 2
             config["timeout_sec"] = 24 * 3600
         return config
+
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigMetaLearner, dict]:
+        config: ConfigMetaLearner = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(config, optuna_trial)
+        else:
+            important_config = {}
+
+        self.config = config
+        return self.config, important_config
 
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
@@ -280,11 +283,11 @@ class MetaRunner(Runner):
             "support_batch_mode": "full_permutation",
         }
 
-        rim_one_3_train_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "RIM-ONE-3-train",
-            "split_val_size": 1,
+            "split_val_size": 0.2,
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
@@ -296,11 +299,11 @@ class MetaRunner(Runner):
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
-        drishti_train_kwargs: FewSparseDatasetKwargs = {
+        drishti_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "DRISHTI-GS-train",
-            "split_val_size": 1,
+            "split_val_size": 0.1,
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
@@ -312,14 +315,14 @@ class MetaRunner(Runner):
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_train_kwargs: FewSparseDatasetKwargs = {
+        refuge_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **train_kwargs,
             "dataset_name": "REFUGE-train",
             "sparsity_params": refuge_train_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_val_kwargs: FewSparseDatasetKwargs = {
+        refuge_val_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "REFUGE-val",
@@ -338,12 +341,14 @@ class MetaRunner(Runner):
 
         return {
             "dataset_list": [
+                (DrishtiTrainFSDataset, drishti_train_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
                 (RefugeTrainFSDataset, refuge_train_kwargs),
             ],
             "val_dataset_list": [
-                (RefugeValFSDataset, refuge_val_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
                 (DrishtiTrainFSDataset, drishti_train_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
+                (RefugeValFSDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
                 (RefugeTestFSDataset, refuge_test_kwargs),
@@ -354,29 +359,16 @@ class MetaRunner(Runner):
 class WeaselRunner(MetaRunner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigWeasel = config  # type: ignore
-        cfg["learn"]["exp_name"] = "WS"
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-            ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
-            ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
-            cfg["weasel"]["update_param_rate"] = ws_update_rate
-            cfg["weasel"]["tune_epochs"] = ws_tune_epochs
-            important_config["ws_update_rate"] = ws_update_rate
-            important_config["ws_tune_epochs"] = ws_tune_epochs
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: WeaselLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
@@ -390,30 +382,39 @@ class WeaselRunner(MetaRunner):
         config["pruner_patience"] = 1
         return config
 
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigWeasel, dict]:
+        _, important_config = super().update_config(optuna_trial)
+
+        config: ConfigWeasel = self.config  # type: ignore
+        config["learn"]["exp_name"] = "WS"
+
+        if optuna_trial is not None:
+            ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
+            ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
+            config["weasel"]["update_param_rate"] = ws_update_rate
+            config["weasel"]["tune_epochs"] = ws_tune_epochs
+            important_config["ws_update_rate"] = ws_update_rate
+            important_config["ws_tune_epochs"] = ws_tune_epochs
+
+        self.config = config
+        return self.config, important_config
+
 
 class ProtosegRunner(MetaRunner):
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, dummy)
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
-        cfg: ConfigProtoSeg = config  # type: ignore
-        cfg["learn"]["exp_name"] = "PS"
-        if optuna_trial is not None:
-            important_config = suggest_basic(cfg, optuna_trial)
-            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
-            cfg["protoseg"]["embedding_size"] = ps_embedding
-            important_config["ps_embedding"] = ps_embedding
-        else:
-            important_config = {}
+        config, important_config = self.update_config(optuna_trial)
 
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
-            "config": cfg,
+            "config": config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
@@ -426,3 +427,19 @@ class ProtosegRunner(MetaRunner):
         config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
+
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigProtoSeg, dict]:
+        _, important_config = super().update_config(optuna_trial)
+
+        config: ConfigProtoSeg = self.config  # type: ignore
+        config["learn"]["exp_name"] = "PS"
+
+        if optuna_trial is not None:
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            config["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
+
+        self.config = config
+        return self.config, important_config

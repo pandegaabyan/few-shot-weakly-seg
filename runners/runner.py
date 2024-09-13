@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from typing import Generator, Literal, Type
+from typing import Type
 
 import optuna
 from pytorch_lightning import Callback, Trainer
@@ -49,9 +49,11 @@ class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
+        mode: str,
         dummy: bool,
         resume: bool = False,
     ):
+        self.mode = mode
         self.dummy = dummy
         self.resume = resume
 
@@ -65,22 +67,17 @@ class Runner(ABC):
 
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
+        self.number_of_multi = 0
+        self.last_of_multi = True
+        self.limit_of_multi = 100
 
     @abstractmethod
     def make_learner(
         self,
-        config: ConfigUnion,
-        dummy: bool,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
         pass
-
-    def update_profile_fit_configs(self) -> Generator[None, None, None]:
-        yield None
-
-    def update_profile_test_configs(self) -> Generator[None, None, None]:
-        yield None
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
@@ -128,9 +125,7 @@ class Runner(ABC):
 
         ckpt_path = self.resolve_ckpt()
 
-        learner_class, learner_kwargs, important_config = self.make_learner(
-            self.config, self.dummy
-        )
+        learner_class, learner_kwargs, important_config = self.make_learner()
         if ckpt_path is None:
             learner = learner_class(**learner_kwargs)
         else:
@@ -163,16 +158,10 @@ class Runner(ABC):
         if self.use_wandb:
             wandb.finish()
 
-    def run_profile(
-        self,
-        mode: Literal["fit", "test"],
-    ):
-        if mode == "fit":
-            for _ in self.update_profile_fit_configs():
-                self.run_fit_test(fit_only=True)
-        elif mode == "test":
-            for _ in self.update_profile_test_configs():
-                self.run_fit_test(test_only=True)
+    def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
+        while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
+            self.run_fit_test(fit_only, test_only)
+            self.number_of_multi += 1
 
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:
@@ -257,8 +246,6 @@ class Runner(ABC):
             self.config["wandb"]["run_id"] = run_id
 
         learner_class, learner_kwargs, important_config = self.make_learner(
-            self.config,
-            self.dummy,
             dataset_fold=self.curr_dataset_fold,
             optuna_trial=trial,
         )
@@ -481,7 +468,11 @@ class Runner(ABC):
             if ext == "csv":
                 data = read_from_csv(filepath)
                 columns = data.pop(0)
-                wandb.log({name: wandb.Table(data=data, columns=columns)})
+                try:
+                    wandb.log({name: wandb.Table(data=data, columns=columns)})
+                    continue
+                except Exception:
+                    pass
             artifact_name = prepare_artifact_name(
                 self.config["learn"]["exp_name"], self.config["learn"]["run_name"], name
             )
