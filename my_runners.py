@@ -100,6 +100,9 @@ class SimpleRunner(Runner):
         homogen_epochs = 100
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
+            profile_id = config["learn"].get("profile_id", None)
+            assert profile_id is not None
+            important_config["profile"] = profile_id
         if self.mode == "profile-fit":
             if self.number_of_multi < variable_max_batch:
                 config["learn"]["num_epochs"] = variable_epochs
@@ -226,6 +229,9 @@ class MetaRunner(Runner):
         test_shots = [1, 5, 10, 15, 20]
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
+            profile_id = config["learn"].get("profile_id", None)
+            assert profile_id is not None
+            important_config["profile"] = profile_id
         if self.mode == "profile-fit":
             if self.number_of_multi < variable_max_batch:
                 config["learn"]["num_epochs"] = variable_epochs
