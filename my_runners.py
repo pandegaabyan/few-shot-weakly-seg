@@ -30,11 +30,11 @@ from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTrainFSDataset,
     DrishtiTrainSimpleDataset,
+    RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
-    RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
     RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
@@ -349,7 +349,7 @@ class MetaRunner(Runner):
                 (RefugeValFSDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
-                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
+                (RefugeTestFSDataset, refuge_test_kwargs),
             ],
         }
 
