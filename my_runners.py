@@ -28,9 +28,9 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
+    DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
     DrishtiTrainSimpleDataset,
-    RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
@@ -287,7 +287,7 @@ class MetaRunner(Runner):
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "RIM-ONE-3-train",
-            "split_val_size": 0.2,
+            "split_val_size": 1,
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
@@ -303,7 +303,7 @@ class MetaRunner(Runner):
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "DRISHTI-GS-train",
-            "split_val_size": 0.1,
+            "split_val_size": 1,
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
@@ -341,8 +341,6 @@ class MetaRunner(Runner):
 
         return {
             "dataset_list": [
-                (DrishtiTrainFSDataset, drishti_train_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
                 (RefugeTrainFSDataset, refuge_train_kwargs),
             ],
             "val_dataset_list": [
@@ -351,7 +349,7 @@ class MetaRunner(Runner):
                 (RefugeValFSDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
-                (RefugeTestFSDataset, refuge_test_kwargs),
+                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
@@ -378,7 +376,7 @@ class WeaselRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "WS-ms REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 1
         return config
 
@@ -388,7 +386,8 @@ class WeaselRunner(MetaRunner):
         _, important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS"
+        config["learn"]["exp_name"] = "WS multi-step"
+        config["weasel"]["tune_multi_step"] = True
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -424,7 +423,7 @@ class ProtosegRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "PS-mp REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
 
@@ -434,7 +433,8 @@ class ProtosegRunner(MetaRunner):
         _, important_config = super().update_config(optuna_trial)
 
         config: ConfigProtoSeg = self.config  # type: ignore
-        config["learn"]["exp_name"] = "PS"
+        config["learn"]["exp_name"] = "PS multi-pred"
+        config["protoseg"]["multi_pred"] = True
 
         if optuna_trial is not None:
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
