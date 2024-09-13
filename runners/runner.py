@@ -165,6 +165,8 @@ class Runner(ABC):
 
     def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
+            self.run_name = make_run_name()
+            self.config["learn"]["run_name"] = self.run_name
             self.run_fit_test(fit_only, test_only)
             self.number_of_multi += 1
 
