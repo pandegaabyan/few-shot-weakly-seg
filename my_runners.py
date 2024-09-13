@@ -71,47 +71,20 @@ class SimpleRunner(Runner):
         self,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        config, important_config = self.update_config(optuna_trial)
-
+    ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs]:
         dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: SimpleLearnerKwargs = {
             **dataset_lists,
-            "config": config,
+            "config": self.config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
-        return SimpleUnet, kwargs, important_config
+        return SimpleUnet, kwargs
 
-    def make_optuna_config(self) -> OptunaConfig:
-        config = super().make_optuna_config()
-        config["study_name"] = "S REF" + " " + gen_id(5)
-        config["sampler_params"] = {
-            "n_startup_trials": 20,
-            "n_ei_candidates": 30,
-            "multivariate": True,
-            "group": True,
-            "constant_liar": True,
-            "seed": 0,
-        }
-        config["pruner_params"] = {
-            "min_resource": 10,
-            "max_resource": self.config["learn"]["num_epochs"],
-            "reduction_factor": 2,
-            "bootstrap_count": 2,
-        }
-        config["pruner_patience"] = 5
-        if not self.dummy:
-            config["num_folds"] = 3
-            config["timeout_sec"] = 8 * 3600
-        return config
-
-    def update_config(
-        self, optuna_trial: optuna.Trial | None
-    ) -> tuple[ConfigSimpleLearner, dict]:
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
 
         if optuna_trial is not None:
@@ -152,7 +125,30 @@ class SimpleRunner(Runner):
                 self.last_of_multi = True
 
         self.config = config
-        return self.config, important_config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["study_name"] = "S REF" + " " + gen_id(5)
+        config["sampler_params"] = {
+            "n_startup_trials": 20,
+            "n_ei_candidates": 30,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
+            "seed": 0,
+        }
+        config["pruner_params"] = {
+            "min_resource": 10,
+            "max_resource": self.config["learn"]["num_epochs"],
+            "reduction_factor": 2,
+            "bootstrap_count": 2,
+        }
+        config["pruner_patience"] = 5
+        if not self.dummy:
+            config["num_folds"] = 3
+            config["timeout_sec"] = 8 * 3600
+        return config
 
     def make_dataset_lists(
         self, val_fold: int, dummy: bool
@@ -213,30 +209,7 @@ class SimpleRunner(Runner):
 
 
 class MetaRunner(Runner):
-    def make_optuna_config(self) -> OptunaConfig:
-        config = super().make_optuna_config()
-        config["sampler_params"] = {
-            "n_startup_trials": 20,
-            "n_ei_candidates": 30,
-            "multivariate": True,
-            "group": True,
-            "constant_liar": True,
-            "seed": 0,
-        }
-        config["pruner_params"] = {
-            "min_resource": 5,
-            "max_resource": self.config["learn"]["num_epochs"],
-            "reduction_factor": 2,
-            "bootstrap_count": 2,
-        }
-        if not self.dummy:
-            config["num_folds"] = 2
-            config["timeout_sec"] = 24 * 3600
-        return config
-
-    def update_config(
-        self, optuna_trial: optuna.Trial | None
-    ) -> tuple[ConfigMetaLearner, dict]:
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigMetaLearner = self.config  # type: ignore
 
         if optuna_trial is not None:
@@ -280,7 +253,28 @@ class MetaRunner(Runner):
                 self.last_of_multi = True
 
         self.config = config
-        return self.config, important_config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["sampler_params"] = {
+            "n_startup_trials": 20,
+            "n_ei_candidates": 30,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
+            "seed": 0,
+        }
+        config["pruner_params"] = {
+            "min_resource": 5,
+            "max_resource": self.config["learn"]["num_epochs"],
+            "reduction_factor": 2,
+            "bootstrap_count": 2,
+        }
+        if not self.dummy:
+            config["num_folds"] = 2
+            config["timeout_sec"] = 24 * 3600
+        return config
 
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
@@ -434,31 +428,21 @@ class WeaselRunner(MetaRunner):
         self,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        config, important_config = self.update_config(optuna_trial)
-
+    ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs]:
         dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: WeaselLearnerKwargs = {
             **dataset_lists,
-            "config": config,
+            "config": self.config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
-        return WeaselUnet, kwargs, important_config
+        return WeaselUnet, kwargs
 
-    def make_optuna_config(self) -> OptunaConfig:
-        config = super().make_optuna_config()
-        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
-        config["pruner_patience"] = 1
-        return config
-
-    def update_config(
-        self, optuna_trial: optuna.Trial | None
-    ) -> tuple[ConfigWeasel, dict]:
-        _, important_config = super().update_config(optuna_trial)
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
         config["learn"]["exp_name"] = "WS"
@@ -473,7 +457,13 @@ class WeaselRunner(MetaRunner):
             important_config["ws_tune_epochs"] = ws_tune_epochs
 
         self.config = config
-        return self.config, important_config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
+        config["pruner_patience"] = 1
+        return config
 
 
 class ProtosegRunner(MetaRunner):
@@ -481,31 +471,21 @@ class ProtosegRunner(MetaRunner):
         self,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        config, important_config = self.update_config(optuna_trial)
-
+    ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs]:
         dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
-            "config": config,
+            "config": self.config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
             "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
-        return ProtosegUnet, kwargs, important_config
+        return ProtosegUnet, kwargs
 
-    def make_optuna_config(self) -> OptunaConfig:
-        config = super().make_optuna_config()
-        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
-        config["pruner_patience"] = 3
-        return config
-
-    def update_config(
-        self, optuna_trial: optuna.Trial | None
-    ) -> tuple[ConfigProtoSeg, dict]:
-        _, important_config = super().update_config(optuna_trial)
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        important_config = super().update_config(optuna_trial)
 
         config: ConfigProtoSeg = self.config  # type: ignore
         config["learn"]["exp_name"] = "PS"
@@ -517,4 +497,10 @@ class ProtosegRunner(MetaRunner):
             important_config["ps_embedding"] = ps_embedding
 
         self.config = config
-        return self.config, important_config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
+        config["pruner_patience"] = 3
+        return config
