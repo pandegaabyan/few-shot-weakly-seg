@@ -308,7 +308,8 @@ class Runner(ABC):
         self.wandb_log_profiles()
 
         if self.use_wandb:
-            wandb.log({"pruned": learner.optuna_pruned})
+            if self.config.get("wandb", {}).get("log_metrics"):
+                wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
 
         assert learner.best_monitor_value is not None
@@ -407,7 +408,8 @@ class Runner(ABC):
 
         self.wandb_init(run_id, resume=True)
 
-        wandb.log({"trial_score": new_score})
+        if self.config.get("wandb", {}).get("log_metrics"):
+            wandb.log({"trial_score": new_score})
 
         if pruned or not self.config["callbacks"].get("ckpt_top_k"):
             wandb.finish()
