@@ -538,6 +538,8 @@ class BaseLearner(
     def wandb_log(self, data: Mapping[str, Primitives], prefix: str = ""):
         if not self.use_wandb:
             return
+        if not self.config.get("wandb", {}).get("log_metrics"):
+            return
         use_epoch = prefix.startswith("summary/")
         epoch_value = 0 if "test" in prefix else self.current_epoch
         wandb.log(

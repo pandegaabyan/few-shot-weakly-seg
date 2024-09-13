@@ -76,8 +76,11 @@ class Runner(ABC):
         self,
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
-    ) -> tuple[Type[BaseLearner], BaseLearnerKwargs, dict]:
+    ) -> tuple[Type[BaseLearner], BaseLearnerKwargs]:
         pass
+
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        return {}
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
@@ -108,6 +111,8 @@ class Runner(ABC):
         fit_only: bool = False,
         test_only: bool = False,
     ):
+        important_config = self.update_config()
+
         if test_only and self.config["learn"].get("ref_ckpt") is None:
             self.resume = True
 
@@ -125,7 +130,7 @@ class Runner(ABC):
 
         ckpt_path = self.resolve_ckpt()
 
-        learner_class, learner_kwargs, important_config = self.make_learner()
+        learner_class, learner_kwargs = self.make_learner()
         if ckpt_path is None:
             learner = learner_class(**learner_kwargs)
         else:
@@ -160,6 +165,8 @@ class Runner(ABC):
 
     def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
+            self.run_name = make_run_name()
+            self.config["learn"]["run_name"] = self.run_name
             self.run_fit_test(fit_only, test_only)
             self.number_of_multi += 1
 
@@ -240,12 +247,14 @@ class Runner(ABC):
         self,
         trial: optuna.Trial | None,
     ) -> tuple[float, bool]:
+        important_config = self.update_config(trial)
+
         if self.use_wandb:
             run_id = wandb.util.generate_id()
             assert "wandb" in self.config
             self.config["wandb"]["run_id"] = run_id
 
-        learner_class, learner_kwargs, important_config = self.make_learner(
+        learner_class, learner_kwargs = self.make_learner(
             dataset_fold=self.curr_dataset_fold,
             optuna_trial=trial,
         )
@@ -301,7 +310,8 @@ class Runner(ABC):
         self.wandb_log_profiles()
 
         if self.use_wandb:
-            wandb.log({"pruned": learner.optuna_pruned})
+            if self.config.get("wandb", {}).get("log_metrics"):
+                wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
 
         assert learner.best_monitor_value is not None
@@ -400,7 +410,8 @@ class Runner(ABC):
 
         self.wandb_init(run_id, resume=True)
 
-        wandb.log({"trial_score": new_score})
+        if self.config.get("wandb", {}).get("log_metrics"):
+            wandb.log({"trial_score": new_score})
 
         if pruned or not self.config["callbacks"].get("ckpt_top_k"):
             wandb.finish()

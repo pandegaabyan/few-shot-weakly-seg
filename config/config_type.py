@@ -26,6 +26,7 @@ class LearnConfig(TypedDict):
     cudnn_deterministic: NotRequired[bool | Literal["warn"]]
     cudnn_benchmark: NotRequired[bool]
     profiler: NotRequired[ProfilerType]
+    profile_id: NotRequired[str | None]
     manual_optim: NotRequired[bool]
     ref_ckpt: NotRequired[str | None]
     optuna_study: NotRequired[str | None]
@@ -65,6 +66,7 @@ class WandbConfig(TypedDict, total=False):
     run_id: Required[str]
     tags: list[str]
     job_type: str | None
+    log_metrics: bool
     watch_model: bool
     save_model: bool
     push_table_freq: int | None

@@ -43,6 +43,7 @@ learn_config: LearnConfig = {
     "cudnn_deterministic": "warn",
     "cudnn_benchmark": False,
     "profiler": None,
+    "profile_id": None,
     "manual_optim": False,
     "ref_ckpt": None,
     "optuna_study": None,
@@ -81,6 +82,7 @@ wandb_config: WandbConfig = {
     "run_id": "",
     "tags": [],
     "job_type": None,
+    "log_metrics": True,
     "watch_model": True,
     "save_model": True,
     "push_table_freq": 5,
@@ -147,6 +149,7 @@ def make_config(
         config_ref["learn"]["cudnn_deterministic"] = False
         config_ref["learn"]["cudnn_benchmark"] = False
         config_ref["learn"]["profiler"] = "custom-1"
+        config_ref["learn"]["profile_id"] = gen_id(5)
         config_ref["log"]["configuration"] = False
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False
@@ -160,6 +163,7 @@ def make_config(
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
+                "log_metrics": False,
                 "watch_model": False,
                 "save_model": False,
                 "push_table_freq": None,
@@ -183,6 +187,7 @@ def make_config(
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
+                "log_metrics": True,
                 "watch_model": False,
                 "save_model": False,
                 "push_table_freq": 20,
@@ -197,6 +202,7 @@ def make_config(
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
+                "log_metrics": True,
                 "watch_model": True,
                 "save_model": True,
                 "push_table_freq": 5,
@@ -213,6 +219,7 @@ def make_config(
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
+                "log_metrics": True,
                 "watch_model": False,
                 "save_model": False,
                 "push_table_freq": 1,
@@ -227,6 +234,7 @@ def make_config(
                 "run_id": "",
                 "tags": [],
                 "job_type": mode,
+                "log_metrics": True,
                 "watch_model": True,
                 "save_model": True,
                 "push_table_freq": 5,
