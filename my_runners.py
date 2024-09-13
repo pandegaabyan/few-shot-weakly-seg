@@ -76,9 +76,9 @@ class SimpleRunner(Runner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: SimpleLearnerKwargs = {
             **dataset_lists,
@@ -122,6 +122,38 @@ class SimpleRunner(Runner):
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = {}
+
+        variable_max_batch = 32
+        variable_epochs = 50
+        homogen_batch = 10
+        homogen_thresholds = (0.7, 0.8)
+        homogen_count = 30
+        homogen_epochs = 100
+        if self.mode in ["profile-fit", "profile-test"]:
+            config["learn"]["val_freq"] = 1
+        if self.mode == "profile-fit":
+            if self.number_of_multi < variable_max_batch:
+                config["learn"]["num_epochs"] = variable_epochs
+                batch_size = self.number_of_multi + 1
+                config["data"]["batch_size"] = batch_size
+                important_config["batch_size"] = batch_size
+            else:
+                config["data"]["batch_size"] = homogen_batch
+                config["learn"]["num_epochs"] = homogen_epochs
+                if self.number_of_multi < (variable_max_batch + homogen_count):
+                    stop_threshold = homogen_thresholds[0]
+                else:
+                    stop_threshold = homogen_thresholds[1]
+                config["callbacks"]["stop_threshold"] = stop_threshold
+                important_config["stop_threshold"] = stop_threshold
+            if self.number_of_multi == (variable_max_batch + 2 * homogen_count - 1):
+                self.last_of_multi = True
+        if self.mode == "profile-test":
+            batch_size = self.number_of_multi + 1
+            config["data"]["batch_size"] = batch_size
+            important_config["batch_size"] = batch_size
+            if self.number_of_multi == (variable_max_batch - 1):
+                self.last_of_multi = True
 
         self.config = config
         return self.config, important_config
@@ -182,7 +214,7 @@ class SimpleRunner(Runner):
             "test_dataset_list": [
                 (RefugeTestSimpleDataset, refuge_test_kwargs),
             ]
-            * (2 if self.mode in ["profile-fit", "profile-test"] else 1),
+            * (2 if self.mode == "profile-test" else 1),
         }
 
 
@@ -218,19 +250,58 @@ class MetaRunner(Runner):
         else:
             important_config = {}
 
+        variable_max_batch = 16
+        variable_epochs = 25
+        homogen_batch = 10
+        homogen_thresholds = (0.7, 0.8)
+        homogen_count = 30
+        homogen_epochs = 50
+        shots = 5
+        if self.mode in ["profile-fit", "profile-test"]:
+            config["learn"]["val_freq"] = 1
+        if self.mode == "profile-fit":
+            if self.number_of_multi < variable_max_batch:
+                config["learn"]["num_epochs"] = variable_epochs
+                batch_size = self.number_of_multi + 1
+                config["data"]["batch_size"] = batch_size
+                important_config["batch_size"] = batch_size
+            else:
+                config["data"]["batch_size"] = homogen_batch
+                config["learn"]["num_epochs"] = homogen_epochs
+                if self.number_of_multi < (variable_max_batch + homogen_count):
+                    stop_threshold = homogen_thresholds[0]
+                else:
+                    stop_threshold = homogen_thresholds[1]
+                config["callbacks"]["stop_threshold"] = stop_threshold
+                important_config["stop_threshold"] = stop_threshold
+            if self.number_of_multi == (variable_max_batch + 2 * homogen_count - 1):
+                self.last_of_multi = True
+        if self.mode == "profile-test":
+            batch_size = (self.number_of_multi // shots) + 1
+            config["data"]["batch_size"] = batch_size
+            important_config["batch_size"] = batch_size
+            if self.number_of_multi == (variable_max_batch * shots - 1):
+                self.last_of_multi = True
+
         self.config = config
         return self.config, important_config
 
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
+        if self.mode == "test":
+            query_batch = 5
+        elif self.mode == "profile-test":
+            query_batch = self.config["data"]["batch_size"]
+        else:
+            query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "split_val_fold": 0,
             "split_test_fold": 0,
             "cache_data": True,
             "support_query_data": "split",
-            "query_batch_size": 5,
+            "query_batch_size": query_batch,
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
         }
@@ -270,18 +341,27 @@ class MetaRunner(Runner):
             "support_batch_mode": "permutation",
         }
 
-        test_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": [1, 5, 10, 15, 20],
-            "sparsity_options": [
-                ("point", [1, 13, 25, 37, 50]),
-                ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
-            ],
-            "support_query_data": "mixed",
-            "support_batch_mode": "full_permutation",
-        }
+        if self.mode == "profile-test":
+            shot_idx = self.number_of_multi % 5
+            test_kwargs: FewSparseDatasetKwargs = {
+                "shot_options": [1, 5, 10, 15, 20][shot_idx : shot_idx + 1],
+                "sparsity_options": [("dense", [0])],
+                "support_query_data": "mixed",
+                "support_batch_mode": "full_permutation",
+            }
+        else:
+            test_kwargs: FewSparseDatasetKwargs = {
+                "shot_options": [1, 5, 10, 15, 20],
+                "sparsity_options": [
+                    ("point", [1, 13, 25, 37, 50]),
+                    ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ],
+                "support_query_data": "mixed",
+                "support_batch_mode": "full_permutation",
+            }
 
         rim_one_3_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -360,9 +440,9 @@ class WeaselRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[WeaselLearner], WeaselLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: WeaselLearnerKwargs = {
             **dataset_lists,
@@ -386,8 +466,8 @@ class WeaselRunner(MetaRunner):
         _, important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS multi-step"
-        config["weasel"]["tune_multi_step"] = True
+        config["learn"]["exp_name"] = "WS"
+        self.exp_name = "WS"
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -407,9 +487,9 @@ class ProtosegRunner(MetaRunner):
         dataset_fold: int = 0,
         optuna_trial: optuna.Trial | None = None,
     ) -> tuple[Type[ProtosegLearner], ProtoSegLearnerKwargs, dict]:
-        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
-
         config, important_config = self.update_config(optuna_trial)
+
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
 
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
@@ -433,8 +513,8 @@ class ProtosegRunner(MetaRunner):
         _, important_config = super().update_config(optuna_trial)
 
         config: ConfigProtoSeg = self.config  # type: ignore
-        config["learn"]["exp_name"] = "PS multi-pred"
-        config["protoseg"]["multi_pred"] = True
+        config["learn"]["exp_name"] = "PS"
+        self.exp_name = "PS"
 
         if optuna_trial is not None:
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
