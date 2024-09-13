@@ -4,6 +4,7 @@ import optuna
 
 from config.config_maker import gen_id
 from config.config_type import (
+    ConfigMetaLearner,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -27,15 +28,11 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    DrishtiTestFSDataset,
-    DrishtiTrainFSDataset,
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
-    RimOne3TestFSDataset,
-    RimOne3TrainFSDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -122,18 +119,8 @@ class SimpleRunner(Runner):
         else:
             important_config = {}
 
-        if self.mode in ["profile-fit", "profile-test"]:
-            config["learn"]["val_freq"] = 1
-            config["data"]["batch_size"] = self.number_of_multi + 1
-        if self.mode == "profile-fit" and (self.number_of_multi > 31):
-            config["data"]["batch_size"] = 10
-        if self.mode == "profile-fit" and (self.number_of_multi == 61):
-            self.last_of_multi = True
-        if self.mode == "profile-test" and (self.number_of_multi == 31):
-            self.last_of_multi = True
-
         self.config = config
-        return config, important_config
+        return self.config, important_config
 
     def make_dataset_lists(
         self, val_fold: int, dummy: bool
@@ -215,6 +202,19 @@ class MetaRunner(Runner):
             config["timeout_sec"] = 24 * 3600
         return config
 
+    def update_config(
+        self, optuna_trial: optuna.Trial | None
+    ) -> tuple[ConfigMetaLearner, dict]:
+        config: ConfigMetaLearner = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(config, optuna_trial)
+        else:
+            important_config = {}
+
+        self.config = config
+        return self.config, important_config
+
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
@@ -277,7 +277,7 @@ class MetaRunner(Runner):
             "support_batch_mode": "full_permutation",
         }
 
-        rim_one_3_train_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "RIM-ONE-3-train",
@@ -285,7 +285,7 @@ class MetaRunner(Runner):
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
-        rim_one_3_test_kwargs: FewSparseDatasetKwargs = {
+        rim_one_3_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "RIM-ONE-3-test",
@@ -293,7 +293,7 @@ class MetaRunner(Runner):
             "sparsity_params": rim_one_3_sparsity_params,
             **dummy_kwargs,
         }
-        drishti_train_kwargs: FewSparseDatasetKwargs = {
+        drishti_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "DRISHTI-GS-train",
@@ -301,7 +301,7 @@ class MetaRunner(Runner):
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
-        drishti_test_kwargs: FewSparseDatasetKwargs = {
+        drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "DRISHTI-GS-test",
@@ -309,14 +309,14 @@ class MetaRunner(Runner):
             "sparsity_params": drishti_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_train_kwargs: FewSparseDatasetKwargs = {
+        refuge_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **train_kwargs,
             "dataset_name": "REFUGE-train",
             "sparsity_params": refuge_train_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_val_kwargs: FewSparseDatasetKwargs = {
+        refuge_val_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "REFUGE-val",
@@ -324,7 +324,7 @@ class MetaRunner(Runner):
             "sparsity_params": refuge_val_test_sparsity_params,
             **dummy_kwargs,
         }
-        refuge_test_kwargs: FewSparseDatasetKwargs = {
+        refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
             "dataset_name": "REFUGE-test",
@@ -339,13 +339,9 @@ class MetaRunner(Runner):
             ],
             "val_dataset_list": [
                 (RefugeValFSDataset, refuge_val_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
-                (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
                 (RefugeTestFSDataset, refuge_test_kwargs),
-                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
-                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
@@ -379,22 +375,21 @@ class WeaselRunner(MetaRunner):
     def update_config(
         self, optuna_trial: optuna.Trial | None
     ) -> tuple[ConfigWeasel, dict]:
+        _, important_config = super().update_config(optuna_trial)
+
         config: ConfigWeasel = self.config  # type: ignore
         config["learn"]["exp_name"] = "WS"
 
         if optuna_trial is not None:
-            important_config = suggest_basic(config, optuna_trial)
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
             ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
             config["weasel"]["update_param_rate"] = ws_update_rate
             config["weasel"]["tune_epochs"] = ws_tune_epochs
             important_config["ws_update_rate"] = ws_update_rate
             important_config["ws_tune_epochs"] = ws_tune_epochs
-        else:
-            important_config = {}
 
         self.config = config
-        return config, important_config
+        return self.config, important_config
 
 
 class ProtosegRunner(MetaRunner):
@@ -426,16 +421,15 @@ class ProtosegRunner(MetaRunner):
     def update_config(
         self, optuna_trial: optuna.Trial | None
     ) -> tuple[ConfigProtoSeg, dict]:
+        _, important_config = super().update_config(optuna_trial)
+
         config: ConfigProtoSeg = self.config  # type: ignore
         config["learn"]["exp_name"] = "PS"
 
         if optuna_trial is not None:
-            important_config = suggest_basic(config, optuna_trial)
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
             config["protoseg"]["embedding_size"] = ps_embedding
             important_config["ps_embedding"] = ps_embedding
-        else:
-            important_config = {}
 
         self.config = config
-        return config, important_config
+        return self.config, important_config
