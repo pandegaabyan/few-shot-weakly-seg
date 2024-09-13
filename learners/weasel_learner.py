@@ -118,7 +118,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 else:
                     qry_score = self.metric.measure(qry_pred, query.masks)
 
-            if self.trainer.sanity_checking:
+            if self.trainer.sanity_checking or tune_val_freq is None:
                 continue
 
             self.log_to_table_tuning_metrics(type, batch_idx, ep, qry_loss, qry_score)
