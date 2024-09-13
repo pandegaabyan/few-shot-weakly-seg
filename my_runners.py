@@ -28,13 +28,11 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    DrishtiTrainFSDataset,
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
-    RimOne3TrainFSDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -94,11 +92,11 @@ class SimpleRunner(Runner):
         else:
             important_config = {}
 
-        variable_max_batch = 32
+        variable_max_batch = 2
         variable_epochs = 50
         homogen_batch = 10
         homogen_thresholds = (0.7, 0.8)
-        homogen_count = 30
+        homogen_count = 2
         homogen_epochs = 100
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
@@ -222,11 +220,11 @@ class MetaRunner(Runner):
         else:
             important_config = {}
 
-        variable_max_batch = 16
+        variable_max_batch = 2
         variable_epochs = 25
         homogen_batch = 10
         homogen_thresholds = (0.7, 0.8)
-        homogen_count = 30
+        homogen_count = 2
         homogen_epochs = 50
         test_shots = [1, 5, 10, 15, 20]
         if self.mode in ["profile-fit", "profile-test"]:
@@ -292,7 +290,7 @@ class MetaRunner(Runner):
         elif self.mode == "profile-test":
             query_batch = self.config["data"]["batch_size"]
         else:
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "split_val_fold": 0,
@@ -316,10 +314,16 @@ class MetaRunner(Runner):
             dummy_kwargs = {}
 
         train_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": self.config["data"]["batch_size"],
-            "sparsity_options": [("random", "random")],
+            "shot_options": (1, 20),
+            "sparsity_options": [
+                ("point", (5, 50)),
+                ("grid", (0.1, 1.0)),
+                ("contour", (0.1, 1.0)),
+                ("skeleton", (0.1, 1.0)),
+                ("region", (0.1, 1.0)),
+            ],
             "support_batch_mode": "mixed",
-            "num_iterations": 5,
+            "num_iterations": 5.0,
         }
 
         val_kwargs: FewSparseDatasetKwargs = {
@@ -418,8 +422,6 @@ class MetaRunner(Runner):
             ],
             "val_dataset_list": [
                 (RefugeValFSDataset, refuge_val_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
-                (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
                 (RefugeTestFSDataset, refuge_test_kwargs),
@@ -449,14 +451,8 @@ class WeaselRunner(MetaRunner):
         important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS original"
-        self.exp_name = "WS original"
-
-        config["learn"]["num_epochs"] = 200
-        config["learn"]["val_freq"] = 20
-        config["scheduler"]["step_size"] = 40
-        config["callbacks"]["stop_patience"] = 2
-        config["weasel"]["tune_multi_step"] = True
+        config["learn"]["exp_name"] = "WS"
+        self.exp_name = "WS"
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -498,18 +494,13 @@ class ProtosegRunner(MetaRunner):
         important_config = super().update_config(optuna_trial)
 
         config: ConfigProtoSeg = self.config  # type: ignore
-        config["learn"]["exp_name"] = "PS original"
-        self.exp_name = "PS original"
-
-        config["learn"]["num_epochs"] = 200
-        config["learn"]["val_freq"] = 4
-        config["scheduler"]["step_size"] = 40
-        config["callbacks"]["stop_patience"] = 10
-        config["protoseg"]["embedding_size"] = 3
-        config["protoseg"]["multi_pred"] = True
+        config["learn"]["exp_name"] = "PS"
+        self.exp_name = "PS"
 
         if optuna_trial is not None:
-            important_config["ps_embedding"] = config["protoseg"]["embedding_size"]
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            config["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
 
         self.config = config
         return important_config
