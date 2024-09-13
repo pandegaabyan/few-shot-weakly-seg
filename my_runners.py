@@ -256,7 +256,7 @@ class MetaRunner(Runner):
         homogen_thresholds = (0.7, 0.8)
         homogen_count = 30
         homogen_epochs = 50
-        shots = 5
+        test_shots = [1, 5, 10, 15, 20]
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
         if self.mode == "profile-fit":
@@ -277,10 +277,12 @@ class MetaRunner(Runner):
             if self.number_of_multi == (variable_max_batch + 2 * homogen_count - 1):
                 self.last_of_multi = True
         if self.mode == "profile-test":
-            batch_size = (self.number_of_multi // shots) + 1
+            batch_size = (self.number_of_multi // len(test_shots)) + 1
+            shot_idx = self.number_of_multi % len(test_shots)
             config["data"]["batch_size"] = batch_size
             important_config["batch_size"] = batch_size
-            if self.number_of_multi == (variable_max_batch * shots - 1):
+            important_config["shot"] = test_shots[shot_idx]
+            if self.number_of_multi == (variable_max_batch * len(test_shots) - 1):
                 self.last_of_multi = True
 
         self.config = config
@@ -305,6 +307,7 @@ class MetaRunner(Runner):
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
         }
+
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
                 "max_items": 4,
