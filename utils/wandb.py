@@ -185,6 +185,7 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
         tags=["helper"],
         project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
         name=f"log dataset {dataset_name}",
+        settings=wandb.Settings(_disable_stats=True),
     )
     dataset_artifact = wandb.Artifact(dataset_name, type="dataset")
     dataset_artifact.add_reference(f"file://{dataset_path}")
