@@ -67,6 +67,7 @@ class WandbConfig(TypedDict, total=False):
     tags: list[str]
     job_type: str | None
     log_metrics: bool
+    log_system_metrics: bool
     watch_model: bool
     save_model: bool
     push_table_freq: int | None

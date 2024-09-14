@@ -279,6 +279,7 @@ class Runner(ABC):
                 group=self.exp_name,
                 name=f"log study-ref {study_id}",
                 job_type="study",
+                settings=wandb.Settings(_disable_stats=True),
             )
             wandb.config.update(additional_config | dataset_names)
 
@@ -390,8 +391,11 @@ class Runner(ABC):
 
     def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config
+        wandb_settings = wandb.Settings(
+            _disable_stats=not self.config["wandb"].get("log_system_metrics", False)
+        )
         if resume:
-            wandb.init(id=run_id, resume="must")
+            wandb.init(id=run_id, resume="must", settings=wandb_settings)
             return
         wandb.init(
             id=run_id,
@@ -400,6 +404,7 @@ class Runner(ABC):
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
+            settings=wandb_settings,
         )
 
     def wandb_log_trial(
