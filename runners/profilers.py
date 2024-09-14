@@ -66,6 +66,8 @@ class CustomSimpleProfiler(Profiler):
 
         for a, d in self.recorded_durations.items():
             len_d = len(d)
+            if len_d == 0:
+                continue
             total_calls += len_d
             d_tensor = torch.tensor(d)
             sum_d = torch.sum(d_tensor).item()
@@ -73,7 +75,10 @@ class CustomSimpleProfiler(Profiler):
             if percentage_d < self.percentage_limit:
                 continue
             mean_d = torch.mean(d_tensor).item()
-            std_d = torch.std(d_tensor).item()
+            if len_d == 1:
+                std_d = -1
+            else:
+                std_d = torch.std(d_tensor).item()
             report.append((a, mean_d, std_d, len_d, sum_d, percentage_d))
 
         report.append(("Total", -1, -1, total_calls, total_duration, 100.0))

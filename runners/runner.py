@@ -68,7 +68,7 @@ class Runner(ABC):
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
         self.number_of_multi = 0
-        self.last_of_multi = True
+        self.last_of_multi = False
         self.limit_of_multi = 100
 
     @abstractmethod
