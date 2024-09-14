@@ -92,11 +92,11 @@ class SimpleRunner(Runner):
         else:
             important_config = {}
 
-        variable_max_batch = 2
+        variable_max_batch = 32
         variable_epochs = 50
         homogen_batch = 10
         homogen_thresholds = (0.7, 0.8)
-        homogen_count = 2
+        homogen_count = 30
         homogen_epochs = 100
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
@@ -220,11 +220,11 @@ class MetaRunner(Runner):
         else:
             important_config = {}
 
-        variable_max_batch = 2
+        variable_max_batch = 16
         variable_epochs = 25
         homogen_batch = 10
         homogen_thresholds = (0.7, 0.8)
-        homogen_count = 2
+        homogen_count = 30
         homogen_epochs = 50
         test_shots = [1, 5, 10, 15, 20]
         if self.mode in ["profile-fit", "profile-test"]:
