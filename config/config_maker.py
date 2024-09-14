@@ -247,7 +247,7 @@ def make_config(
     if not dummy:
         config_ref["data"]["num_workers"] = 3
         config_ref["learn"]["dummy"] = False
-        if mode != "study":
+        if mode in ["fit", "test", "fit-test"]:
             config_ref["callbacks"]["ckpt_top_k"] = 5
 
     if dummy and use_wandb:
@@ -324,7 +324,7 @@ def make_config(
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name
-    if mode != "study":
+    if mode in ["fit", "test", "fit-test"]:
         config["learn"]["run_name"] = make_run_name()
 
     return config
