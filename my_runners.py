@@ -220,61 +220,34 @@ class MetaRunner(Runner):
         else:
             important_config = {}
 
-        # variable_max_batch = 16
-        # variable_epochs = 25
-        # homogen_batch = 10
-        # homogen_thresholds = (0.7, 0.8)
-        # homogen_count = 30
-        # homogen_epochs = 50
-        # test_shots = [1, 5, 10, 15, 20]
-        # if self.mode in ["profile-fit", "profile-test"]:
-        #     config["learn"]["val_freq"] = 1
-        #     profile_id = config["learn"].get("profile_id", None)
-        #     assert profile_id is not None
-        #     important_config["profile"] = profile_id
-        # if self.mode == "profile-fit":
-        #     if self.number_of_multi < variable_max_batch:
-        #         config["learn"]["num_epochs"] = variable_epochs
-        #         batch_size = self.number_of_multi + 1
-        #         config["data"]["batch_size"] = batch_size
-        #         important_config["batch_size"] = batch_size
-        #     else:
-        #         config["data"]["batch_size"] = homogen_batch
-        #         config["learn"]["num_epochs"] = homogen_epochs
-        #         if self.number_of_multi < (variable_max_batch + homogen_count):
-        #             stop_threshold = homogen_thresholds[0]
-        #         else:
-        #             stop_threshold = homogen_thresholds[1]
-        #         config["callbacks"]["stop_threshold"] = stop_threshold
-        #         important_config["stop_threshold"] = stop_threshold
-        #     if self.number_of_multi == (variable_max_batch + 2 * homogen_count - 1):
-        #         self.last_of_multi = True
-        # if self.mode == "profile-test":
-        #     batch_size = (self.number_of_multi // len(test_shots)) + 1
-        #     shot_idx = self.number_of_multi % len(test_shots)
-        #     config["data"]["batch_size"] = batch_size
-        #     important_config["batch_size"] = batch_size
-        #     important_config["shot"] = test_shots[shot_idx]
-        #     if self.number_of_multi == (variable_max_batch * len(test_shots) - 1):
-        #         self.last_of_multi = True
         variable_max_batch = 16
+        variable_epochs = 25
         homogen_batch = 10
-        homogen_threshold = 0.8
-        homogen_count = 13
+        homogen_thresholds = (0.7, 0.8)
+        homogen_count = 30
         homogen_epochs = 50
         test_shots = [1, 5, 10, 15, 20]
         if self.mode in ["profile-fit", "profile-test"]:
             config["learn"]["val_freq"] = 1
-            profile_id = "f4Hze"
-            config["learn"]["profile_id"] = profile_id
+            profile_id = config["learn"].get("profile_id", None)
+            assert profile_id is not None
             important_config["profile"] = profile_id
         if self.mode == "profile-fit":
-            config["data"]["batch_size"] = homogen_batch
-            config["learn"]["num_epochs"] = homogen_epochs
-            stop_threshold = homogen_threshold
-            config["callbacks"]["stop_threshold"] = stop_threshold
-            important_config["stop_threshold"] = stop_threshold
-            if self.number_of_multi == (homogen_count - 1):
+            if self.number_of_multi < variable_max_batch:
+                config["learn"]["num_epochs"] = variable_epochs
+                batch_size = self.number_of_multi + 1
+                config["data"]["batch_size"] = batch_size
+                important_config["batch_size"] = batch_size
+            else:
+                config["data"]["batch_size"] = homogen_batch
+                config["learn"]["num_epochs"] = homogen_epochs
+                if self.number_of_multi < (variable_max_batch + homogen_count):
+                    stop_threshold = homogen_thresholds[0]
+                else:
+                    stop_threshold = homogen_thresholds[1]
+                config["callbacks"]["stop_threshold"] = stop_threshold
+                important_config["stop_threshold"] = stop_threshold
+            if self.number_of_multi == (variable_max_batch + 2 * homogen_count - 1):
                 self.last_of_multi = True
         if self.mode == "profile-test":
             batch_size = (self.number_of_multi // len(test_shots)) + 1
