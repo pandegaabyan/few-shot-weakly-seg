@@ -30,10 +30,12 @@ from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
+    RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
+    RimOne3TestFSDataset,
     RimOne3TrainFSDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
@@ -423,11 +425,13 @@ class MetaRunner(Runner):
                 (RefugeTrainFSDataset, refuge_train_kwargs),
             ],
             "val_dataset_list": [
-                (DrishtiTrainFSDataset, drishti_train_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
                 (RefugeValFSDataset, refuge_val_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
+                (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
+                (RefugeTestFSDataset, refuge_test_kwargs),
+                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
                 (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
@@ -472,7 +476,7 @@ class WeaselRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = "WS REF|RO3-DGS eb7c4"
         config["pruner_patience"] = 1
         return config
 
