@@ -28,8 +28,8 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
+    DrishtiTestFSDataset,
     DrishtiTrainFSDataset,
-    RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
@@ -428,7 +428,7 @@ class MetaRunner(Runner):
                 (RefugeValFSDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
-                (RefugeTestFSDataset, refuge_test_kwargs),
+                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
@@ -455,9 +455,9 @@ class WeaselRunner(MetaRunner):
         important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS multi-step"
-        self.exp_name = "WS multi-step"
-        config["weasel"]["tune_multi_step"] = True
+        config["learn"]["exp_name"] = "WS first-order"
+        self.exp_name = "WS first-order"
+        config["weasel"]["first_order"] = True
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
