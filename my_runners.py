@@ -28,11 +28,13 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
-    RefugeTestFSDataset,
+    DrishtiTestFSDataset,
+    DrishtiTrainFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
+    RimOne3TrainFSDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -290,7 +292,7 @@ class MetaRunner(Runner):
         elif self.mode == "profile-test":
             query_batch = self.config["data"]["batch_size"]
         else:
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
             "seed": 0,
             "split_val_fold": 0,
@@ -314,10 +316,16 @@ class MetaRunner(Runner):
             dummy_kwargs = {}
 
         train_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": self.config["data"]["batch_size"],
-            "sparsity_options": [("random", "random")],
+            "shot_options": (1, 20),
+            "sparsity_options": [
+                ("point", (5, 50)),
+                ("grid", (0.1, 1.0)),
+                ("contour", (0.1, 1.0)),
+                ("skeleton", (0.1, 1.0)),
+                ("region", (0.1, 1.0)),
+            ],
             "support_batch_mode": "mixed",
-            "num_iterations": 5,
+            "num_iterations": 5.0,
         }
 
         val_kwargs: FewSparseDatasetKwargs = {
@@ -415,10 +423,12 @@ class MetaRunner(Runner):
                 (RefugeTrainFSDataset, refuge_train_kwargs),
             ],
             "val_dataset_list": [
+                (DrishtiTrainFSDataset, drishti_train_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
                 (RefugeValFSDataset, refuge_val_kwargs),
             ],
             "test_dataset_list": [
-                (RefugeTestFSDataset, refuge_test_kwargs),
+                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
@@ -445,14 +455,8 @@ class WeaselRunner(MetaRunner):
         important_config = super().update_config(optuna_trial)
 
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS original"
-        self.exp_name = "WS original"
-
-        config["learn"]["num_epochs"] = 200
-        config["learn"]["val_freq"] = 20
-        config["scheduler"]["step_size"] = 40
-        config["callbacks"]["stop_patience"] = 2
-        config["weasel"]["tune_multi_step"] = True
+        config["learn"]["exp_name"] = "WS"
+        self.exp_name = "WS"
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
@@ -494,18 +498,13 @@ class ProtosegRunner(MetaRunner):
         important_config = super().update_config(optuna_trial)
 
         config: ConfigProtoSeg = self.config  # type: ignore
-        config["learn"]["exp_name"] = "PS original"
-        self.exp_name = "PS original"
-
-        config["learn"]["num_epochs"] = 200
-        config["learn"]["val_freq"] = 4
-        config["scheduler"]["step_size"] = 40
-        config["callbacks"]["stop_patience"] = 10
-        config["protoseg"]["embedding_size"] = 3
-        config["protoseg"]["multi_pred"] = True
+        config["learn"]["exp_name"] = "PS"
+        self.exp_name = "PS"
 
         if optuna_trial is not None:
-            important_config["ps_embedding"] = config["protoseg"]["embedding_size"]
+            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            config["protoseg"]["embedding_size"] = ps_embedding
+            important_config["ps_embedding"] = ps_embedding
 
         self.config = config
         return important_config
