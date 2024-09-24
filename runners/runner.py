@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Type
 
 import optuna
-from pytorch_lightning import Callback, Trainer
+from pytorch_lightning import Callback, Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 import wandb
@@ -111,6 +111,8 @@ class Runner(ABC):
         fit_only: bool = False,
         test_only: bool = False,
     ):
+        seed_everything(workers=True)
+
         important_config = self.update_config()
 
         if test_only and self.config["learn"].get("ref_ckpt") is None:
@@ -247,6 +249,8 @@ class Runner(ABC):
         self,
         trial: optuna.Trial | None,
     ) -> tuple[float, bool]:
+        seed_everything(workers=True)
+
         important_config = self.update_config(trial)
 
         if self.use_wandb:
