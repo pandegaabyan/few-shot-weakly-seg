@@ -27,7 +27,7 @@ class BaseDataset(Dataset, ABC):
         self.num_classes = num_classes
         self.resize_to = resize_to
         self.max_items = kwargs.get("max_items")
-        self.seed = kwargs.get("seed")
+        self.seed = kwargs.get("seed", 0)
         self.split_val_size = kwargs.get("split_val_size", 0)
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
@@ -42,6 +42,9 @@ class BaseDataset(Dataset, ABC):
             raise (RuntimeError("Get 0 items, please check"))
 
         self.cached_items_data: list[BaseDataTuple] = []
+
+        self.rng = random.Random(self.seed)
+        self.np_rng = np.random.default_rng(self.seed)
 
     # Function that create the list of pairs (img_path, mask_path)
     # Implement this function for your dataset structure
@@ -121,33 +124,33 @@ class BaseDataset(Dataset, ABC):
         return filename
 
     @staticmethod
-    def extend_data(data: list[T], num_items: int, seed: int | None = None) -> list[T]:
+    def extend_data(data: list[T], num_items: int, seed: int | None = 0) -> list[T]:
         if len(data) >= num_items:
             return data[:num_items]
-        random.seed(seed)
+        rng = random.Random(seed)
         extended_data = []
         new_data = data.copy()
         for i in range(num_items // len(data)):
             if i != 0:
-                random.shuffle(new_data)
+                rng.shuffle(new_data)
             extended_data.extend(new_data)
-        new_data = random.sample(data, num_items - len(extended_data))
+        new_data = rng.sample(data, num_items - len(extended_data))
         extended_data.extend(new_data)
-        random.seed(None)
         return extended_data
 
     @staticmethod
     def split_train_test(
         data: list[T],
         test_size: int,
-        random_state: int | None = None,
         shuffle: bool = False,
+        random_state: int | None = 0,
         fold: int = 0,
     ) -> tuple[list[T], list[T]]:
+        if test_size == 0:
+            return data, []
         if shuffle:
-            random.seed(random_state)
-            random.shuffle(data)
-            random.seed(None)
+            rng = random.Random(random_state)
+            rng.shuffle(data)
         if (fold + 1) * test_size > len(data):
             raise ValueError("Fold value is too large")
         ts = data[fold * test_size : (fold + 1) * test_size]
@@ -161,9 +164,9 @@ class BaseDataset(Dataset, ABC):
 
         tr_val, ts = self.split_train_test(
             all_data,
-            test_size=test_size,
-            random_state=self.seed,
+            test_size,
             shuffle=True,
+            random_state=self.seed,
             fold=self.split_test_fold,
         )
         if self.mode == "test":
@@ -174,9 +177,9 @@ class BaseDataset(Dataset, ABC):
 
         tr, val = self.split_train_test(
             tr_val,
-            test_size=val_size,
-            random_state=self.seed,
+            val_size,
             shuffle=True,
+            random_state=self.seed,
             fold=self.split_val_fold,
         )
         if self.mode == "train":
