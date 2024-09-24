@@ -100,14 +100,13 @@ class FewSparseDataset(BaseDataset, ABC):
         dot_size: int | None = None,
         seed=0,
     ) -> NDArray:
-        if sparsity != "random":
-            np.random.seed(seed)
+        np_nrg = np.random.default_rng(seed)
 
         auto_dot_size = max(min(msk.shape) // 50, 1)
         dot_size = dot_size or auto_dot_size
 
         sparsity_num = (
-            np.random.randint(5, 50) if sparsity == "random" else round(sparsity)
+            np_nrg.integers(5, 50) if sparsity == "random" else round(sparsity)
         )
 
         small_msk = FewSparseDataset.resize_image(
@@ -127,7 +126,7 @@ class FewSparseDataset(BaseDataset, ABC):
 
         for c in range(num_classes):
             msk_class = small_msk_point[msk_ravel == c]
-            perm = np.random.permutation(msk_class.shape[0])
+            perm = np_nrg.permutation(msk_class.shape[0])
             msk_class[perm[: min(class_points[c], len(perm))]] = c
             small_msk_point[msk_ravel == c] = msk_class
 
@@ -149,8 +148,6 @@ class FewSparseDataset(BaseDataset, ABC):
             mask_point_c[mask_point_c == 1] = c + 1
             new_msk += mask_point_c
 
-        np.random.seed(None)
-
         return new_msk
 
     @staticmethod
@@ -161,11 +158,9 @@ class FewSparseDataset(BaseDataset, ABC):
         dot_size: int | None = None,
         seed=0,
     ) -> NDArray:
-        blob_seed = None
-        if sparsity != "random":
-            np.random.seed(seed)
-            prime_num = 11
-            blob_seed = seed * prime_num
+        np_nrg = np.random.default_rng(seed)
+        prime_num = 11
+        blob_seed = seed * prime_num
 
         auto_spacing = np.max(msk.shape) // 20
         int_spacing = spacing or auto_spacing
@@ -173,7 +168,7 @@ class FewSparseDataset(BaseDataset, ABC):
         auto_dot_size = max(min(msk.shape) // 80, int_spacing // 5, 1)
         dot_size = dot_size or int(auto_dot_size)
 
-        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
+        sparsity_num = np_nrg.uniform() if sparsity == "random" else float(sparsity)
 
         small_msk = FewSparseDataset.resize_image(
             msk, np.divide(msk.shape, dot_size).tolist(), True
@@ -183,7 +178,7 @@ class FewSparseDataset(BaseDataset, ABC):
         small_new_msk = np.zeros_like(small_msk)
         small_new_msk[:, :] = -1
 
-        starting = (np.random.randint(small_spacing), np.random.randint(small_spacing))
+        starting = (np_nrg.integers(small_spacing), np_nrg.integers(small_spacing))
 
         small_new_msk[starting[0] :: small_spacing, starting[1] :: small_spacing] = (
             small_msk[starting[0] :: small_spacing, starting[1] :: small_spacing]
@@ -203,8 +198,6 @@ class FewSparseDataset(BaseDataset, ABC):
 
         final_msk = FewSparseDataset.resize_image(small_final_msk, msk.shape, True)
 
-        np.random.seed(None)
-
         return final_msk
 
     @staticmethod
@@ -216,10 +209,9 @@ class FewSparseDataset(BaseDataset, ABC):
         radius_thick: int | None = None,
         seed=0,
     ) -> NDArray:
-        if sparsity != "random":
-            np.random.seed(seed)
+        np_rng = np.random.default_rng(seed)
 
-        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
+        sparsity_num = np_rng.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
 
@@ -239,7 +231,7 @@ class FewSparseDataset(BaseDataset, ABC):
             msk_bound = np.zeros_like(msk)
 
             for _, contour in enumerate(msk_contr):
-                rand_rot = np.random.randint(low=1, high=len(contour))
+                rand_rot = np_rng.integers(low=1, high=len(contour))
                 for j, coord in enumerate(np.roll(contour, rand_rot, axis=0)):
                     if j < max(
                         1, min(round(len(contour) * sparsity_num), len(contour))
@@ -252,8 +244,6 @@ class FewSparseDataset(BaseDataset, ABC):
 
             new_msk += msk_bound
 
-        np.random.seed(None)
-
         return new_msk - 1
 
     @staticmethod
@@ -264,13 +254,11 @@ class FewSparseDataset(BaseDataset, ABC):
         radius_thick: int | None = None,
         seed=0,
     ) -> NDArray:
-        blob_seed = None
-        if sparsity != "random":
-            np.random.seed(seed)
-            prime_num = 13
-            blob_seed = seed * prime_num
+        np_rng = np.random.default_rng(seed)
+        prime_num = 13
+        blob_seed = seed * prime_num
 
-        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
+        sparsity_num = np_rng.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
@@ -298,8 +286,6 @@ class FewSparseDataset(BaseDataset, ABC):
         final_msk[:] = -1
         final_msk[blobs] = new_msk[blobs]
 
-        np.random.seed(None)
-
         return final_msk
 
     @staticmethod
@@ -311,10 +297,9 @@ class FewSparseDataset(BaseDataset, ABC):
         sparsity: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
-        if sparsity != "random":
-            np.random.seed(seed)
+        np_rng = np.random.default_rng(seed)
 
-        sparsity_num = np.random.uniform() if sparsity == "random" else float(sparsity)
+        sparsity_num = np_rng.uniform() if sparsity == "random" else float(sparsity)
 
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
@@ -337,13 +322,11 @@ class FewSparseDataset(BaseDataset, ABC):
                     pure_regions[c].append(label)
 
         for c, pure_region in enumerate(pure_regions):
-            perm = np.random.permutation(len(pure_region))
+            perm = np_rng.permutation(len(pure_region))
 
             perm_last_idx = max(1, round(sparsity_num * len(perm)))
             for sp in np.array(pure_region)[perm[:perm_last_idx]]:
                 new_msk[slic == sp] = c
-
-        np.random.seed(None)
 
         return new_msk
 
@@ -385,13 +368,11 @@ class FewSparseDataset(BaseDataset, ABC):
         batch_list = []
         for i in range(self.num_iterations):
             if self.shot_options == "random":
-                shot = np.random.randint(1, support_size_init)
+                shot = self.np_rng.integers(1, support_size_init)
             elif isinstance(self.shot_options, list):
                 shot = self.shot_options[i % len(self.shot_options)]
             elif isinstance(self.shot_options, tuple):
-                np.random.seed(i)
-                shot = np.random.randint(self.shot_options[0], self.shot_options[1])
-                np.random.seed(None)
+                shot = self.np_rng.integers(self.shot_options[0], self.shot_options[1])
             else:
                 shot = self.shot_options
             batch_list.append(shot)
@@ -410,7 +391,7 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init, self.num_iterations * self.query_batch_size, self.seed
+            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
         )
         support_indices = []
         support_indices_pool = indices_init.copy()
@@ -428,7 +409,7 @@ class FewSparseDataset(BaseDataset, ABC):
                     remainder -= len(filtered_pool)
                     support_indices_pool.extend(indices_init)
                 else:
-                    new_indices = random.sample(filtered_pool, remainder)
+                    new_indices = self.rng.sample(filtered_pool, remainder)
                     remainder = 0
                 for x in new_indices:
                     support_indices_pool.remove(x)
@@ -438,20 +419,18 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_replaced_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init, self.num_iterations * self.query_batch_size
+            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
         )
         indices_init_set = set(indices_init)
         support_indices = []
-        random.seed(self.seed)
         for i, support_batch in enumerate(self.support_batches):
             query_indices_batch = query_indices[
                 i * self.query_batch_size : (i + 1) * self.query_batch_size
             ]
-            support_indices_batch = random.sample(
+            support_indices_batch = self.rng.sample(
                 indices_init_set - set(query_indices_batch), support_batch
             )
             support_indices.extend(support_indices_batch)
-        random.seed(None)
         return support_indices, query_indices
 
     def make_split_support_query_indices(self) -> tuple[list[int], list[int]]:
@@ -459,37 +438,38 @@ class FewSparseDataset(BaseDataset, ABC):
         query_size = floor(self.split_query_size * len(self.items))
         support_indices_init, query_indices_init = self.split_train_test(
             indices_init,
-            test_size=query_size,
-            random_state=self.seed,
+            query_size,
             shuffle=False,
+            random_state=self.seed,
             fold=self.split_query_fold,
         )
         support_indices = self.extend_data(
-            support_indices_init, sum(self.support_batches)
+            support_indices_init, sum(self.support_batches), seed=self.seed
         )
         query_indices = self.extend_data(
-            query_indices_init, self.num_iterations * self.query_batch_size
+            query_indices_init,
+            self.num_iterations * self.query_batch_size,
+            seed=self.seed,
         )
         return support_indices, query_indices
 
     def select_sparsity(self, index: int) -> tuple[SparsityMode, SparsityValue]:
-        random.seed(index)
+        rng = random.Random(index)
         sparsity = self.sparsity_options[index % len(self.sparsity_options)]
         sparsity_mode = sparsity[0]
         sparsity_value_options = sparsity[1]
         if isinstance(sparsity_value_options, list):
-            sparsity_value = random.choice(sparsity_value_options)
+            sparsity_value = rng.choice(sparsity_value_options)
         elif isinstance(sparsity_value_options, tuple):
             low, high = sparsity_value_options
             if isinstance(low, float) or isinstance(high, float):
-                sparsity_value = random.uniform(low, high)
+                sparsity_value = rng.uniform(low, high)
             else:
-                sparsity_value = random.randint(low, high)
+                sparsity_value = rng.randint(low, high)
         elif sparsity_value_options == "random":
             sparsity_value = "random"
         else:
             sparsity_value = sparsity_value_options
-        random.seed(None)
         return sparsity_mode, sparsity_value
 
     def get_sparse_mask(
@@ -503,7 +483,7 @@ class FewSparseDataset(BaseDataset, ABC):
         sparse_msk = np.copy(msk)
 
         if sparsity_mode == "random":
-            selected_sparsity_mode = random.choice(
+            selected_sparsity_mode = self.rng.choice(
                 self.sparsity_mode_default + self.sparsity_mode_additional
             )
             selected_sparsity_value = "random"
