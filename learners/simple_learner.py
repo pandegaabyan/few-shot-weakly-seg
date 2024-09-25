@@ -46,6 +46,7 @@ class SimpleLearner(
             sum(len(ds) for ds in datasets),
             sample_size,
             self.config["data"]["batch_size"],
+            seed=self.config["learn"].get("seed"),
         )
 
     def make_input_example(self) -> tuple[Any, ...]:

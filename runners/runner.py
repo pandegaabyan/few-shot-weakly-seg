@@ -10,7 +10,7 @@ import wandb
 import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
-from config.config_type import ConfigUnion
+from config.config_type import ConfigUnion, LearnerType, RunMode
 from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
     OptunaConfig,
@@ -49,21 +49,24 @@ class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
-        mode: str,
+        mode: RunMode,
+        learner_type: LearnerType,
         dummy: bool,
         resume: bool = False,
     ):
+        self.config = config
         self.mode = mode
+        self.learner_type = learner_type
         self.dummy = dummy
         self.resume = resume
 
-        self.config = config
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
 
         self.use_wandb = self.config.get("wandb") is not None
         self.exp_name = self.config["learn"]["exp_name"]
         self.run_name = self.config["learn"]["run_name"]
+        self.seed = self.config["learn"].get("seed", 0)
 
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
@@ -81,6 +84,14 @@ class Runner(ABC):
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         return {}
+
+    def update_attr(self, exp_name: str | None = None, run_name: str | None = None):
+        if exp_name is not None:
+            self.config["learn"]["exp_name"] = exp_name
+            self.exp_name = exp_name
+        if run_name is not None:
+            self.config["learn"]["run_name"] = run_name
+            self.run_name = run_name
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
@@ -111,7 +122,7 @@ class Runner(ABC):
         fit_only: bool = False,
         test_only: bool = False,
     ):
-        seed_everything(workers=True)
+        seed_everything(self.seed, workers=True)
 
         important_config = self.update_config()
 
@@ -167,8 +178,7 @@ class Runner(ABC):
 
     def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
-            self.run_name = make_run_name()
-            self.config["learn"]["run_name"] = self.run_name
+            self.update_attr(run_name=make_run_name())
             self.run_fit_test(fit_only, test_only)
             self.number_of_multi += 1
 
@@ -176,8 +186,7 @@ class Runner(ABC):
         def objective(trial: optuna.Trial) -> float:
             scores = []
             base_run_name = make_run_name()
-            self.run_name = base_run_name
-            self.config["learn"]["run_name"] = base_run_name
+            self.update_attr(run_name=base_run_name)
             study_id = self.optuna_config["study_name"].split(" ")[-1]
             self.config["learn"]["optuna_study"] = study_id
 
@@ -196,8 +205,7 @@ class Runner(ABC):
             for fold in range(1, self.optuna_config.get("num_folds", 1)):
                 self.curr_dataset_fold = fold
                 new_run_name = base_run_name + f" F{fold}"
-                self.run_name = new_run_name
-                self.config["learn"]["run_name"] = new_run_name
+                self.update_attr(run_name=new_run_name)
                 score, _ = self.fit_study(None)
                 if score is not None:
                     scores.append(score)
@@ -249,7 +257,7 @@ class Runner(ABC):
         self,
         trial: optuna.Trial | None,
     ) -> tuple[float, bool]:
-        seed_everything(workers=True)
+        seed_everything(self.seed, workers=True)
 
         important_config = self.update_config(trial)
 

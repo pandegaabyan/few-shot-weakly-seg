@@ -60,6 +60,7 @@ class MetaLearner(
             sum(ds.num_iterations for ds in datasets) * batch_size,
             sample_size,
             batch_size,
+            seed=self.config["learn"].get("seed"),
         )
 
     def make_input_example(self) -> tuple[Any, ...]:
