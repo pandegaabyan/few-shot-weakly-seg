@@ -59,6 +59,7 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
+
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
@@ -73,6 +74,12 @@ def main(
 
     runner = runner_class(config, mode, learner, dummy, resume)
 
+    for key, value in optuna_configs:
+        if key == "hyperparams":
+            runner.optuna_config[key] = parse_hyperparams(value)
+            continue
+        runner.optuna_config[key] = parse_string(value)
+
     if mode in ["fit-test", "fit", "test"]:
         runner.run_fit_test(mode == "fit", mode == "test")
         return
@@ -83,12 +90,6 @@ def main(
     if mode == "profile-test":
         runner.run_multi_fit_test(False, True)
         return
-
-    for key, value in optuna_configs:
-        if key == "hyperparams":
-            runner.optuna_config[key] = parse_hyperparams(value)
-            continue
-        runner.optuna_config[key] = parse_string(value)
 
     if mode == "study":
         runner.run_study()
