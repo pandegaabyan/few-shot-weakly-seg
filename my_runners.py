@@ -28,11 +28,15 @@ from learners.weasel_learner import WeaselLearner
 from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
+    DrishtiTestFSDataset,
+    DrishtiTrainFSDataset,
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
+    RimOne3TestFSDataset,
+    RimOne3TrainFSDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -322,6 +326,8 @@ class MetaRunner(Runner):
             query_batch = 5
         elif self.mode == "profile-test":
             query_batch = self.config["data"]["batch_size"]
+        elif "ori" in self.learner_type.split("-"):
+            query_batch = self.config["data"]["batch_size"]
         else:
             query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
@@ -346,18 +352,26 @@ class MetaRunner(Runner):
         else:
             dummy_kwargs = {}
 
-        train_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": (1, 20),
-            "sparsity_options": [
-                ("point", (5, 50)),
-                ("grid", (0.1, 1.0)),
-                ("contour", (0.1, 1.0)),
-                ("skeleton", (0.1, 1.0)),
-                ("region", (0.1, 1.0)),
-            ],
-            "support_batch_mode": "mixed",
-            "num_iterations": 5.0,
-        }
+        if "ori" in self.learner_type.split("-"):
+            train_kwargs: FewSparseDatasetKwargs = {
+                "shot_options": self.config["data"]["batch_size"],
+                "sparsity_options": [("random", "random")],
+                "support_batch_mode": "mixed",
+                "num_iterations": 5,
+            }
+        else:
+            train_kwargs: FewSparseDatasetKwargs = {
+                "shot_options": (1, 20),
+                "sparsity_options": [
+                    ("point", (5, 50)),
+                    ("grid", (0.1, 1.0)),
+                    ("contour", (0.1, 1.0)),
+                    ("skeleton", (0.1, 1.0)),
+                    ("region", (0.1, 1.0)),
+                ],
+                "support_batch_mode": "mixed",
+                "num_iterations": 5.0,
+            }
 
         val_kwargs: FewSparseDatasetKwargs = {
             "shot_options": [5, 10, 15],
@@ -455,9 +469,13 @@ class MetaRunner(Runner):
             ],
             "val_dataset_list": [
                 (RefugeValFSDataset, refuge_val_kwargs),
+                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
+                (DrishtiTrainFSDataset, drishti_train_kwargs),
             ],
             "test_dataset_list": [
                 (RefugeTestFSDataset, refuge_test_kwargs),
+                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
+                (DrishtiTestFSDataset, drishti_test_kwargs),
             ],
         }
 
@@ -535,7 +553,10 @@ class ProtosegRunner(MetaRunner):
         config: ConfigProtoSeg = self.config  # type: ignore
 
         if optuna_trial is not None:
-            ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
+            if self.learner_type == "PS-ori":
+                ps_embedding = config["protoseg"]["embedding_size"]
+            else:
+                ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
             config["protoseg"]["embedding_size"] = ps_embedding
             important_config["ps_embedding"] = ps_embedding
         else:

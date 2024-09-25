@@ -138,7 +138,7 @@ def make_run_name() -> str:
 
 
 def make_config(
-    learner: LearnerType = None,
+    learner: LearnerType = "SL",
     mode: RunMode = "fit-test",
     name_suffix: str = "",
     use_wandb: bool = True,
@@ -263,25 +263,24 @@ def make_config(
                 config_ref["wandb"][key] //= 5
 
     config: ConfigUnion = deepcopy(config_ref)
-    if learner == "simple":
+    if learner.startswith("SL-"):
         config_simple: ConfigSimpleLearner = {
             **config_ref,
             "simple_learner": simple_learner_config,
         }
-        config_simple["learn"]["exp_name"] = "SL"
         if not dummy:
             config_simple["data"]["batch_size"] = 16
             config_simple["learn"]["num_epochs"] = 200
             config_simple["learn"]["val_freq"] = 1
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
-    elif learner == "weasel":
+    elif learner.startswith("WS-"):
         config_weasel: ConfigWeasel = {
             **config_ref,
             "meta_learner": meta_learner_config,
             "weasel": weasel_config,
         }
-        config_weasel["learn"].update({"exp_name": "WS", "manual_optim": True})
+        config_weasel["learn"].update({"manual_optim": True})
         if not dummy:
             config_weasel["data"]["batch_size"] = 8
             config_weasel["learn"]["num_epochs"] = 100
@@ -291,14 +290,23 @@ def make_config(
         else:
             config_weasel["data"]["batch_size"] = 1
             config_weasel["learn"]["num_epochs"] = 2
+        if "fo" in learner.split("-"):
+            config_weasel["weasel"]["first_order"] = True
+        if "ms" in learner.split("-"):
+            config_weasel["weasel"]["tune_multi_step"] = True
+        if "ori" in learner.split("-"):
+            config_weasel["weasel"]["tune_multi_step"] = True
+            config_weasel["learn"]["num_epochs"] = 200
+            config_weasel["learn"]["val_freq"] = 20
+            config_weasel["scheduler"]["step_size"] = 40
+            config_weasel["callbacks"]["stop_patience"] = 2
         config = config_weasel
-    elif learner == "protoseg":
+    elif learner.startswith("PS-"):
         config_protoseg: ConfigProtoSeg = {
             **config_ref,
             "meta_learner": meta_learner_config,
             "protoseg": protoseg_config,
         }
-        config_protoseg["learn"]["exp_name"] = "PS"
         if not dummy:
             config_protoseg["data"]["batch_size"] = 12
             config_protoseg["learn"]["num_epochs"] = 100
@@ -307,9 +315,18 @@ def make_config(
         else:
             config_protoseg["data"]["batch_size"] = 1
             config_protoseg["learn"]["num_epochs"] = 2
+        if "mp" in learner.split("-"):
+            config_protoseg["protoseg"]["multi_pred"] = True
+        if "ori" in learner.split("-"):
+            config_protoseg["protoseg"]["multi_pred"] = True
+            config_protoseg["protoseg"]["embedding_size"] = 3
+            config_protoseg["learn"]["num_epochs"] = 200
+            config_protoseg["learn"]["val_freq"] = 4
+            config_protoseg["scheduler"]["step_size"] = 40
+            config_protoseg["callbacks"]["stop_patience"] = 10
         config = config_protoseg
 
-    exp_name = config["learn"]["exp_name"]
+    exp_name = learner
     exp_name += " " + name_suffix
     exp_name = exp_name.strip()
     config["learn"]["exp_name"] = exp_name

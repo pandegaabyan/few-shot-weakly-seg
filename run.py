@@ -1,11 +1,8 @@
-from typing import Type
-
 import click
 
 from config.config_maker import make_config
-from config.config_type import LearnerType, RunMode
+from config.config_type import LearnerType, RunMode, learner_types, run_modes
 from my_runners import ProtosegRunner, SimpleRunner, WeaselRunner
-from runners.runner import Runner
 from utils.logging import (
     check_git_clean,
 )
@@ -20,15 +17,13 @@ from utils.utils import parse_string
 @click.option(
     "--learner",
     "-l",
-    type=click.Choice(["simple", "weasel", "protoseg", "guidednets"]),
+    type=click.Choice(learner_types),
     default="simple",
 )
 @click.option(
     "--mode",
     "-m",
-    type=click.Choice(
-        ["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
-    ),
+    type=click.Choice(run_modes),
     default="fit-test",
 )
 @click.option(
@@ -68,12 +63,14 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    runner_classes: dict[LearnerType, Type[Runner]] = {
-        "simple": SimpleRunner,
-        "weasel": WeaselRunner,
-        "protoseg": ProtosegRunner,
-    }
-    runner = runner_classes[learner](config, mode, dummy, resume)
+    if learner.startswith("SL-"):
+        runner_class = SimpleRunner
+    elif learner.startswith("WS-"):
+        runner_class = WeaselRunner
+    elif learner.startswith("PS-"):
+        runner_class = ProtosegRunner
+
+    runner = runner_class(config, mode, learner, dummy, resume)
 
     if mode in ["fit-test", "fit", "test"]:
         runner.run_fit_test(mode == "fit", mode == "test")

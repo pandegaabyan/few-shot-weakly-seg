@@ -1,12 +1,27 @@
-from typing import Literal, Union
+from typing import Literal, Union, get_args
 
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
-LearnerType = Literal["simple", "weasel", "protoseg", "guidednets", None]
+LearnerType = Literal[
+    "SL",
+    "WS",
+    "WS-ms",
+    "WS-ori",
+    "WS-fo",
+    "WS-ms-fo",
+    "WS-ori-fo",
+    "PS",
+    "PS-mp",
+    "PS-ori",
+]
 ProfilerType = Literal[
     "simple", "advanced", "pytorch", "custom", "custom-1", "custom-10", None
 ]
+
+run_modes: list[RunMode] = list(get_args(RunMode))
+learner_types: list[LearnerType] = list(get_args(LearnerType))
+profiler_types: list[ProfilerType] = list(get_args(ProfilerType))
 
 
 class DataConfig(TypedDict):

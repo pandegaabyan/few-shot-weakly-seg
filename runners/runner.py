@@ -10,7 +10,7 @@ import wandb
 import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
-from config.config_type import ConfigUnion
+from config.config_type import ConfigUnion, LearnerType, RunMode
 from config.constants import FILENAMES, WANDB_SETTINGS
 from config.optuna import (
     OptunaConfig,
@@ -49,15 +49,17 @@ class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
-        mode: str,
+        mode: RunMode,
+        learner_type: LearnerType,
         dummy: bool,
         resume: bool = False,
     ):
+        self.config = config
         self.mode = mode
+        self.learner_type = learner_type
         self.dummy = dummy
         self.resume = resume
 
-        self.config = config
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
 
