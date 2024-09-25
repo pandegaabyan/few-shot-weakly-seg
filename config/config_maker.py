@@ -263,7 +263,8 @@ def make_config(
                 config_ref["wandb"][key] //= 5
 
     config: ConfigUnion = deepcopy(config_ref)
-    if learner.startswith("SL-"):
+    runner_name = learner.split("-")[0]
+    if runner_name == "SL":
         config_simple: ConfigSimpleLearner = {
             **config_ref,
             "simple_learner": simple_learner_config,
@@ -274,7 +275,7 @@ def make_config(
             config_simple["learn"]["val_freq"] = 1
             config_simple["callbacks"]["stop_patience"] = 30
         config = config_simple
-    elif learner.startswith("WS-"):
+    elif runner_name == "WS":
         config_weasel: ConfigWeasel = {
             **config_ref,
             "meta_learner": meta_learner_config,
@@ -301,7 +302,7 @@ def make_config(
             config_weasel["scheduler"]["step_size"] = 40
             config_weasel["callbacks"]["stop_patience"] = 2
         config = config_weasel
-    elif learner.startswith("PS-"):
+    elif runner_name == "PS":
         config_protoseg: ConfigProtoSeg = {
             **config_ref,
             "meta_learner": meta_learner_config,
