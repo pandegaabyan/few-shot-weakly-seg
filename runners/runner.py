@@ -66,6 +66,7 @@ class Runner(ABC):
         self.use_wandb = self.config.get("wandb") is not None
         self.exp_name = self.config["learn"]["exp_name"]
         self.run_name = self.config["learn"]["run_name"]
+        self.seed = self.config["learn"].get("seed", 0)
 
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
@@ -121,7 +122,7 @@ class Runner(ABC):
         fit_only: bool = False,
         test_only: bool = False,
     ):
-        seed_everything(self.config["learn"].get("seed"), workers=True)
+        seed_everything(self.seed, workers=True)
 
         important_config = self.update_config()
 
@@ -256,7 +257,7 @@ class Runner(ABC):
         self,
         trial: optuna.Trial | None,
     ) -> tuple[float, bool]:
-        seed_everything(self.config["learn"].get("seed"), workers=True)
+        seed_everything(self.seed, workers=True)
 
         important_config = self.update_config(trial)
 

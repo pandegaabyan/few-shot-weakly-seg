@@ -174,7 +174,7 @@ class SimpleRunner(Runner):
             "multivariate": True,
             "group": True,
             "constant_liar": True,
-            "seed": 0,
+            "seed": self.seed,
         }
         config["pruner_params"] = {
             "min_resource": 10,
@@ -192,7 +192,7 @@ class SimpleRunner(Runner):
         self, val_fold: int, dummy: bool
     ) -> DatasetLists[SimpleDataset, SimpleDatasetKwargs]:
         base_kwargs: SimpleDatasetKwargs = {
-            "seed": 0,
+            "seed": self.seed,
             "split_val_fold": val_fold,
             "split_test_fold": 0,
             "cache_data": True,
@@ -306,7 +306,7 @@ class MetaRunner(Runner):
             "multivariate": True,
             "group": True,
             "constant_liar": True,
-            "seed": 0,
+            "seed": self.seed,
         }
         config["pruner_params"] = {
             "min_resource": 5,
@@ -331,7 +331,7 @@ class MetaRunner(Runner):
         else:
             query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
-            "seed": 0,
+            "seed": self.seed,
             "split_val_fold": 0,
             "split_test_fold": 0,
             "cache_data": True,
