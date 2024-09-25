@@ -63,11 +63,12 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    if learner.startswith("SL-"):
+    runner_name = learner.split("-")[0]
+    if runner_name == "SL":
         runner_class = SimpleRunner
-    elif learner.startswith("WS-"):
+    elif runner_name == "WS":
         runner_class = WeaselRunner
-    elif learner.startswith("PS-"):
+    elif runner_name == "PS":
         runner_class = ProtosegRunner
 
     runner = runner_class(config, mode, learner, dummy, resume)
