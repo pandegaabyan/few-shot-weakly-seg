@@ -60,13 +60,13 @@ class Runner(ABC):
         self.dummy = dummy
         self.resume = resume
 
-        self.optuna_config = self.make_optuna_config()
-        self.git_hash = get_short_git_hash()
-
         self.use_wandb = self.config.get("wandb") is not None
         self.exp_name = self.config["learn"]["exp_name"]
         self.run_name = self.config["learn"]["run_name"]
         self.seed = self.config["learn"].get("seed", 0)
+
+        self.optuna_config = self.make_optuna_config()
+        self.git_hash = get_short_git_hash()
 
         self.curr_trial_number = -1
         self.curr_dataset_fold = -1
