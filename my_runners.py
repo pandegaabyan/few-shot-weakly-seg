@@ -167,7 +167,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "S REF" + " " + gen_id(5)
+        config["study_name"] = self.learner_type + " " + "REF" + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -300,6 +300,7 @@ class MetaRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
+        config["study_name"] = self.learner_type + " " + "REF|RO3-DGS" + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -525,7 +526,6 @@ class WeaselRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "WS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 1
         return config
 
@@ -571,6 +571,5 @@ class ProtosegRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = "PS REF|RO3-DGS" + " " + gen_id(5)
         config["pruner_patience"] = 3
         return config
