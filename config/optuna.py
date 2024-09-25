@@ -18,6 +18,7 @@ class OptunaConfig(TypedDict):
     sampler_params: NotRequired[dict[str, Any]]
     pruner_params: NotRequired[dict[str, Any]]
     pruner_patience: NotRequired[int]
+    hyperparams: NotRequired[dict[str, bool | int | float | str]]
 
 
 sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {
@@ -46,4 +47,5 @@ default_optuna_config: OptunaConfig = {
     "num_folds": 1,
     "sampler_params": {},
     "pruner_params": {},
+    "hyperparams": {},
 }

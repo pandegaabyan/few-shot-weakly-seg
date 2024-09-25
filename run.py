@@ -9,6 +9,7 @@ from runners.runner import Runner
 from utils.logging import (
     check_git_clean,
 )
+from utils.optuna import parse_hyperparams
 from utils.utils import parse_string
 
 
@@ -86,6 +87,9 @@ def main(
         return
 
     for key, value in optuna_configs:
+        if key == "hyperparams":
+            runner.optuna_config[key] = parse_hyperparams(value)
+            continue
         runner.optuna_config[key] = parse_string(value)
 
     if mode == "study":

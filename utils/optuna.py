@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 from config.constants import FILENAMES
 from utils.logging import check_mkdir
+from utils.utils import parse_string
 
 
 def get_optuna_storage(
@@ -40,3 +41,11 @@ def get_study_best_name(
 ) -> tuple[str | None, str | None]:
     study = load_study(study_id, dummy)
     return study.best_trial.user_attrs.get("run_name"), study.user_attrs.get("exp_name")
+
+
+def parse_hyperparams(hparams: str) -> dict[str, bool | int | float | str]:
+    return {
+        key.strip(): parse_string(value.strip())
+        for hp in hparams.strip("[]").split(",")
+        for key, value in [hp.split(":")]
+    }

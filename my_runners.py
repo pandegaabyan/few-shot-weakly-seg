@@ -47,6 +47,7 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     weight_decay = trial.suggest_float("weight_decay", 1e-10, 1e-3, log=True)
     beta1_comp = trial.suggest_float("beta1_comp", 1e-2, 1, log=True)
     beta2_comp = trial.suggest_float("beta2_comp", 1e-4, 1e-2, log=True)
+    betas = (1 - beta1_comp, 1 - beta2_comp)
     lowest_gamma = (1e-10 / lr) ** (
         config["scheduler"].get("step_size", 1) / config["learn"]["num_epochs"]
     )
@@ -54,16 +55,44 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
 
     config["optimizer"]["lr"] = lr
     config["optimizer"]["weight_decay"] = weight_decay
-    config["optimizer"]["betas"] = (1 - beta1_comp, 1 - beta2_comp)
+    config["optimizer"]["betas"] = betas
     config["scheduler"]["gamma"] = gamma
 
     return {
-        "lr": config["optimizer"].get("lr"),
-        "weight_decay": config["optimizer"].get("weight_decay"),
-        "beta1": config["optimizer"].get("betas", (None, None))[0],
-        "beta2": config["optimizer"].get("betas", (None, None))[1],
-        "gamma": config["scheduler"].get("gamma"),
+        "lr": lr,
+        "weight_decay": weight_decay,
+        "beta1": betas[0],
+        "beta2": betas[1],
+        "gamma": gamma,
     }
+
+
+def parse_basic(
+    config: ConfigUnion, hyperparams: dict[str, bool | int | float | str]
+) -> dict:
+    lr = hyperparams.get("lr")
+    weight_decay = hyperparams.get("weight_decay")
+    beta1_comp = hyperparams.get("beta1_comp")
+    beta2_comp = hyperparams.get("beta2_comp")
+    gamma = hyperparams.get("gamma")
+
+    important_config = {}
+    if isinstance(lr, float):
+        config["optimizer"]["lr"] = lr
+        important_config["lr"] = lr
+    if isinstance(weight_decay, float):
+        config["optimizer"]["weight_decay"] = weight_decay
+        important_config["weight_decay"] = weight_decay
+    if isinstance(beta1_comp, float) and isinstance(beta2_comp, float):
+        betas = (1 - beta1_comp, 1 - beta2_comp)
+        config["optimizer"]["betas"] = betas
+        important_config["beta1"] = betas[0]
+        important_config["beta2"] = betas[1]
+    if isinstance(gamma, float):
+        config["scheduler"]["gamma"] = gamma
+        important_config["gamma"] = gamma
+
+    return important_config
 
 
 class SimpleRunner(Runner):
@@ -90,7 +119,9 @@ class SimpleRunner(Runner):
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = {}
+            important_config = parse_basic(
+                config, self.optuna_config.get("hyperparams", {})
+            )
 
         variable_max_batch = 32
         variable_epochs = 50
@@ -218,7 +249,9 @@ class MetaRunner(Runner):
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = {}
+            important_config = parse_basic(
+                config, self.optuna_config.get("hyperparams", {})
+            )
 
         variable_max_batch = 16
         variable_epochs = 25
@@ -449,18 +482,25 @@ class WeaselRunner(MetaRunner):
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
-
         config: ConfigWeasel = self.config  # type: ignore
-        config["learn"]["exp_name"] = "WS"
-        self.exp_name = "WS"
 
         if optuna_trial is not None:
             ws_update_rate = optuna_trial.suggest_float("ws_update_rate", 0.1, 1.0)
             ws_tune_epochs = optuna_trial.suggest_int("ws_tune_epochs", 1, 40)
             config["weasel"]["update_param_rate"] = ws_update_rate
-            config["weasel"]["tune_epochs"] = ws_tune_epochs
             important_config["ws_update_rate"] = ws_update_rate
+            config["weasel"]["tune_epochs"] = ws_tune_epochs
             important_config["ws_tune_epochs"] = ws_tune_epochs
+        else:
+            hyperparams = self.optuna_config.get("hyperparams", {})
+            ws_update_rate = hyperparams.get("ws_update_rate")
+            ws_tune_epochs = hyperparams.get("ws_tune_epochs")
+            if isinstance(ws_update_rate, float):
+                config["weasel"]["update_param_rate"] = ws_update_rate
+                important_config["ws_update_rate"] = ws_update_rate
+            if isinstance(ws_tune_epochs, int):
+                config["weasel"]["tune_epochs"] = ws_tune_epochs
+                important_config["ws_tune_epochs"] = ws_tune_epochs
 
         self.config = config
         return important_config
@@ -492,15 +532,18 @@ class ProtosegRunner(MetaRunner):
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
-
         config: ConfigProtoSeg = self.config  # type: ignore
-        config["learn"]["exp_name"] = "PS"
-        self.exp_name = "PS"
 
         if optuna_trial is not None:
             ps_embedding = optuna_trial.suggest_int("ps_embedding", 2, 16)
             config["protoseg"]["embedding_size"] = ps_embedding
             important_config["ps_embedding"] = ps_embedding
+        else:
+            hyperparams = self.optuna_config.get("hyperparams", {})
+            ps_embedding = hyperparams.get("ps_embedding")
+            if isinstance(ps_embedding, int):
+                config["protoseg"]["embedding_size"] = ps_embedding
+                important_config["ps_embedding"] = ps_embedding
 
         self.config = config
         return important_config
