@@ -3,7 +3,7 @@ from torch import nn
 
 from learners.optimizers import make_optimizer_adam, make_scheduler_step
 from learners.simple_learner import SimpleLearner
-from models.u_net import UNet
+from models.unet import UNet
 
 
 class SimpleUnet(SimpleLearner):
