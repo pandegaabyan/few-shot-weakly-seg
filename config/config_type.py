@@ -18,10 +18,11 @@ class DataConfig(TypedDict):
 
 
 class LearnConfig(TypedDict):
-    num_epochs: int
     exp_name: str
     run_name: str
+    num_epochs: int
     dummy: NotRequired[bool]
+    seed: NotRequired[int]
     val_freq: NotRequired[int]
     cudnn_deterministic: NotRequired[bool | Literal["warn"]]
     cudnn_benchmark: NotRequired[bool]

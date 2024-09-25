@@ -119,7 +119,7 @@ class Runner(ABC):
         fit_only: bool = False,
         test_only: bool = False,
     ):
-        seed_everything(workers=True)
+        seed_everything(self.config["learn"].get("seed"), workers=True)
 
         important_config = self.update_config()
 
@@ -254,7 +254,7 @@ class Runner(ABC):
         self,
         trial: optuna.Trial | None,
     ) -> tuple[float, bool]:
-        seed_everything(workers=True)
+        seed_everything(self.config["learn"].get("seed"), workers=True)
 
         important_config = self.update_config(trial)
 

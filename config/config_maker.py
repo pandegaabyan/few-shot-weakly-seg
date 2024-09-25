@@ -35,10 +35,11 @@ data_config: DataConfig = {
 }
 
 learn_config: LearnConfig = {
-    "num_epochs": 4,
     "exp_name": "dummy",
     "run_name": "",
+    "num_epochs": 4,
     "dummy": True,
+    "seed": 0,
     "val_freq": 1,
     "cudnn_deterministic": "warn",
     "cudnn_benchmark": False,
