@@ -6,7 +6,6 @@ import nanoid
 from config.config_type import (
     CallbacksConfig,
     ConfigBase,
-    ConfigGuidedNets,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -309,23 +308,6 @@ def make_config(
             config_protoseg["data"]["batch_size"] = 1
             config_protoseg["learn"]["num_epochs"] = 2
         config = config_protoseg
-    elif learner == "guidednets":
-        config_guidednets: ConfigGuidedNets = {
-            **config_ref,
-            "meta_learner": meta_learner_config,
-            "guidednets": guidednets_config,
-        }
-        config_guidednets["learn"]["exp_name"] = "GN"
-        if not dummy:
-            config_guidednets["data"]["batch_size"] = 8
-            config_guidednets["learn"]["num_epochs"] = 100
-            config_guidednets["learn"]["val_freq"] = 2
-            config_guidednets["callbacks"]["stop_patience"] = 10
-        else:
-            config_guidednets["data"]["batch_size"] = 1
-            config_guidednets["learn"]["num_epochs"] = 2
-
-        config = config_guidednets
 
     exp_name = config["learn"]["exp_name"]
     exp_name += " " + name_suffix
