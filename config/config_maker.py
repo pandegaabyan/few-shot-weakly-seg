@@ -147,7 +147,7 @@ def make_config(
     config_ref = deepcopy(config_base)
 
     if mode in ["profile-fit", "profile-test"]:
-        config_ref["learn"]["cudnn_deterministic"] = False
+        config_ref["learn"]["cudnn_deterministic"] = "warn"
         config_ref["learn"]["cudnn_benchmark"] = False
         config_ref["learn"]["profiler"] = "custom-1"
         config_ref["learn"]["profile_id"] = gen_id(5)
@@ -175,8 +175,8 @@ def make_config(
                 "save_test_preds": 0,
             }
     elif mode == "study":
-        config_ref["learn"]["cudnn_deterministic"] = False
-        config_ref["learn"]["cudnn_benchmark"] = True
+        config_ref["learn"]["cudnn_deterministic"] = "warn"
+        config_ref["learn"]["cudnn_benchmark"] = False
         config_ref["log"]["configuration"] = False
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False

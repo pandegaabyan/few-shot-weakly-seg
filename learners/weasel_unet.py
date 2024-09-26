@@ -2,7 +2,7 @@ from pytorch_lightning.utilities.types import OptimizerLRScheduler
 
 from learners.optimizers import make_optimizer_adam, make_scheduler_step
 from learners.weasel_learner import WeaselLearner
-from models.u_net import UNet
+from models.unet import UNet
 from torchmeta.modules.module import MetaModule
 
 
