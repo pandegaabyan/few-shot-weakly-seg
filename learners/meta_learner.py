@@ -90,10 +90,6 @@ class MetaLearner(
         return loss
 
     def validation_step(self, batch: FewSparseDataTuple, batch_idx: int):
-        filename = f"val {self.current_epoch}.txt"
-        with open(filename, "a") as f:
-            f.write(f"{batch.support.indices} {batch.query.indices}\n")
-
         with self.profile("evaluation_process"):
             pred, loss, score = self.evaluation_process("VL", batch, batch_idx)
         self.validation_step_losses.append(loss.item())
