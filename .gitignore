@@ -11,8 +11,6 @@
 run*.sh
 run.lock
 
-visualization.ipynb
-
 archive
 logs
 wandb
