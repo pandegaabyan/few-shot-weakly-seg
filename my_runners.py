@@ -14,6 +14,7 @@ from config.optuna import OptunaConfig
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
+from learners.protoseg_dummy import ProtosegDummy
 from learners.protoseg_learner import ProtosegLearner
 from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
@@ -546,7 +547,7 @@ class ProtosegRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return ProtosegUnet, kwargs
+        return ProtosegDummy, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
