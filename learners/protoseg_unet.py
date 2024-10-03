@@ -9,7 +9,8 @@ from torchmeta.modules.module import MetaModule
 class ProtosegUnet(ProtosegLearner):
     def make_net(self) -> MetaModule:
         return UNet(
-            self.config["data"]["num_channels"], self.config["data"]["num_classes"]
+            self.config["data"]["num_channels"],
+            self.config["protoseg"]["embedding_size"],
         )
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
