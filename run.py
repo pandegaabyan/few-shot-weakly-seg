@@ -18,7 +18,7 @@ from utils.utils import parse_string
     "--learner",
     "-l",
     type=click.Choice(learner_types),
-    default="simple",
+    default="SL",
 )
 @click.option(
     "--mode",
