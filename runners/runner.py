@@ -1,4 +1,5 @@
 import os
+import shutil
 from abc import ABC, abstractmethod
 from typing import Type
 
@@ -176,6 +177,8 @@ class Runner(ABC):
         if self.use_wandb:
             wandb.finish()
 
+        self.clean_log_on_end()
+
     def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
             self.update_attr(run_name=make_run_name())
@@ -326,6 +329,8 @@ class Runner(ABC):
             if self.config.get("wandb", {}).get("log_metrics"):
                 wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
+
+        self.clean_log_on_end()
 
         assert learner.best_monitor_value is not None
         return learner.best_monitor_value, learner.optuna_pruned
@@ -582,3 +587,9 @@ class Runner(ABC):
         else:
             ckpt = "last.ckpt"
         return os.path.join(log, exp_name, run_name, ckpt)
+
+    def clean_log_on_end(self):
+        if not self.config["log"].get("clean_on_end", False):
+            return
+        log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
+        shutil.rmtree(log_path, ignore_errors=True)
