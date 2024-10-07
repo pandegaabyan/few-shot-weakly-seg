@@ -29,14 +29,19 @@ from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
+    DrishtiTestSimpleDataset,
     DrishtiTrainFSDataset,
+    DrishtiTrainSimpleDataset,
     RefugeTestFSDataset,
     RefugeTestSimpleDataset,
     RefugeTrainFSDataset,
+    RefugeTrainSimpleDataset,
     RefugeValFSDataset,
     RefugeValSimpleDataset,
     RimOne3TestFSDataset,
+    RimOne3TestSimpleDataset,
     RimOne3TrainFSDataset,
+    RimOne3TrainSimpleDataset,
     drishti_sparsity_params,
     refuge_train_sparsity_params,
     refuge_val_test_sparsity_params,
@@ -235,14 +240,55 @@ class SimpleRunner(Runner):
             "split_test_size": 1,
         }
 
+        test_mult = 2 if self.mode == "profile-test" else 1
+        dataset_list = [
+            (RefugeValSimpleDataset, refuge_val_kwargs),
+            (RimOne3TrainSimpleDataset, rim_one_3_train_kwargs),
+            (DrishtiTrainSimpleDataset, drishti_train_kwargs),
+        ]
+        test_dataset_list = [
+            (RefugeTestSimpleDataset, refuge_test_kwargs),
+            (RimOne3TestSimpleDataset, rim_one_3_test_kwargs),
+            (DrishtiTestSimpleDataset, drishti_test_kwargs),
+        ]
+        if self.dataset.startswith("rt-"):
+            dataset_rt = [(RefugeTrainSimpleDataset, refuge_train_kwargs)]
+            if self.dataset == "rt-REF":
+                dataset_list = dataset_list[:1]
+                test_dataset_list = test_dataset_list[:1]
+            elif self.dataset == "rt-REF-test":
+                test_dataset_list = test_dataset_list[:1]
+            elif self.dataset == "rt-RO3-test":
+                test_dataset_list = test_dataset_list[:1]
+            elif self.dataset == "rt-DGS-test":
+                test_dataset_list = test_dataset_list[:1]
+            elif self.dataset != "rt-all":
+                raise ValueError(f"Invalid dataset: {self.dataset}")
+            return {
+                "dataset_list": dataset_rt,
+                "val_dataset_list": dataset_list,
+                "test_dataset_list": test_dataset_list * test_mult,
+            }
+        if self.dataset == "REF":
+            dataset_list = dataset_list[:1]
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "RO3":
+            dataset_list = dataset_list[1:2]
+            test_dataset_list = test_dataset_list[1:2]
+        elif self.dataset == "DGS":
+            dataset_list = dataset_list[2:]
+            test_dataset_list = test_dataset_list[2:]
+        elif self.dataset == "REF-test":
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "RO3-test":
+            test_dataset_list = test_dataset_list[1:2]
+        elif self.dataset == "DGS-test":
+            test_dataset_list = test_dataset_list[2:]
+        elif self.dataset != "all":
+            raise ValueError(f"Invalid dataset: {self.dataset}")
         return {
-            "dataset_list": [
-                (RefugeValSimpleDataset, refuge_val_kwargs),
-            ],
-            "test_dataset_list": [
-                (RefugeTestSimpleDataset, refuge_test_kwargs),
-            ]
-            * (2 if self.mode == "profile-test" else 1),
+            "dataset_list": dataset_list,
+            "test_dataset_list": test_dataset_list * test_mult,
         }
 
 
@@ -464,20 +510,34 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
 
+        dataset_list = [
+            (RefugeTrainFSDataset, refuge_train_kwargs),
+        ]
+        val_dataset_list = [
+            (RefugeValFSDataset, refuge_val_kwargs),
+            (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
+            (DrishtiTrainFSDataset, drishti_train_kwargs),
+        ]
+        test_dataset_list = [
+            (RefugeTestFSDataset, refuge_test_kwargs),
+            (RimOne3TestFSDataset, rim_one_3_test_kwargs),
+            (DrishtiTestFSDataset, drishti_test_kwargs),
+        ]
+        if self.dataset == "REF":
+            val_dataset_list = val_dataset_list[:1]
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "REF-test":
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "RO3-test":
+            test_dataset_list = test_dataset_list[1:2]
+        elif self.dataset == "DGS-test":
+            test_dataset_list = test_dataset_list[2:]
+        elif self.dataset != "all":
+            raise ValueError(f"Invalid dataset: {self.dataset}")
         return {
-            "dataset_list": [
-                (RefugeTrainFSDataset, refuge_train_kwargs),
-            ],
-            "val_dataset_list": [
-                (RefugeValFSDataset, refuge_val_kwargs),
-                (RimOne3TrainFSDataset, rim_one_3_train_kwargs),
-                (DrishtiTrainFSDataset, drishti_train_kwargs),
-            ],
-            "test_dataset_list": [
-                (RefugeTestFSDataset, refuge_test_kwargs),
-                (RimOne3TestFSDataset, rim_one_3_test_kwargs),
-                (DrishtiTestFSDataset, drishti_test_kwargs),
-            ],
+            "dataset_list": dataset_list,
+            "val_dataset_list": val_dataset_list,
+            "test_dataset_list": test_dataset_list,
         }
 
 
