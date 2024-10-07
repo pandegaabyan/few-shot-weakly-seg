@@ -65,6 +65,7 @@ log_config: LogConfig = {
     # "tensorboard_graph": True,
     "model_onnx": False,
     "tensorboard_graph": False,
+    "clean_on_end": False,
 }
 
 callbacks_config: CallbacksConfig = {

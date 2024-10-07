@@ -65,6 +65,7 @@ class LogConfig(TypedDict, total=False):
     table: bool
     model_onnx: bool
     tensorboard_graph: bool
+    clean_on_end: bool
 
 
 class CallbacksConfig(TypedDict, total=False):

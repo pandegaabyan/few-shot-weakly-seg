@@ -1,4 +1,6 @@
+import datetime
 import os
+import shutil
 from abc import ABC, abstractmethod
 from typing import Type
 
@@ -68,8 +70,11 @@ class Runner(ABC):
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
 
-        self.curr_trial_number = -1
         self.curr_dataset_fold = -1
+        self.curr_trial_number = -1
+        self.study_trials = -1
+        self.study_end_time = -1
+
         self.number_of_multi = 0
         self.last_of_multi = False
         self.limit_of_multi = 100
@@ -176,6 +181,8 @@ class Runner(ABC):
         if self.use_wandb:
             wandb.finish()
 
+        self.clean_log_on_end()
+
     def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
             self.update_attr(run_name=make_run_name())
@@ -184,6 +191,17 @@ class Runner(ABC):
 
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:
+            info_message = f"Trial {trial.number} started"
+            if self.study_trials != -1:
+                info_message += f" | {self.study_trials - trial.number } trials left"
+            if self.study_end_time != -1:
+                time_delta = datetime.timedelta(
+                    seconds=self.study_end_time
+                    - int(datetime.datetime.now().timestamp())
+                )
+                info_message += f" | {time_delta} left"
+            optuna.logging.get_logger("optuna").log(optuna.logging.INFO, info_message)
+
             scores = []
             base_run_name = make_run_name()
             self.update_attr(run_name=base_run_name)
@@ -246,6 +264,10 @@ class Runner(ABC):
         timeout = self.optuna_config.get("timeout_sec")
         if n_trials is None and timeout is None:
             timeout = 120
+        if n_trials is not None:
+            self.study_trials = n_trials
+        if timeout is not None:
+            self.study_end_time = int(datetime.datetime.now().timestamp()) + timeout
         study.optimize(
             objective,
             n_trials=n_trials,
@@ -326,6 +348,8 @@ class Runner(ABC):
             if self.config.get("wandb", {}).get("log_metrics"):
                 wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
+
+        self.clean_log_on_end()
 
         assert learner.best_monitor_value is not None
         return learner.best_monitor_value, learner.optuna_pruned
@@ -582,3 +606,9 @@ class Runner(ABC):
         else:
             ckpt = "last.ckpt"
         return os.path.join(log, exp_name, run_name, ckpt)
+
+    def clean_log_on_end(self):
+        if not self.config["log"].get("clean_on_end", False):
+            return
+        log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
+        shutil.rmtree(log_path, ignore_errors=True)

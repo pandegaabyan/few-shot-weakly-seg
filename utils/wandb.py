@@ -1,5 +1,7 @@
 import os
+from contextlib import contextmanager
 
+import optuna
 from dotenv import load_dotenv
 
 import wandb
@@ -191,3 +193,19 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
     dataset_artifact.add_reference(f"file://{dataset_path}")
     wandb.log_artifact(dataset_artifact)
     wandb.finish()
+
+
+@contextmanager
+def wandb_use_alert():
+    try:
+        yield
+    except optuna.exceptions.TrialPruned:
+        raise
+    except Exception as e:
+        if wandb.run is not None:
+            wandb.run.alert(
+                title=f"Error: {e}",
+                text=f"ID: {wandb.run.id} | Group: {wandb.run.group or '-'} | Job Type: {wandb.run.job_type or '-'}",
+                level=wandb.AlertLevel.ERROR,
+            )
+        raise
