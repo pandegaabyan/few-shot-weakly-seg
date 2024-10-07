@@ -28,6 +28,12 @@ from utils.wandb import wandb_use_alert
     default="fit-test",
 )
 @click.option(
+    "--dataset",
+    "-ds",
+    type=str,
+    default="all",
+)
+@click.option(
     "--configs",
     "-c",
     nargs=2,
@@ -48,6 +54,7 @@ from utils.wandb import wandb_use_alert
 def main(
     learner: LearnerType,
     mode: RunMode,
+    dataset: str,
     dummy: bool,
     resume: bool,
     no_wandb: bool,
@@ -73,7 +80,7 @@ def main(
     elif runner_name == "PS":
         runner_class = ProtosegRunner
 
-    runner = runner_class(config, mode, learner, dummy, resume)
+    runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
 
     for key, value in optuna_configs:
         if key == "hyperparams":

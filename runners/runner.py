@@ -54,12 +54,14 @@ class Runner(ABC):
         mode: RunMode,
         learner_type: LearnerType,
         dummy: bool,
+        dataset: str = "all",
         resume: bool = False,
     ):
         self.config = config
         self.mode = mode
         self.learner_type = learner_type
         self.dummy = dummy
+        self.dataset = dataset
         self.resume = resume
 
         self.use_wandb = self.config.get("wandb") is not None
