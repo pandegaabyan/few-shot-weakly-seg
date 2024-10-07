@@ -8,6 +8,7 @@ from utils.logging import (
 )
 from utils.optuna import parse_hyperparams
 from utils.utils import parse_string
+from utils.wandb import wandb_use_alert
 
 
 @click.command()
@@ -81,18 +82,22 @@ def main(
         runner.optuna_config[key] = parse_string(value)
 
     if mode in ["fit-test", "fit", "test"]:
-        runner.run_fit_test(mode == "fit", mode == "test")
+        with wandb_use_alert():
+            runner.run_fit_test(mode == "fit", mode == "test")
         return
 
     if mode == "profile-fit":
-        runner.run_multi_fit_test(True, False)
+        with wandb_use_alert():
+            runner.run_multi_fit_test(True, False)
         return
     if mode == "profile-test":
-        runner.run_multi_fit_test(False, True)
+        with wandb_use_alert():
+            runner.run_multi_fit_test(False, True)
         return
 
     if mode == "study":
-        runner.run_study()
+        with wandb_use_alert():
+            runner.run_study()
 
 
 if __name__ == "__main__":
