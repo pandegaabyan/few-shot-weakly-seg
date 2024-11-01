@@ -385,7 +385,7 @@ class MetaRunner(Runner):
             "support_query_data": "split",
             "query_batch_size": query_batch,
             "split_query_size": 0.5,
-            "split_query_fold": query_fold,
+            "split_query_fold": 1,
         }
 
         if dummy:
@@ -476,6 +476,7 @@ class MetaRunner(Runner):
             "dataset_name": "DRISHTI-GS-train",
             "split_val_size": 1,
             "sparsity_params": drishti_sparsity_params,
+            "augment_flip": True,
             **dummy_kwargs,
         }
         drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
@@ -499,6 +500,7 @@ class MetaRunner(Runner):
             "dataset_name": "REFUGE-val",
             "split_val_size": 1,
             "sparsity_params": refuge_val_test_sparsity_params,
+            "max_items": 100,
             **dummy_kwargs,
         }
         refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
