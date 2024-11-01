@@ -2,6 +2,7 @@ import os
 import random
 from abc import ABC, abstractmethod
 from math import floor
+from typing import Literal
 
 import numpy as np
 import torch
@@ -32,12 +33,13 @@ class BaseDataset(Dataset, ABC):
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
         self.split_test_fold = kwargs.get("split_test_fold", 0)
+        self.augment_flip = kwargs.get("augment_flip", False)
         self.cache_data = kwargs.get("cache_data", False)
         self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.class_labels = self.set_class_labels()
 
         # Creating list of paths.
-        self.items = self.make_items()
+        self.items, self.original_len = self.make_items()
         if len(self.items) == 0:
             raise (RuntimeError("Get 0 items, please check"))
 
@@ -82,7 +84,9 @@ class BaseDataset(Dataset, ABC):
         return img
 
     @staticmethod
-    def resize_image(img: NDArray, resize_to: tuple[int, ...], is_mask: bool):
+    def resize_image(
+        img: NDArray, resize_to: tuple[int, ...], is_mask: bool
+    ) -> NDArray:
         if is_mask:
             order = 0
             anti_aliasing = False
@@ -100,6 +104,16 @@ class BaseDataset(Dataset, ABC):
         resized = resized.astype(img.dtype)
 
         return resized
+
+    @staticmethod
+    def flip_image(img: NDArray, mode: Literal["h", "v", "hv", "vh"]) -> NDArray:
+        if mode == "h":
+            return img[:, ::-1]
+        elif mode == "v":
+            return img[::-1]
+        elif mode == "hv" or mode == "vh":
+            return img[::-1, ::-1]
+        raise ValueError("Invalid mode")
 
     @staticmethod
     def prepare_image_as_tensor(img: NDArray) -> Tensor:
@@ -157,7 +171,13 @@ class BaseDataset(Dataset, ABC):
         tr = data[: fold * test_size] + data[(fold + 1) * test_size :]
         return tr, ts
 
-    def make_items(self) -> DataPathList:
+    def make_items(self) -> tuple[DataPathList, int]:
+        def finalize(data: list) -> tuple[DataPathList, int]:
+            ori_len = len(data)
+            if self.augment_flip:
+                data = data * 2
+            return data[: self.max_items], ori_len
+
         all_data = self.get_all_data_path()
         test_size = floor(self.split_test_size * len(all_data))
         val_size = floor(self.split_val_size * len(all_data))
@@ -170,10 +190,10 @@ class BaseDataset(Dataset, ABC):
             fold=self.split_test_fold,
         )
         if self.mode == "test":
-            return ts[: self.max_items]
+            return finalize(ts)
 
         if self.split_test_size == 1:
-            return []
+            return [], 0
 
         tr, val = self.split_train_test(
             tr_val,
@@ -183,11 +203,11 @@ class BaseDataset(Dataset, ABC):
             fold=self.split_val_fold,
         )
         if self.mode == "train":
-            return tr[: self.max_items]
+            return finalize(tr)
         if self.mode == "val":
-            return val[: self.max_items]
+            return finalize(val)
 
-        return []
+        return [], 0
 
     def get_data(self, index: int) -> BaseDataTuple:
         if self.cache_data and len(self.cached_items_data) > index:
@@ -199,6 +219,11 @@ class BaseDataset(Dataset, ABC):
 
         img = self.resize_image(img, self.resize_to, False)
         msk = self.resize_image(msk, self.resize_to, True)
+
+        if self.augment_flip and index >= self.original_len:
+            flip_mode = "hv"
+            img = self.flip_image(img, flip_mode)
+            msk = self.flip_image(msk, flip_mode)
 
         img_filename = self.filename_from_path(img_path)
 

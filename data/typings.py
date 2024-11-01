@@ -74,6 +74,7 @@ class BaseDatasetKwargs(TypedDict, total=False):
     split_val_fold: int
     split_test_size: float
     split_test_fold: int
+    augment_flip: bool
     cache_data: bool
     dataset_name: str | None
 
