@@ -71,6 +71,7 @@ def main(
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
+    config["wandb"]["tags"] = ["same_batch_size"]  # type: ignore
 
     runner_name = learner.split("-")[0]
     if runner_name == "SL":
