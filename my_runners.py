@@ -385,7 +385,7 @@ class MetaRunner(Runner):
             "support_query_data": "split",
             "query_batch_size": query_batch,
             "split_query_size": 0.5,
-            "split_query_fold": 1,
+            "split_query_fold": query_fold,
         }
 
         if dummy:
