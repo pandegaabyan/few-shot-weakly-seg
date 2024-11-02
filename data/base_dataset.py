@@ -108,11 +108,11 @@ class BaseDataset(Dataset, ABC):
     @staticmethod
     def flip_image(img: NDArray, mode: Literal["h", "v", "hv", "vh"]) -> NDArray:
         if mode == "h":
-            return img[:, ::-1]
+            return img[:, ::-1].copy()
         elif mode == "v":
-            return img[::-1]
+            return img[::-1].copy()
         elif mode == "hv" or mode == "vh":
-            return img[::-1, ::-1]
+            return img[::-1, ::-1].copy()
         raise ValueError("Invalid mode")
 
     @staticmethod
