@@ -479,6 +479,8 @@ class MetaRunner(Runner):
             "augment_flip": True,
             **dummy_kwargs,
         }
+        if self.dataset == "all-B":
+            drishti_train_kwargs["augment_flip"] = True
         drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
@@ -503,6 +505,8 @@ class MetaRunner(Runner):
             "max_items": 100,
             **dummy_kwargs,
         }
+        if self.dataset == "all-B":
+            refuge_val_kwargs["max_items"] = 100
         refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
@@ -534,7 +538,7 @@ class MetaRunner(Runner):
             test_dataset_list = test_dataset_list[1:2]
         elif self.dataset == "DGS-test":
             test_dataset_list = test_dataset_list[2:]
-        elif self.dataset != "all":
+        elif self.dataset not in ["all", "all-B"]:
             raise ValueError(f"Invalid dataset: {self.dataset}")
         return {
             "dataset_list": dataset_list,
