@@ -79,7 +79,7 @@ class Runner(ABC):
 
         self.number_of_multi = 0
         self.last_of_multi = False
-        self.limit_of_multi = 100
+        self.limit_of_multi = 200
 
     @abstractmethod
     def make_learner(
