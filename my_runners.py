@@ -476,7 +476,6 @@ class MetaRunner(Runner):
             "dataset_name": "DRISHTI-GS-train",
             "split_val_size": 1,
             "sparsity_params": drishti_sparsity_params,
-            "augment_flip": True,
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
@@ -502,7 +501,6 @@ class MetaRunner(Runner):
             "dataset_name": "REFUGE-val",
             "split_val_size": 1,
             "sparsity_params": refuge_val_test_sparsity_params,
-            "max_items": 100,
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
