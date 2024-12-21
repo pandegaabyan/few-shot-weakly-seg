@@ -34,6 +34,12 @@ from utils.wandb import wandb_use_alert
     default="all",
 )
 @click.option(
+    "--number_of_multi",
+    "-num",
+    type=int,
+    default=-1,
+)
+@click.option(
     "--configs",
     "-c",
     nargs=2,
@@ -58,6 +64,7 @@ def main(
     dummy: bool,
     resume: bool,
     no_wandb: bool,
+    number_of_multi: int,
     configs: list[tuple[str, str]],
     optuna_configs: list[tuple[str, str]],
 ):
@@ -81,6 +88,9 @@ def main(
         runner_class = ProtosegRunner
 
     runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
+
+    if number_of_multi > 0:
+        runner.number_of_multi = number_of_multi
 
     for key, value in optuna_configs:
         if key == "hyperparams":
