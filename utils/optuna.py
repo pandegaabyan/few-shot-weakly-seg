@@ -10,7 +10,7 @@ from utils.utils import parse_string
 
 def get_optuna_storage(
     dummy: bool = False, engine_kwargs: dict | None = None
-) -> optuna.storages.BaseStorage:
+) -> optuna.storages.RDBStorage:
     if dummy:
         log_dir = FILENAMES["log_folder"]
         check_mkdir(log_dir)
@@ -20,20 +20,17 @@ def get_optuna_storage(
         db_url = os.getenv("OPTUNA_DB_URL")
         if not db_url:
             raise ValueError("OPTUNA_DB_URL is not set")
-    return optuna.storages.RDBStorage(
-        url=db_url, heartbeat_interval=5 * 60, engine_kwargs=engine_kwargs
-    )
+    return optuna.storages.RDBStorage(url=db_url, engine_kwargs=engine_kwargs)
 
 
 def load_study(study_id: str, dummy: bool = False) -> optuna.Study:
-    study_names = optuna.get_all_study_names(
-        get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
-    )
-    study_name = list(filter(lambda x: x.endswith(study_id), study_names))[0]
-    return optuna.load_study(
-        study_name=study_name,
-        storage=get_optuna_storage(dummy, engine_kwargs={"pool_size": 1}),
-    )
+    storage = get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
+    try:
+        study_names = optuna.get_all_study_names(storage)
+        study_name = list(filter(lambda x: x.endswith(study_id), study_names))[0]
+        return optuna.load_study(study_name=study_name, storage=storage)
+    finally:
+        storage.engine.dispose()
 
 
 def get_study_best_name(
