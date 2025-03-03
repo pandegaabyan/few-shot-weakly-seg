@@ -20,14 +20,16 @@ def get_optuna_storage(
         db_url = os.getenv("OPTUNA_DB_URL")
         if not db_url:
             raise ValueError("OPTUNA_DB_URL is not set")
-    return optuna.storages.RDBStorage(url=db_url, engine_kwargs=engine_kwargs)
+    return optuna.storages.RDBStorage(
+        url=db_url, heartbeat_interval=30 * 60, engine_kwargs=engine_kwargs
+    )
 
 
 def load_study(study_id: str, dummy: bool = False) -> optuna.Study:
     storage = get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
     try:
         study_names = optuna.get_all_study_names(storage)
-        study_name = list(filter(lambda x: x.endswith(study_id), study_names))[0]
+        study_name = next(filter(lambda x: x.endswith(study_id), study_names))
         return optuna.load_study(study_name=study_name, storage=storage)
     finally:
         storage.engine.dispose()
