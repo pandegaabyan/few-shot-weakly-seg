@@ -1,6 +1,7 @@
 import datetime
 import os
 import shutil
+import time
 from abc import ABC, abstractmethod
 from typing import Type
 
@@ -190,6 +191,7 @@ class Runner(ABC):
             self.update_attr(run_name=make_run_name())
             self.run_fit_test(fit_only, test_only)
             self.number_of_multi += 1
+            time.sleep(30)
 
     def run_study(self):
         def objective(trial: optuna.Trial) -> float:

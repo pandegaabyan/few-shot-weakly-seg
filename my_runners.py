@@ -259,9 +259,9 @@ class SimpleRunner(Runner):
             elif self.dataset == "rt-REF-test":
                 test_dataset_list = test_dataset_list[:1]
             elif self.dataset == "rt-RO3-test":
-                test_dataset_list = test_dataset_list[:1]
+                test_dataset_list = test_dataset_list[1:2]
             elif self.dataset == "rt-DGS-test":
-                test_dataset_list = test_dataset_list[:1]
+                test_dataset_list = test_dataset_list[2:]
             elif self.dataset != "rt-all":
                 raise ValueError(f"Invalid dataset: {self.dataset}")
             return {
@@ -278,6 +278,24 @@ class SimpleRunner(Runner):
         elif self.dataset == "DGS":
             dataset_list = dataset_list[2:]
             test_dataset_list = test_dataset_list[2:]
+        elif self.dataset == "REF-RO3":
+            dataset_list = dataset_list[:1]
+            test_dataset_list = test_dataset_list[1:2]
+        elif self.dataset == "REF-DGS":
+            dataset_list = dataset_list[:1]
+            test_dataset_list = test_dataset_list[2:]
+        elif self.dataset == "RO3-REF":
+            dataset_list = dataset_list[1:2]
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "RO3-DGS":
+            dataset_list = dataset_list[1:2]
+            test_dataset_list = test_dataset_list[2:]
+        elif self.dataset == "DGS-REF":
+            dataset_list = dataset_list[2:]
+            test_dataset_list = test_dataset_list[:1]
+        elif self.dataset == "DGS-RO3":
+            dataset_list = dataset_list[2:]
+            test_dataset_list = test_dataset_list[1:2]
         elif self.dataset == "REF-test":
             test_dataset_list = test_dataset_list[:1]
         elif self.dataset == "RO3-test":

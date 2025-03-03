@@ -31,6 +31,7 @@ def make_optimizer_adam(
                     if name[-4:] == "bias"
                 ],
                 "lr": config.get("lr_bias_mult", 1) * lr,
+                "weight_decay": 0,
             },
             {
                 "params": [
