@@ -138,10 +138,12 @@ class BaseDataset(Dataset, ABC):
         return filename
 
     @staticmethod
-    def extend_data(data: list[T], num_items: int, seed: int | None = 0) -> list[T]:
+    def extend_data(
+        data: list[T], num_items: int, random_state: int | None = 0
+    ) -> list[T]:
         if len(data) >= num_items:
             return data[:num_items]
-        rng = random.Random(seed)
+        rng = random.Random(random_state)
         extended_data = []
         new_data = data.copy()
         for i in range(num_items // len(data)):
@@ -186,7 +188,7 @@ class BaseDataset(Dataset, ABC):
             all_data,
             test_size,
             shuffle=True,
-            random_state=self.seed,
+            random_state=self.seed + 4819,
             fold=self.split_test_fold,
         )
         if self.mode == "test":
@@ -199,7 +201,7 @@ class BaseDataset(Dataset, ABC):
             tr_val,
             val_size,
             shuffle=True,
-            random_state=self.seed,
+            random_state=self.seed + 8732,
             fold=self.split_val_fold,
         )
         if self.mode == "train":

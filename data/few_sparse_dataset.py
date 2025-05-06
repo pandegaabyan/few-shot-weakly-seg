@@ -391,7 +391,9 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
+            indices_init,
+            self.num_iterations_int * self.query_batch_size,
+            random_state=self.seed + 4298,
         )
         support_indices = []
         support_indices_pool = indices_init.copy()
@@ -419,7 +421,9 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_replaced_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
+            indices_init,
+            self.num_iterations_int * self.query_batch_size,
+            random_state=self.seed + 1254,
         )
         indices_init_set = set(indices_init)
         support_indices = []
@@ -440,16 +444,18 @@ class FewSparseDataset(BaseDataset, ABC):
             indices_init,
             query_size,
             shuffle=False,
-            random_state=self.seed,
+            random_state=self.seed + 6531,
             fold=self.split_query_fold,
         )
         support_indices = self.extend_data(
-            support_indices_init, sum(self.support_batches), seed=self.seed
+            support_indices_init,
+            sum(self.support_batches),
+            random_state=self.seed + 6394,
         )
         query_indices = self.extend_data(
             query_indices_init,
-            self.num_iterations * self.query_batch_size,
-            seed=self.seed,
+            self.num_iterations_int * self.query_batch_size,
+            random_state=self.seed + 4158,
         )
         return support_indices, query_indices
 
