@@ -28,7 +28,6 @@ class BaseDataset(Dataset, ABC):
         self.num_classes = num_classes
         self.resize_to = resize_to
         self.max_items = kwargs.get("max_items")
-        self.seed = kwargs.get("seed", 0)
         self.split_val_size = kwargs.get("split_val_size", 0)
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
@@ -37,6 +36,9 @@ class BaseDataset(Dataset, ABC):
         self.cache_data = kwargs.get("cache_data", False)
         self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.class_labels = self.set_class_labels()
+        self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
+            self.dataset_name
+        )
 
         # Creating list of paths.
         self.items, self.original_len = self.make_items()
@@ -62,6 +64,10 @@ class BaseDataset(Dataset, ABC):
     @abstractmethod
     def set_class_labels(self) -> dict[int, str]:
         pass
+
+    @staticmethod
+    def str_to_num(s: str) -> int:
+        return sum(i * ord(c) for i, c in enumerate(s, start=1))
 
     @staticmethod
     def norm(img: NDArray) -> NDArray:
