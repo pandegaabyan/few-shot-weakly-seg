@@ -655,3 +655,15 @@ class ProtosegRunner(MetaRunner):
         config = super().make_optuna_config()
         config["pruner_patience"] = 3
         return config
+
+
+def get_runner_class(learner: str) -> Type[Runner]:
+    runner_name = learner.split("-")[0]
+    if runner_name == "SL":
+        return SimpleRunner
+    elif runner_name == "WS":
+        return WeaselRunner
+    elif runner_name == "PS":
+        return ProtosegRunner
+    else:
+        raise ValueError(f"Unknown runner: {runner_name}")
