@@ -204,23 +204,25 @@ class SimpleRunner(Runner):
         isic18 = (ISIC18SimpleDataset, isic18_kwargs)
         ph2 = (PH2SimpleDataset, ph2_kwargs)
 
-        if self.dataset == "cross-1":
+        if self.dataset.startswith("cross"):
             isic17_kwargs["split_test_size"] = 1.0
             isic18_kwargs["split_test_size"] = 1.0
-            ph2_kwargs["split_val_size"] = 1.0
+            if self.dataset.startswith("cross-2"):
+                isic16_kwargs["split_val_size"] = 0.2
+                val_dataset_list = [isic16]
+            else:
+                ph2_kwargs["split_val_size"] = 1.0
+                val_dataset_list = [ph2]
+            if self.dataset.endswith("17"):
+                test_dataset_list = [isic17]
+            elif self.dataset.endswith("18"):
+                test_dataset_list = [isic18]
+            else:
+                test_dataset_list = [isic17, isic18]
             return {
                 "dataset_list": [isic16],
-                "val_dataset_list": [ph2],
-                "test_dataset_list": [isic17, isic18] * test_mult,
-            }
-
-        if self.dataset == "cross-2":
-            isic16_kwargs["split_val_size"] = 0.2
-            isic17_kwargs["split_test_size"] = 1.0
-            isic18_kwargs["split_test_size"] = 1.0
-            return {
-                "dataset_list": [isic16],
-                "test_dataset_list": [isic17, isic18] * test_mult,
+                "val_dataset_list": val_dataset_list,
+                "test_dataset_list": test_dataset_list * test_mult,
             }
 
         for kwargs in [isic16_kwargs, isic17_kwargs, isic18_kwargs, ph2_kwargs]:
