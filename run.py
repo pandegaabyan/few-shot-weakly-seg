@@ -2,7 +2,7 @@ import click
 
 from config.config_maker import make_config
 from config.config_type import LearnerType, RunMode, learner_types, run_modes
-from my_runners import ProtosegRunner, SimpleRunner, WeaselRunner
+from tasks.optic_disc_cup.runners import get_runner_class
 from utils.logging import (
     check_git_clean,
 )
@@ -79,13 +79,7 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    runner_name = learner.split("-")[0]
-    if runner_name == "SL":
-        runner_class = SimpleRunner
-    elif runner_name == "WS":
-        runner_class = WeaselRunner
-    elif runner_name == "PS":
-        runner_class = ProtosegRunner
+    runner_class = get_runner_class(learner)
 
     runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
 

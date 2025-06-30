@@ -32,6 +32,8 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
             [supp_image, supp_mask, qry_image]
         )
 
+        num_classes = self.config["data"]["num_classes"]
+
         with self.profile("get_prototypes"):
             s_emb_linear_list, s_mask_linear_list = [], []
             for s_image, s_mask in zip(s_images, s_masks):
@@ -43,7 +45,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
             s_emb_linear = torch.vstack(s_emb_linear_list)  # [S H*W E]
             s_mask_linear = torch.vstack(s_mask_linear_list)  # [S H*W]
             prototypes = self.get_prototypes(
-                s_emb_linear, s_mask_linear
+                s_emb_linear, s_mask_linear, num_classes
             )  # [S C E] if multi_pred else [C E]
 
         qry_pred_list = []
@@ -59,6 +61,10 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
                 )  # [B S C H W] if multi_pred else [B C H W]
             qry_pred_list.append(q_pred)
         qry_pred = torch.vstack(qry_pred_list)
+
+        # if C == 2, convert to binary prediction
+        if num_classes == 2:
+            qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
 
         return qry_pred  # [Q S C H W] if multi_pred else [Q C H W]
 
@@ -99,7 +105,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
             embeddings.size(1),
         )
 
-    def get_num_samples(self, targets: Tensor, dtype=None) -> Tensor:
+    def get_num_samples(self, targets: Tensor, num_classes: int, dtype=None) -> Tensor:
         # [S H*W] -> [S C] if multi_pred else [C]
 
         batch_size = targets.size(0)
@@ -123,13 +129,14 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
 
         return num_samples
 
-    def get_prototypes(self, embeddings: Tensor, targets: Tensor) -> Tensor:
+    def get_prototypes(
+        self, embeddings: Tensor, targets: Tensor, num_classes: int
+    ) -> Tensor:
         # [S H*W E], [S H*W] -> [S C E] if multi_pred else [C E]
 
         batch_size, embedding_size = embeddings.size(0), embeddings.size(-1)
-        num_classes = self.config["data"]["num_classes"]
 
-        num_samples = self.get_num_samples(targets, dtype=embeddings.dtype)
+        num_samples = self.get_num_samples(targets, num_classes, dtype=embeddings.dtype)
         num_samples = num_samples.unsqueeze(-1)
         num_samples = torch.max(num_samples, torch.ones_like(num_samples))
 
