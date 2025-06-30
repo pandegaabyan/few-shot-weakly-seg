@@ -2,7 +2,7 @@ import click
 
 from config.config_maker import make_config
 from config.config_type import LearnerType, RunMode, learner_types, run_modes
-from tasks.optic_disc_cup.runners import get_runner_class
+from tasks.skin_lesion.runners import get_runner_class
 from utils.logging import (
     check_git_clean,
 )
@@ -74,6 +74,7 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
+    config["data"]["num_classes"] = 2
 
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
