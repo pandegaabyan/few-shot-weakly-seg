@@ -69,7 +69,7 @@ class FewSparseDataTuple(NamedTuple):
 
 class BaseDatasetKwargs(TypedDict, total=False):
     max_items: int | None
-    seed: int
+    seed: int | None
     split_val_size: float
     split_val_fold: int
     split_test_size: float

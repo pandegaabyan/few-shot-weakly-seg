@@ -40,7 +40,33 @@ class FewSparseDataset(BaseDataset, ABC):
         self.query_batch_size = kwargs.get("query_batch_size", 1)
         self.split_query_size = kwargs.get("split_query_size", 0)
         self.split_query_fold = kwargs.get("split_query_fold", 0)
-        self.num_iterations = kwargs.get("num_iterations", 1.0)
+
+        if (
+            self.support_query_data == "split"
+            and self.support_batch_mode == "full_permutation"
+        ):
+            raise ValueError(
+                "support_query_data='split' and support_batch_mode='full_permutation' are incompatible"
+            )
+
+        if self.support_batch_mode in ["permutation", "full_permutation"]:
+            (
+                self.num_iterations,
+                self.support_batches,
+                self.support_sparsities,
+            ) = self.permute_shot_sparsity_for_support()
+        else:
+            num_iterations = kwargs.get("num_iterations", 1.0)
+            if isinstance(num_iterations, float):
+                num_iterations = (
+                    round(num_iterations * len(self.items) * self.split_query_size)
+                    // self.query_batch_size
+                )
+            self.num_iterations = num_iterations
+            self.support_batches = self.make_support_batches()
+            self.support_sparsities = []
+
+        self.support_indices, self.query_indices = self.make_support_query_indices()
 
         self.sparsity_mode_default: list[SparsityMode] = [
             "point",
@@ -50,14 +76,6 @@ class FewSparseDataset(BaseDataset, ABC):
             "region",
         ]
         self.sparsity_mode_additional = self.set_additional_sparse_mode()
-
-        (
-            self.num_iterations_int,
-            self.support_batches,
-            self.support_sparsities,
-            self.support_indices,
-            self.query_indices,
-        ) = self.compose_support_query()
 
     @abstractmethod
     def set_additional_sparse_mode(self) -> list[SparsityMode]:
@@ -73,22 +91,6 @@ class FewSparseDataset(BaseDataset, ABC):
         seed=0,
     ) -> NDArray:
         pass
-
-    def refresh(self, reseed: bool = False) -> None:
-        self.cached_items_data = []
-
-        if reseed:
-            self.seed = self.seed + int(1e4)
-        self.rng = random.Random(self.seed)
-        self.np_rng = np.random.default_rng(self.seed)
-
-        (
-            self.num_iterations_int,
-            self.support_batches,
-            self.support_sparsities,
-            self.support_indices,
-            self.query_indices,
-        ) = self.compose_support_query()
 
     @staticmethod
     def sparse_point(
@@ -328,44 +330,6 @@ class FewSparseDataset(BaseDataset, ABC):
 
         return new_msk
 
-    def compose_support_query(
-        self,
-    ) -> tuple[int, list[int], list[SparsityTuple], list[int], list[int]]:
-        if (
-            self.support_query_data == "split"
-            and self.support_batch_mode == "full_permutation"
-        ):
-            raise ValueError(
-                "support_query_data='split' and support_batch_mode='full_permutation' are incompatible"
-            )
-
-        if self.support_batch_mode in ["permutation", "full_permutation"]:
-            (
-                num_iterations_int,
-                support_batches,
-                support_sparsities,
-            ) = self.permute_shot_sparsity_for_support()
-        else:
-            if isinstance(self.num_iterations, float):
-                num_iterations_int = (
-                    round(self.num_iterations * len(self.items) * self.split_query_size)
-                    // self.query_batch_size
-                )
-            else:
-                num_iterations_int = self.num_iterations
-            support_batches = self.make_support_batches()
-            support_sparsities = []
-
-        support_indices, query_indices = self.make_support_query_indices()
-
-        return (
-            num_iterations_int,
-            support_batches,
-            support_sparsities,
-            support_indices,
-            query_indices,
-        )
-
     def permute_shot_sparsity_for_support(
         self,
     ) -> tuple[int, list[int], list[SparsityTuple]]:
@@ -399,10 +363,10 @@ class FewSparseDataset(BaseDataset, ABC):
 
         support_size_init = round((1 - self.split_query_size) * len(self.items))
         if self.shot_options == "all":
-            return [support_size_init] * self.num_iterations_int
+            return [support_size_init] * self.num_iterations
 
         batch_list = []
-        for i in range(self.num_iterations_int):
+        for i in range(self.num_iterations):
             if self.shot_options == "random":
                 shot = self.np_rng.integers(1, support_size_init)
             elif isinstance(self.shot_options, list):
@@ -427,9 +391,7 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init,
-            self.num_iterations_int * self.query_batch_size,
-            random_state=self.seed + 4298,
+            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
         )
         support_indices = []
         support_indices_pool = indices_init.copy()
@@ -457,9 +419,7 @@ class FewSparseDataset(BaseDataset, ABC):
     def make_mixed_replaced_support_query_indices(self) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
-            indices_init,
-            self.num_iterations_int * self.query_batch_size,
-            random_state=self.seed + 1254,
+            indices_init, self.num_iterations * self.query_batch_size, seed=self.seed
         )
         indices_init_set = set(indices_init)
         support_indices = []
@@ -480,23 +440,21 @@ class FewSparseDataset(BaseDataset, ABC):
             indices_init,
             query_size,
             shuffle=False,
-            random_state=self.seed + 6531,
+            random_state=self.seed,
             fold=self.split_query_fold,
         )
         support_indices = self.extend_data(
-            support_indices_init,
-            sum(self.support_batches),
-            random_state=self.seed + 6394,
+            support_indices_init, sum(self.support_batches), seed=self.seed
         )
         query_indices = self.extend_data(
             query_indices_init,
-            self.num_iterations_int * self.query_batch_size,
-            random_state=self.seed + 4158,
+            self.num_iterations * self.query_batch_size,
+            seed=self.seed,
         )
         return support_indices, query_indices
 
     def select_sparsity(self, index: int) -> tuple[SparsityMode, SparsityValue]:
-        rng = random.Random(index + self.seed)
+        rng = random.Random(index)
         sparsity = self.sparsity_options[index % len(self.sparsity_options)]
         sparsity_mode = sparsity[0]
         sparsity_value_options = sparsity[1]
@@ -599,7 +557,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 else "random"
             )
             all_sparse_msk[sparsity_mode] = self.get_sparse_mask(
-                sparsity_mode, msk, img, sparsity_value, index + self.seed
+                sparsity_mode, msk, img, sparsity_value, index
             )
 
         return img, msk, all_sparse_msk, img_filename
@@ -620,7 +578,7 @@ class FewSparseDataset(BaseDataset, ABC):
             msk,
             img,
             sparsity_value,
-            index + self.seed,
+            index,
         )
 
         return img, sparse_msk, img_idx, sparsity_mode, sparsity_value

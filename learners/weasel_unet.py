@@ -8,9 +8,9 @@ from torchmeta.modules.module import MetaModule
 
 class WeaselUnet(WeaselLearner):
     def make_net(self) -> MetaModule:
-        num_classes = self.config["data"]["num_classes"]
-        output_channels = num_classes if num_classes != 2 else 1
-        return UNet(self.config["data"]["num_channels"], output_channels)
+        return UNet(
+            self.config["data"]["num_channels"], self.config["data"]["num_classes"]
+        )
 
     def configure_optimizers(self) -> OptimizerLRScheduler:
         adam_optimizer = make_optimizer_adam(self.config["optimizer"], self.net)
