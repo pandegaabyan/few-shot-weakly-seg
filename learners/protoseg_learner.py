@@ -58,11 +58,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
                     *q_pred_linear.shape[:-1], *q_image.shape[2:]
                 )  # [B S C H W] if multi_pred else [B C H W]
             qry_pred_list.append(q_pred)
-            with self.profile("post_process"):
-                if self.multi_pred:
-                    _ = q_pred.argmax(dim=2).mode(dim=1).values  # [B H W]
-                else:
-                    _ = q_pred.argmax(dim=1)  # [B H W]
+            self.profile_post_process(q_pred)
         qry_pred = torch.vstack(qry_pred_list)
 
         return qry_pred  # [Q S C H W] if multi_pred else [Q C H W]
@@ -173,3 +169,15 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         for proto in prototypes:
             squared_distances_list.append(-calc_squared_distances(proto, embeddings))
         return torch.stack(squared_distances_list, dim=1)
+
+    def profile_post_process(self, q_pred: Tensor):
+        if (
+            self.config["learn"].get("profiler") is None
+            or self.trainer.state.fn != "test"
+        ):
+            return
+        with self.profile("post_process"):
+            if self.multi_pred:
+                _ = q_pred.argmax(dim=2).mode(dim=1).values  # [B H W]
+            else:
+                _ = q_pred.argmax(dim=1)  # [B H W]
