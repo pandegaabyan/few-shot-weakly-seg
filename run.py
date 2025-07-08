@@ -79,6 +79,17 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
+    if mode == "fit-test" and "wandb" in config:
+        config["wandb"].update(
+            {
+                "tags": ["var_region"],
+                "watch_model": False,
+                "save_model": False,
+                "save_train_preds": 0,
+                "save_val_preds": 0,
+            }
+        )
+
     runner_name = learner.split("-")[0]
     if runner_name == "SL":
         runner_class = SimpleRunner
@@ -98,23 +109,14 @@ def main(
             continue
         runner.optuna_config[key] = parse_string(value)
 
-    if mode in ["fit-test", "fit", "test"]:
+    if mode == "fit-test":
         with wandb_use_alert():
-            runner.run_fit_test(mode == "fit", mode == "test")
+            runner.run_multi_fit_test(False, False)
         return
 
-    if mode == "profile-fit":
-        with wandb_use_alert():
-            runner.run_multi_fit_test(True, False)
-        return
     if mode == "profile-test":
         with wandb_use_alert():
             runner.run_multi_fit_test(False, True)
-        return
-
-    if mode == "study":
-        with wandb_use_alert():
-            runner.run_study()
 
 
 if __name__ == "__main__":
