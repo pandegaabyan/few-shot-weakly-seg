@@ -108,9 +108,11 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 self.net.eval()
                 qry_pred_list = []
                 for q_image in qry_images:
-                    with self.profile("inference"):
+                    with self.profile("prediction"):
                         q_pred = self.net(q_image)
                     qry_pred_list.append(q_pred)
+                    with self.profile("post_process"):
+                        _ = q_pred.argmax(dim=1)
                 qry_pred = torch.vstack(qry_pred_list)
                 qry_loss = self.loss(qry_pred, query.masks)
                 if last_epoch:

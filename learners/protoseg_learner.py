@@ -48,7 +48,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
 
         qry_pred_list = []
         for q_image in qry_images:
-            with self.profile("get_predictions"):
+            with self.profile("prediction"):
                 q_emb: Tensor = self.net(q_image)  # [B E H W]
                 q_emb_linear = self.linearize_embeddings(q_emb)  # [B H*W E]
                 q_pred_linear = self.get_predictions(
@@ -58,6 +58,11 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
                     *q_pred_linear.shape[:-1], *q_image.shape[2:]
                 )  # [B S C H W] if multi_pred else [B C H W]
             qry_pred_list.append(q_pred)
+            with self.profile("post_process"):
+                if self.multi_pred:
+                    _ = q_pred.argmax(dim=2).mode(dim=1).values  # [B H W]
+                else:
+                    _ = q_pred.argmax(dim=1)  # [B H W]
         qry_pred = torch.vstack(qry_pred_list)
 
         return qry_pred  # [Q S C H W] if multi_pred else [Q C H W]
