@@ -50,6 +50,12 @@ from tasks.optic_disc_cup.datasets import (
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 
+region_segments_options = [50, 100, 150, 200, 250, 300, 350, 400]
+region_compactness_options = [10**-1, 10**-0.5, 10**0, 10**0.5, 10**1, 10**1.5, 10**2]
+region_options = [
+    (s, c) for s in region_segments_options for c in region_compactness_options
+]
+
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
@@ -359,6 +365,13 @@ class MetaRunner(Runner):
             if self.number_of_multi == (variable_max_batch * len(test_shots) - 1):
                 self.last_of_multi = True
 
+        if self.mode == "fit-test":
+            segments, compactness = region_options[self.number_of_multi]
+            important_config["region_segments"] = segments
+            important_config["region_compactness"] = compactness
+            if self.number_of_multi == (len(region_options) - 1):
+                self.last_of_multi = True
+
         self.config = config
         return important_config
 
@@ -471,6 +484,17 @@ class MetaRunner(Runner):
                 "support_query_data": "mixed",
                 "support_batch_mode": "full_permutation",
             }
+
+        if self.mode == "fit-test":
+            segments, compactness = region_options[self.number_of_multi]
+            for sparsity_params in [
+                rim_one_3_sparsity_params,
+                drishti_sparsity_params,
+                refuge_train_sparsity_params,
+                refuge_val_test_sparsity_params,
+            ]:
+                sparsity_params["region_segments"] = segments
+                sparsity_params["region_compactness"] = compactness
 
         rim_one_3_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
