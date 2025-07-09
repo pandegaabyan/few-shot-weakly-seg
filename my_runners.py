@@ -433,7 +433,7 @@ class MetaRunner(Runner):
         if "ori" in self.learner_type.split("-"):
             train_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": self.config["data"]["batch_size"],
-                "sparsity_options": [("random", "random")],
+                "sparsity_options": [("region", "random")],
                 "support_batch_mode": "mixed",
                 "num_iterations": 5,
             }
@@ -441,10 +441,6 @@ class MetaRunner(Runner):
             train_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": (1, 20),
                 "sparsity_options": [
-                    ("point", (5, 50)),
-                    ("grid", (0.1, 1.0)),
-                    ("contour", (0.1, 1.0)),
-                    ("skeleton", (0.1, 1.0)),
                     ("region", (0.1, 1.0)),
                 ],
                 "support_batch_mode": "mixed",
@@ -453,13 +449,7 @@ class MetaRunner(Runner):
 
         val_kwargs: FewSparseDatasetKwargs = {
             "shot_options": [5, 10, 15],
-            "sparsity_options": [
-                ("point", [13, 25, 37]),
-                ("grid", [0.25, 0.5, 0.75]),
-                ("contour", [0.25, 0.5, 0.75]),
-                ("skeleton", [0.25, 0.5, 0.75]),
-                ("region", [0.25, 0.5, 0.75]),
-            ],
+            "sparsity_options": [("region", [0.25, 0.5, 0.75])],
             "support_batch_mode": "permutation",
         }
 
@@ -474,13 +464,7 @@ class MetaRunner(Runner):
         else:
             test_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": [1, 5, 10, 15, 20],
-                "sparsity_options": [
-                    ("point", [1, 13, 25, 37, 50]),
-                    ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                    ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                    ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                    ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ],
+                "sparsity_options": [("region", [0.1, 0.25, 0.5, 0.75, 1.0])],
                 "support_query_data": "mixed",
                 "support_batch_mode": "full_permutation",
             }

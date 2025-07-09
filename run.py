@@ -87,6 +87,7 @@ def main(
                 "save_model": False,
                 "save_train_preds": 0,
                 "save_val_preds": 0,
+                "save_test_preds": 0,
             }
         )
 
