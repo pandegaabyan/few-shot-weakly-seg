@@ -72,7 +72,7 @@ class CustomSimpleProfiler(Profiler):
             d_tensor = torch.tensor(d)
             sum_d = torch.sum(d_tensor).item()
             percentage_d = 100.0 * sum_d / total_duration
-            if percentage_d < self.percentage_limit and not a.startswith("[Learner]"):
+            if percentage_d < self.percentage_limit:
                 continue
             mean_d = torch.mean(d_tensor).item()
             if len_d == 1:

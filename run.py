@@ -2,7 +2,7 @@ import click
 
 from config.config_maker import make_config
 from config.config_type import LearnerType, RunMode, learner_types, run_modes
-from my_runners import ProtosegRunner, SimpleRunner, WeaselRunner
+from tasks.skin_lesion.runners import get_runner_class
 from utils.logging import (
     check_git_clean,
 )
@@ -74,30 +74,13 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
+    config["data"]["num_classes"] = 2
 
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
-    if mode == "fit-test" and "wandb" in config:
-        config["wandb"].update(
-            {
-                "tags": ["var_region"],
-                "watch_model": False,
-                "save_model": False,
-                "save_train_preds": 0,
-                "save_val_preds": 0,
-                "save_test_preds": 0,
-            }
-        )
-
-    runner_name = learner.split("-")[0]
-    if runner_name == "SL":
-        runner_class = SimpleRunner
-    elif runner_name == "WS":
-        runner_class = WeaselRunner
-    elif runner_name == "PS":
-        runner_class = ProtosegRunner
+    runner_class = get_runner_class(learner)
 
     runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
 
@@ -110,14 +93,23 @@ def main(
             continue
         runner.optuna_config[key] = parse_string(value)
 
-    if mode == "fit-test":
+    if mode in ["fit-test", "fit", "test"]:
         with wandb_use_alert():
-            runner.run_multi_fit_test(False, False)
+            runner.run_fit_test(mode == "fit", mode == "test")
         return
 
+    if mode == "profile-fit":
+        with wandb_use_alert():
+            runner.run_multi_fit_test(True, False)
+        return
     if mode == "profile-test":
         with wandb_use_alert():
             runner.run_multi_fit_test(False, True)
+        return
+
+    if mode == "study":
+        with wandb_use_alert():
+            runner.run_study()
 
 
 if __name__ == "__main__":

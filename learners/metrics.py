@@ -4,7 +4,10 @@ from typing import Any, Callable, Optional, Union
 import torch
 from torch import Tensor
 from torchmetrics import Metric
-from torchmetrics.functional.classification import multiclass_jaccard_index
+from torchmetrics.functional.classification import (
+    binary_jaccard_index,
+    multiclass_jaccard_index,
+)
 
 from utils.utils import mean
 
@@ -46,6 +49,19 @@ class BaseMetric(Metric, ABC):
     @staticmethod
     def prepare_for_log(score: dict[str, Tensor]) -> list[tuple[str, float]]:
         return [(k, round(v.item(), 4)) for k, v in sorted(score.items())]
+
+
+class BinaryIoUMetric(BaseMetric):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.add_state("iou", default=torch.tensor(0), dist_reduce_fx="mean")
+
+    @staticmethod
+    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+        input_size = inputs.size()
+        if len(input_size) == 4 and input_size[1] == 1:
+            inputs = inputs[:, 0]
+        return {"iou": binary_jaccard_index(inputs, targets)}
 
 
 class MultiIoUMetric(BaseMetric):

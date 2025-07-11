@@ -50,12 +50,6 @@ from tasks.optic_disc_cup.datasets import (
 from tasks.optic_disc_cup.losses import DiscCupLoss
 from tasks.optic_disc_cup.metrics import DiscCupIoU
 
-region_segments_options = [50, 100, 150, 200, 250, 300, 350, 400]
-region_compactness_options = [10**-1, 10**-0.5, 10**0, 10**0.5, 10**1, 10**1.5, 10**2]
-region_options = [
-    (s, c) for s in region_segments_options for c in region_compactness_options
-]
-
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     lr = trial.suggest_float("lr", 1e-5, 1e-1, log=True)
@@ -178,7 +172,7 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = self.learner_type + " " + "REF" + " " + gen_id(5)
+        config["study_name"] = self.learner_type + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -365,19 +359,12 @@ class MetaRunner(Runner):
             if self.number_of_multi == (variable_max_batch * len(test_shots) - 1):
                 self.last_of_multi = True
 
-        if self.mode == "fit-test":
-            segments, compactness = region_options[self.number_of_multi]
-            important_config["region_segments"] = segments
-            important_config["region_compactness"] = compactness
-            if self.number_of_multi == (len(region_options) - 1):
-                self.last_of_multi = True
-
         self.config = config
         return important_config
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = self.learner_type + " " + "REF|RO3-DGS" + " " + gen_id(5)
+        config["study_name"] = self.learner_type + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -433,7 +420,7 @@ class MetaRunner(Runner):
         if "ori" in self.learner_type.split("-"):
             train_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": self.config["data"]["batch_size"],
-                "sparsity_options": [("region", "random")],
+                "sparsity_options": [("random", "random")],
                 "support_batch_mode": "mixed",
                 "num_iterations": 5,
             }
@@ -441,6 +428,10 @@ class MetaRunner(Runner):
             train_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": (1, 20),
                 "sparsity_options": [
+                    ("point", (5, 50)),
+                    ("grid", (0.1, 1.0)),
+                    ("contour", (0.1, 1.0)),
+                    ("skeleton", (0.1, 1.0)),
                     ("region", (0.1, 1.0)),
                 ],
                 "support_batch_mode": "mixed",
@@ -449,7 +440,13 @@ class MetaRunner(Runner):
 
         val_kwargs: FewSparseDatasetKwargs = {
             "shot_options": [5, 10, 15],
-            "sparsity_options": [("region", [0.25, 0.5, 0.75])],
+            "sparsity_options": [
+                ("point", [13, 25, 37]),
+                ("grid", [0.25, 0.5, 0.75]),
+                ("contour", [0.25, 0.5, 0.75]),
+                ("skeleton", [0.25, 0.5, 0.75]),
+                ("region", [0.25, 0.5, 0.75]),
+            ],
             "support_batch_mode": "permutation",
         }
 
@@ -464,21 +461,16 @@ class MetaRunner(Runner):
         else:
             test_kwargs: FewSparseDatasetKwargs = {
                 "shot_options": [1, 5, 10, 15, 20],
-                "sparsity_options": [("region", [0.1, 0.25, 0.5, 0.75, 1.0])],
+                "sparsity_options": [
+                    ("point", [1, 13, 25, 37, 50]),
+                    ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                    ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ],
                 "support_query_data": "mixed",
                 "support_batch_mode": "full_permutation",
             }
-
-        if self.mode == "fit-test":
-            segments, compactness = region_options[self.number_of_multi]
-            for sparsity_params in [
-                rim_one_3_sparsity_params,
-                drishti_sparsity_params,
-                refuge_train_sparsity_params,
-                refuge_val_test_sparsity_params,
-            ]:
-                sparsity_params["region_segments"] = segments
-                sparsity_params["region_compactness"] = compactness
 
         rim_one_3_train_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -663,3 +655,15 @@ class ProtosegRunner(MetaRunner):
         config = super().make_optuna_config()
         config["pruner_patience"] = 3
         return config
+
+
+def get_runner_class(learner: str) -> Type[Runner]:
+    runner_name = learner.split("-")[0]
+    if runner_name == "SL":
+        return SimpleRunner
+    elif runner_name == "WS":
+        return WeaselRunner
+    elif runner_name == "PS":
+        return ProtosegRunner
+    else:
+        raise ValueError(f"Unknown runner: {runner_name}")
