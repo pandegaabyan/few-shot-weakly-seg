@@ -50,7 +50,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
 
         qry_pred_list = []
         for q_image in qry_images:
-            with self.profile("get_predictions"):
+            with self.profile("prediction"):
                 q_emb: Tensor = self.net(q_image)  # [B E H W]
                 q_emb_linear = self.linearize_embeddings(q_emb)  # [B H*W E]
                 q_pred_linear = self.get_predictions(
@@ -60,9 +60,10 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
                     *q_pred_linear.shape[:-1], *q_image.shape[2:]
                 )  # [B S C H W] if multi_pred else [B C H W]
             qry_pred_list.append(q_pred)
+            self.profile_post_process(q_pred)
         qry_pred = torch.vstack(qry_pred_list)
 
-        # if C == 2, convert to binary prediction
+        # if C == 2, convert to binary (C == 1)
         if num_classes == 2:
             qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
 
@@ -89,7 +90,11 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
             pred = self.forward(support.images, support.masks, query.images)
         if self.multi_pred:
             loss = self.loss(pred.mean(dim=1), query.masks)
-            score = self.metric(pred.argmax(dim=2).mode(dim=1).values, query.masks)
+            if self.config["data"]["num_classes"] == 2:
+                pred_values = (pred > 0).squeeze(2).mode(dim=1).values
+            else:
+                pred_values = pred.argmax(dim=2).mode(dim=1).values
+            score = self.metric(pred_values, query.masks)
         else:
             loss = self.loss(pred, query.masks)
             score = self.metric(pred, query.masks)
@@ -175,3 +180,27 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
         for proto in prototypes:
             squared_distances_list.append(-calc_squared_distances(proto, embeddings))
         return torch.stack(squared_distances_list, dim=1)
+
+    def profile_post_process(self, q_pred: Tensor):
+        # multi_pred: [B S C H W] -> [B H W]
+        # else: [B C H W] -> [B H W]
+
+        if (
+            self.config["learn"].get("profiler") is None
+            or self.trainer.state.fn != "test"
+        ):
+            return
+
+        with self.profile("post_process"):
+            is_binary = self.config["data"]["num_classes"] == 2
+            if self.multi_pred:
+                if is_binary:
+                    tensor = (q_pred > 0).long().squeeze(2).mode(dim=1).values
+                else:
+                    tensor = q_pred.argmax(dim=2).mode(dim=1).values
+            else:
+                if is_binary:
+                    tensor = (q_pred > 0).long().squeeze(1)
+                else:
+                    tensor = q_pred.argmax(dim=1)
+            _ = tensor.cpu().numpy()

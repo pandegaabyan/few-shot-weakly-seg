@@ -52,7 +52,7 @@ class PANetLearner(MetaLearner[ConfigPANet], ABC):
 
         q_emb_linear_list, q_pred_list = [], []
         for q_image in q_images:
-            with self.profile("get_predictions"):
+            with self.profile("prediction"):
                 q_emb: Tensor = self.net(q_image)  # [B E H W]
                 q_emb_linear = self.linearize_embeddings(q_emb)  # [B H*W E]
                 q_emb_linear_list.append(q_emb_linear)
@@ -63,14 +63,15 @@ class PANetLearner(MetaLearner[ConfigPANet], ABC):
                     *q_pred_linear.shape[:-1], *q_image.shape[2:]
                 )  # [B C H W]
             q_pred_list.append(q_pred)
+            self.profile_post_process(q_pred)
         self.query_embedding = torch.vstack(q_emb_linear_list)  # [Q H*W E]
         qry_pred = torch.vstack(q_pred_list)  # [Q C H W]
 
-        # if C == 2, convert to binary prediction
+        # if C == 2, convert to binary (C == 1)
         if self.num_classes == 2:
             qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
 
-        return qry_pred  # [Q 1 H W] if binary else [Q C H W]
+        return qry_pred  # [Q C H W]
 
     def training_process(
         self, batch: FewSparseDataTuple, batch_idx: int
@@ -190,3 +191,20 @@ class PANetLearner(MetaLearner[ConfigPANet], ABC):
             supp_pred = supp_pred[..., 0:1, :, :] - supp_pred[..., 1:2, :, :]
 
         return supp_pred  # [S 1 H W] if binary else [S C H W]
+
+    def profile_post_process(self, q_pred: Tensor):
+        # [B C H W] -> [B H W]
+
+        if (
+            self.config["learn"].get("profiler") is None
+            or self.trainer.state.fn != "test"
+        ):
+            return
+
+        with self.profile("post_process"):
+            is_binary = self.config["data"]["num_classes"] == 2
+            if is_binary:
+                tensor = (q_pred > 0).long().squeeze(1)
+            else:
+                tensor = q_pred.argmax(dim=1)
+            _ = tensor.cpu().numpy()
