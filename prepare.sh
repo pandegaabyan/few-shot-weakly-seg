@@ -10,9 +10,10 @@ echo 'eval "$(pyenv init -)"' >> ~/.profile
 
 apt-get update
 apt-get upgrade -y
-apt-get install libffi-dev
+apt-get install libffi-dev libreadline-dev libsqlite3-dev
 
 # LDFLAGS="-Wl,-rpath,/opt/conda/lib" CONFIGURE_OPTS="--with-openssl=/opt/conda" pyenv install -v 3.10.9
+# pyenv install -v 3.10.9
 
 # pip install pipenv
 # pipenv lock
