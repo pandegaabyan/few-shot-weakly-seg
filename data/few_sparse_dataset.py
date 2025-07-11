@@ -291,6 +291,7 @@ class FewSparseDataset(BaseDataset, ABC):
         msk: NDArray,
         img: NDArray,
         num_classes: int,
+        segments: int | None = 250,
         compactness: float | None = 0.5,
         sparsity: SparsityValue = "random",
         seed=0,
@@ -302,11 +303,11 @@ class FewSparseDataset(BaseDataset, ABC):
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
 
-        auto_compactness = 0.5
-        compactness = compactness or auto_compactness
+        segments = segments or 250
+        compactness = compactness or 0.5
 
         slic = segmentation.slic(
-            img, n_segments=250, compactness=compactness, start_label=1
+            img, n_segments=segments, compactness=compactness, start_label=1
         )
         labels = np.unique(slic)
 
@@ -578,6 +579,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
+                segments=self.sparsity_params.get("region_segments"),
                 compactness=self.sparsity_params.get("region_compactness"),
             )
 
