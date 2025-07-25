@@ -6,7 +6,7 @@ from models.unet import UNet
 from torchmeta.modules.module import MetaModule
 
 
-class ProtosegUnet(PANetLearner):
+class PANetUnet(PANetLearner):
     def make_net(self) -> MetaModule:
         return UNet(
             self.config["data"]["num_channels"],

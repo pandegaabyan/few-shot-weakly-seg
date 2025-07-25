@@ -114,13 +114,13 @@ class ProtoSegConfig(TypedDict):
     embedding_size: int
 
 
-class GuidedNetsConfig(TypedDict):
-    embedding_size: int
-
-
 class PANetConfig(TypedDict):
     embedding_size: int
     par_weight: float
+
+
+class GuidedNetsConfig(TypedDict):
+    embedding_size: int
 
 
 class ConfigBase(TypedDict):
@@ -149,12 +149,12 @@ class ConfigProtoSeg(ConfigMetaLearner):
     protoseg: ProtoSegConfig
 
 
-class ConfigGuidedNets(ConfigMetaLearner):
-    guidednets: GuidedNetsConfig
-
-
 class ConfigPANet(ConfigMetaLearner):
     panet: PANetConfig
+
+
+class ConfigGuidedNets(ConfigMetaLearner):
+    guidednets: GuidedNetsConfig
 
 
 ConfigUnion = Union[
@@ -163,6 +163,6 @@ ConfigUnion = Union[
     ConfigMetaLearner,
     ConfigWeasel,
     ConfigProtoSeg,
-    ConfigGuidedNets,
     ConfigPANet,
+    ConfigGuidedNets,
 ]

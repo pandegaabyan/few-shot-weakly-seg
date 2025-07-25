@@ -6,6 +6,7 @@ import nanoid
 from config.config_type import (
     CallbacksConfig,
     ConfigBase,
+    ConfigPANet,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -17,6 +18,7 @@ from config.config_type import (
     LogConfig,
     MetaLearnerConfig,
     OptimizerConfig,
+    PANetConfig,
     ProtoSegConfig,
     RunMode,
     SchedulerConfig,
@@ -118,6 +120,11 @@ weasel_config: WeaselConfig = {
 protoseg_config: ProtoSegConfig = {
     "multi_pred": False,
     "embedding_size": 4,
+}
+
+panet_config: PANetConfig = {
+    "embedding_size": 4,
+    "par_weight": 0.5,
 }
 
 guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
@@ -327,6 +334,21 @@ def make_config(
             config_protoseg["scheduler"]["step_size"] = 40
             config_protoseg["callbacks"]["stop_patience"] = 10
         config = config_protoseg
+    elif runner_name == "PA":
+        config_panet: ConfigPANet = {
+            **config_ref,
+            "meta_learner": meta_learner_config,
+            "panet": panet_config,
+        }
+        if not dummy:
+            config_panet["data"]["batch_size"] = 12
+            config_panet["learn"]["num_epochs"] = 100
+            config_panet["learn"]["val_freq"] = 2
+            config_panet["callbacks"]["stop_patience"] = 10
+        else:
+            config_panet["data"]["batch_size"] = 1
+            config_panet["learn"]["num_epochs"] = 2
+        config = config_panet
 
     exp_name = learner
     exp_name += " " + name_suffix

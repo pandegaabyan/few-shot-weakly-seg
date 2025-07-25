@@ -7,6 +7,7 @@ from config.config_type import (
     ConfigBase,
     ConfigGuidedNets,
     ConfigMetaLearner,
+    ConfigPANet,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigWeasel,
@@ -72,6 +73,8 @@ class MetaLearnerKwargs(
 WeaselLearnerKwargs = MetaLearnerKwargs[ConfigWeasel]
 
 ProtoSegLearnerKwargs = MetaLearnerKwargs[ConfigProtoSeg]
+
+PANetLearnerKwargs = MetaLearnerKwargs[ConfigPANet]
 
 GuidedNetsLearnerKwargs = MetaLearnerKwargs[ConfigGuidedNets]
 

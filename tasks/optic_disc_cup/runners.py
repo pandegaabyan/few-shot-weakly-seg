@@ -5,6 +5,7 @@ import optuna
 from config.config_maker import gen_id
 from config.config_type import (
     ConfigMetaLearner,
+    ConfigPANet,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -14,12 +15,15 @@ from config.optuna import OptunaConfig
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
+from learners.panet_learner import PANetLearner
+from learners.panet_unet import PANetUnet
 from learners.protoseg_learner import ProtosegLearner
 from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
 from learners.simple_unet import SimpleUnet
 from learners.typings import (
     DatasetLists,
+    PANetLearnerKwargs,
     ProtoSegLearnerKwargs,
     SimpleLearnerKwargs,
     WeaselLearnerKwargs,
@@ -657,6 +661,55 @@ class ProtosegRunner(MetaRunner):
         return config
 
 
+class PANetRunner(MetaRunner):
+    def make_learner(
+        self,
+        dataset_fold: int = 0,
+        optuna_trial: optuna.Trial | None = None,
+    ) -> tuple[Type[PANetLearner], PANetLearnerKwargs]:
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
+
+        kwargs: PANetLearnerKwargs = {
+            **dataset_lists,
+            "config": self.config,
+            "loss": (DiscCupLoss, {"mode": "ce"}),
+            "metric": (DiscCupIoU, {}),
+            "optuna_trial": optuna_trial,
+        }
+
+        return PANetUnet, kwargs
+
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        important_config = super().update_config(optuna_trial)
+        config: ConfigPANet = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            pa_embedding = optuna_trial.suggest_int("pa_embedding", 2, 16)
+            pa_par_weight = optuna_trial.suggest_float("pa_par_weight", 0.0, 1.0)
+            config["panet"]["embedding_size"] = pa_embedding
+            important_config["pa_embedding"] = pa_embedding
+            config["panet"]["par_weight"] = pa_par_weight
+            important_config["pa_par_weight"] = pa_par_weight
+        else:
+            hyperparams = self.optuna_config.get("hyperparams", {})
+            pa_embedding = hyperparams.get("pa_embedding")
+            pa_par_weight = hyperparams.get("pa_par_weight")
+            if isinstance(pa_embedding, int):
+                config["panet"]["embedding_size"] = pa_embedding
+                important_config["pa_embedding"] = pa_embedding
+            if isinstance(pa_par_weight, float):
+                config["panet"]["par_weight"] = pa_par_weight
+                important_config["pa_par_weight"] = pa_par_weight
+
+        self.config = config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["pruner_patience"] = 3
+        return config
+
+
 def get_runner_class(learner: str) -> Type[Runner]:
     runner_name = learner.split("-")[0]
     if runner_name == "SL":
@@ -665,5 +718,7 @@ def get_runner_class(learner: str) -> Type[Runner]:
         return WeaselRunner
     elif runner_name == "PS":
         return ProtosegRunner
+    elif runner_name == "PA":
+        return PANetRunner
     else:
         raise ValueError(f"Unknown runner: {runner_name}")
