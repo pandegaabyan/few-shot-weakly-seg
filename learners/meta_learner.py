@@ -41,12 +41,6 @@ class MetaLearner(
     ) -> tuple[Tensor, Tensor, dict[str, Tensor]]:
         pass
 
-    def on_train_epoch_end(self):
-        super().on_train_epoch_end()
-
-        for ds in self.train_datasets:
-            ds.refresh(reseed=True)
-
     def make_dataloader(self, datasets: list[FewSparseDataset]):
         num_workers = self.config["data"]["num_workers"]
         return DataLoader(

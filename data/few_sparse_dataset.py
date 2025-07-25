@@ -442,7 +442,7 @@ class FewSparseDataset(BaseDataset, ABC):
         query_indices = self.extend_data(
             indices_init,
             num_iterations * self.query_batch_size,
-            random_state=self.seed + 4298,
+            random_state=self.seed,
         )
         support_indices = []
         support_indices_pool = indices_init.copy()
@@ -474,7 +474,7 @@ class FewSparseDataset(BaseDataset, ABC):
         query_indices = self.extend_data(
             indices_init,
             num_iterations * self.query_batch_size,
-            random_state=self.seed + 1254,
+            random_state=self.seed,
         )
         indices_init_set = set(indices_init)
         support_indices = []
@@ -497,23 +497,23 @@ class FewSparseDataset(BaseDataset, ABC):
             indices_init,
             query_size,
             shuffle=False,
-            random_state=self.seed + 6531,
+            random_state=self.seed,
             fold=self.split_query_fold,
         )
         support_indices = self.extend_data(
             support_indices_init,
             sum(support_batches),
-            random_state=self.seed + 6394,
+            random_state=self.seed,
         )
         query_indices = self.extend_data(
             query_indices_init,
             num_iterations * self.query_batch_size,
-            random_state=self.seed + 4158,
+            random_state=self.seed,
         )
         return support_indices, query_indices
 
     def select_sparsity(self, index: int) -> tuple[SparsityMode, SparsityValue]:
-        rng = random.Random(index + self.seed)
+        rng = random.Random(index)
         sparsity = self.sparsity_options[index % len(self.sparsity_options)]
         sparsity_mode = sparsity[0]
         sparsity_value_options = sparsity[1]
@@ -617,7 +617,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 else "random"
             )
             all_sparse_msk[sparsity_mode] = self.get_sparse_mask(
-                sparsity_mode, msk, img, sparsity_value, index + self.seed
+                sparsity_mode, msk, img, sparsity_value, index
             )
 
         return img, msk, all_sparse_msk, img_filename
@@ -638,7 +638,7 @@ class FewSparseDataset(BaseDataset, ABC):
             msk,
             img,
             sparsity_value,
-            index + self.seed,
+            index,
         )
 
         return img, sparse_msk, img_idx, sparsity_mode, sparsity_value

@@ -106,7 +106,6 @@ class Runner(ABC):
         return default_optuna_config
 
     def make_trainer(self, **kwargs) -> Trainer:
-        reload_dataloaders = self.config["data"]["num_workers"] > 0
         callbacks = self.make_callbacks()
         progress = self.config["callbacks"].get("progress", True)
         profiler = resolve_profiler(
@@ -116,7 +115,6 @@ class Runner(ABC):
         return Trainer(
             max_epochs=self.config["learn"]["num_epochs"],
             check_val_every_n_epoch=self.config["learn"].get("val_freq", 1),
-            reload_dataloaders_every_n_epochs=1 if reload_dataloaders else 0,
             callbacks=callbacks,
             deterministic=self.config["learn"].get("cudnn_deterministic", "warn"),
             benchmark=self.config["learn"].get("cudnn_benchmark", False),
