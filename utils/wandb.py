@@ -5,7 +5,7 @@ import optuna
 from dotenv import load_dotenv
 
 import wandb
-from config.constants import FILENAMES, WANDB_SETTINGS
+from config.constants import FILENAMES, WANDB_ENTITY
 from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 from wandb.sdk.wandb_run import Run
 
@@ -18,12 +18,18 @@ def wandb_login():
     wandb.login(key=wandb_api_key)
 
 
+def get_wandb_project(dummy: bool = False) -> str:
+    if dummy:
+        return "few-shot-weakly-seg-dummy"
+    load_dotenv()
+    wandb_api_key = os.getenv("WANDB_PROJECT")
+    if not wandb_api_key:
+        raise ValueError("WANDB_PROJECT is not set")
+    return wandb_api_key
+
+
 def wandb_path(dummy: bool) -> str:
-    return (
-        WANDB_SETTINGS["entity"]
-        + "/"
-        + WANDB_SETTINGS["dummy_project" if dummy else "project"]
-    )
+    return WANDB_ENTITY + "/" + get_wandb_project(dummy)
 
 
 def wandb_get_run_id_by_name(run_name: str, dummy: bool = False) -> str:
@@ -185,7 +191,7 @@ def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = Fa
     wandb_login()
     wandb.init(
         tags=["helper"],
-        project=WANDB_SETTINGS["dummy_project" if dummy else "project"],
+        project=get_wandb_project(dummy),
         name=f"log dataset {dataset_name}",
         settings=wandb.Settings(_disable_stats=True),
     )

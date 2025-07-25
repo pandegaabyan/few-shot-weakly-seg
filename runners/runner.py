@@ -14,7 +14,7 @@ import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
 from config.config_type import ConfigUnion, LearnerType, RunMode
-from config.constants import FILENAMES, WANDB_SETTINGS
+from config.constants import FILENAMES
 from config.optuna import (
     OptunaConfig,
     default_optuna_config,
@@ -35,6 +35,7 @@ from utils.logging import (
 from utils.optuna import get_optuna_storage, get_study_best_name
 from utils.utils import mean
 from utils.wandb import (
+    get_wandb_project,
     prepare_artifact_name,
     prepare_ckpt_artifact_alias,
     prepare_study_ckpt_artifact_name,
@@ -315,7 +316,7 @@ class Runner(ABC):
             wandb_login()
             wandb.init(
                 tags=["helper"],
-                project=WANDB_SETTINGS["dummy_project" if self.dummy else "project"],
+                project=get_wandb_project(self.dummy),
                 group=self.exp_name,
                 name=f"log study-ref {study_id}",
                 job_type="study",
@@ -442,7 +443,7 @@ class Runner(ABC):
         wandb.init(
             id=run_id,
             tags=self.config["wandb"].get("tags", []),
-            project=WANDB_SETTINGS["dummy_project" if self.dummy else "project"],
+            project=get_wandb_project(self.dummy),
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
