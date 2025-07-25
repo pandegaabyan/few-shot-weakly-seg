@@ -75,7 +75,7 @@ def create_dataset_classes(
     return SimpleDataset, FewSparseDataset
 
 
-ISIC16SimpleDataset, ISIC16FSDataset = create_dataset_classes("ISIC2016")
-ISIC17SimpleDataset, ISIC17FSDataset = create_dataset_classes("ISIC2017")
-ISIC18SimpleDataset, ISIC18FSDataset = create_dataset_classes("ISIC2018")
+ISIC16SimpleDataset, ISIC16FSDataset = create_dataset_classes("ISIC16")
+ISIC17SimpleDataset, ISIC17FSDataset = create_dataset_classes("ISIC17")
+ISIC18SimpleDataset, ISIC18FSDataset = create_dataset_classes("ISIC18")
 PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")

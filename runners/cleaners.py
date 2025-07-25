@@ -2,7 +2,7 @@ import os
 import time
 from typing import Literal
 
-from config.constants import FILENAMES, WANDB_SETTINGS
+from config.constants import FILENAMES, WANDB_DIR
 from utils.logging import check_rmtree, get_run_paths
 from utils.time import convert_iso_timestamp_to_epoch
 from utils.wandb import wandb_get_runs
@@ -76,10 +76,10 @@ def clean_local_wandb(before: str | int, force_clean: bool = False):
         end_time = convert_iso_timestamp_to_epoch(before)
 
     dirs_to_clean = []
-    for dir in os.listdir(WANDB_SETTINGS["dir"]):
+    for dir in os.listdir(WANDB_DIR):
         if dir.endswith(".log"):
             continue
-        dir_path = os.path.join(WANDB_SETTINGS["dir"], dir)
+        dir_path = os.path.join(WANDB_DIR, dir)
         if os.path.getmtime(dir_path) < end_time:
             dirs_to_clean.append(dir)
 
@@ -93,6 +93,6 @@ def clean_local_wandb(before: str | int, force_clean: bool = False):
 
     for dir in dirs_to_clean:
         try:
-            check_rmtree(os.path.join(WANDB_SETTINGS["dir"], dir), True)
+            check_rmtree(os.path.join(WANDB_DIR, dir), True)
         except OSError:
             print(f"Failed to clean {dir}.")

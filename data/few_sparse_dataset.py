@@ -291,6 +291,7 @@ class FewSparseDataset(BaseDataset, ABC):
         msk: NDArray,
         img: NDArray,
         num_classes: int,
+        segments: int | None = 250,
         compactness: float | None = 0.5,
         sparsity: SparsityValue = "random",
         seed=0,
@@ -302,11 +303,11 @@ class FewSparseDataset(BaseDataset, ABC):
         new_msk = np.zeros_like(msk)
         new_msk[:] = -1
 
-        auto_compactness = 0.5
-        compactness = compactness or auto_compactness
+        segments = segments or 250
+        compactness = compactness or 0.5
 
         slic = segmentation.slic(
-            img, n_segments=250, compactness=compactness, start_label=1
+            img, n_segments=segments, compactness=compactness, start_label=1
         )
         labels = np.unique(slic)
 
@@ -353,10 +354,12 @@ class FewSparseDataset(BaseDataset, ABC):
                 )
             else:
                 num_iterations_int = self.num_iterations
-            support_batches = self.make_support_batches()
+            support_batches = self.make_support_batches(num_iterations_int)
             support_sparsities = []
 
-        support_indices, query_indices = self.make_support_query_indices()
+        support_indices, query_indices = self.make_support_query_indices(
+            num_iterations_int, support_batches
+        )
 
         return (
             num_iterations_int,
@@ -393,16 +396,16 @@ class FewSparseDataset(BaseDataset, ABC):
             sparsity_list.extend([sparsity] * num_query_batch)
         return num_iterations * num_query_batch, batch_list, sparsity_list
 
-    def make_support_batches(self) -> list[int]:
+    def make_support_batches(self, num_iterations: int) -> list[int]:
         if isinstance(self.shot_options, list) and len(self.shot_options) == 0:
             raise ValueError("shot_options list is empty")
 
         support_size_init = round((1 - self.split_query_size) * len(self.items))
         if self.shot_options == "all":
-            return [support_size_init] * self.num_iterations_int
+            return [support_size_init] * num_iterations
 
         batch_list = []
-        for i in range(self.num_iterations_int):
+        for i in range(num_iterations):
             if self.shot_options == "random":
                 shot = self.np_rng.integers(1, support_size_init)
             elif isinstance(self.shot_options, list):
@@ -414,26 +417,36 @@ class FewSparseDataset(BaseDataset, ABC):
             batch_list.append(shot)
         return batch_list
 
-    def make_support_query_indices(self) -> tuple[list[int], list[int]]:
+    def make_support_query_indices(
+        self, num_iterations: int, support_batches: list[int]
+    ) -> tuple[list[int], list[int]]:
         if self.support_query_data == "mixed":
-            return self.make_mixed_support_query_indices()
+            return self.make_mixed_support_query_indices(
+                num_iterations, support_batches
+            )
         elif self.support_query_data == "mixed_replaced":
-            return self.make_mixed_replaced_support_query_indices()
+            return self.make_mixed_replaced_support_query_indices(
+                num_iterations, support_batches
+            )
         elif self.support_query_data == "split":
-            return self.make_split_support_query_indices()
+            return self.make_split_support_query_indices(
+                num_iterations, support_batches
+            )
         else:
             return [], []
 
-    def make_mixed_support_query_indices(self) -> tuple[list[int], list[int]]:
+    def make_mixed_support_query_indices(
+        self, num_iterations: int, support_batches: list[int]
+    ) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
             indices_init,
-            self.num_iterations_int * self.query_batch_size,
+            num_iterations * self.query_batch_size,
             random_state=self.seed + 4298,
         )
         support_indices = []
         support_indices_pool = indices_init.copy()
-        for i, support_batch in enumerate(self.support_batches):
+        for i, support_batch in enumerate(support_batches):
             query_indices_batch = query_indices[
                 i * self.query_batch_size : (i + 1) * self.query_batch_size
             ]
@@ -454,16 +467,18 @@ class FewSparseDataset(BaseDataset, ABC):
                 support_indices.extend(new_indices)
         return support_indices, query_indices
 
-    def make_mixed_replaced_support_query_indices(self) -> tuple[list[int], list[int]]:
+    def make_mixed_replaced_support_query_indices(
+        self, num_iterations: int, support_batches: list[int]
+    ) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_indices = self.extend_data(
             indices_init,
-            self.num_iterations_int * self.query_batch_size,
+            num_iterations * self.query_batch_size,
             random_state=self.seed + 1254,
         )
         indices_init_set = set(indices_init)
         support_indices = []
-        for i, support_batch in enumerate(self.support_batches):
+        for i, support_batch in enumerate(support_batches):
             query_indices_batch = query_indices[
                 i * self.query_batch_size : (i + 1) * self.query_batch_size
             ]
@@ -473,7 +488,9 @@ class FewSparseDataset(BaseDataset, ABC):
             support_indices.extend(support_indices_batch)
         return support_indices, query_indices
 
-    def make_split_support_query_indices(self) -> tuple[list[int], list[int]]:
+    def make_split_support_query_indices(
+        self, num_iterations: int, support_batches: list[int]
+    ) -> tuple[list[int], list[int]]:
         indices_init = list(range(len(self.items)))
         query_size = floor(self.split_query_size * len(self.items))
         support_indices_init, query_indices_init = self.split_train_test(
@@ -485,12 +502,12 @@ class FewSparseDataset(BaseDataset, ABC):
         )
         support_indices = self.extend_data(
             support_indices_init,
-            sum(self.support_batches),
+            sum(support_batches),
             random_state=self.seed + 6394,
         )
         query_indices = self.extend_data(
             query_indices_init,
-            self.num_iterations_int * self.query_batch_size,
+            num_iterations * self.query_batch_size,
             random_state=self.seed + 4158,
         )
         return support_indices, query_indices
@@ -578,6 +595,7 @@ class FewSparseDataset(BaseDataset, ABC):
                 self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
+                segments=self.sparsity_params.get("region_segments"),
                 compactness=self.sparsity_params.get("region_compactness"),
             )
 

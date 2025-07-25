@@ -108,9 +108,10 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 self.net.eval()
                 qry_pred_list = []
                 for q_image in qry_images:
-                    with self.profile("inference"):
+                    with self.profile("prediction"):
                         q_pred = self.net(q_image)
                     qry_pred_list.append(q_pred)
+                    self.profile_post_process(q_pred)
                 qry_pred = torch.vstack(qry_pred_list)
                 qry_loss = self.loss(qry_pred, query.masks)
                 if last_epoch:
@@ -191,3 +192,17 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
                 self.net.zero_grad(set_to_none=True)
                 self.manual_backward(loss)
                 self.manual_optimizer_step()
+
+    def profile_post_process(self, q_pred: Tensor):
+        if (
+            self.config["learn"].get("profiler") is None
+            or self.trainer.state.fn != "test"
+        ):
+            return
+        with self.profile("post_process"):
+            is_binary = self.config["data"]["num_classes"] == 2
+            if is_binary:
+                tensor = (q_pred > 0).long().squeeze(1)
+            else:
+                tensor = q_pred.argmax(dim=1)
+            _ = tensor.cpu().numpy()

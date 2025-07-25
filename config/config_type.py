@@ -14,6 +14,7 @@ LearnerType = Literal[
     "PS",
     "PS-mp",
     "PS-ori",
+    "PA",
 ]
 ProfilerType = Literal[
     "simple", "advanced", "pytorch", "custom", "custom-1", "custom-10", None
@@ -113,6 +114,11 @@ class ProtoSegConfig(TypedDict):
     embedding_size: int
 
 
+class PANetConfig(TypedDict):
+    embedding_size: int
+    par_weight: float
+
+
 class GuidedNetsConfig(TypedDict):
     embedding_size: int
 
@@ -143,6 +149,10 @@ class ConfigProtoSeg(ConfigMetaLearner):
     protoseg: ProtoSegConfig
 
 
+class ConfigPANet(ConfigMetaLearner):
+    panet: PANetConfig
+
+
 class ConfigGuidedNets(ConfigMetaLearner):
     guidednets: GuidedNetsConfig
 
@@ -153,5 +163,6 @@ ConfigUnion = Union[
     ConfigMetaLearner,
     ConfigWeasel,
     ConfigProtoSeg,
+    ConfigPANet,
     ConfigGuidedNets,
 ]
