@@ -36,7 +36,9 @@ class BaseDataset(Dataset, ABC):
         self.cache_data = kwargs.get("cache_data", False)
         self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.class_labels = self.set_class_labels()
-        self.seed = kwargs.get("seed", 0)
+        self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
+            self.dataset_name
+        )
 
         # Creating list of paths.
         self.items, self.original_len = self.make_items()
@@ -192,7 +194,7 @@ class BaseDataset(Dataset, ABC):
             all_data,
             test_size,
             shuffle=True,
-            random_state=self.seed,
+            random_state=self.seed + 4819,
             fold=self.split_test_fold,
         )
         if self.mode == "test":
@@ -205,7 +207,7 @@ class BaseDataset(Dataset, ABC):
             tr_val,
             val_size,
             shuffle=True,
-            random_state=self.seed,
+            random_state=self.seed + 8732,
             fold=self.split_val_fold,
         )
         if self.mode == "train":
