@@ -1,7 +1,7 @@
-from abc import ABC, abstractmethod
 from typing import Any, Literal
 
 import torch
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor, nn
 from torch.utils.data import ConcatDataset, DataLoader
 
@@ -9,12 +9,14 @@ from config.config_type import ConfigSimpleLearner
 from data.simple_dataset import SimpleDataset
 from data.typings import SimpleDatasetKwargs
 from learners.base_learner import BaseLearner
+from learners.models import make_segmentation_model
+from learners.optimizers import make_optimizer_adam, make_scheduler_step
 from learners.typings import SimpleDataBatchTuple
 from utils.utils import make_batch_sample_indices
 
 
 class SimpleLearner(
-    BaseLearner[ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs], ABC
+    BaseLearner[ConfigSimpleLearner, SimpleDataset, SimpleDatasetKwargs]
 ):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -23,9 +25,19 @@ class SimpleLearner(
 
         self.net = self.make_net()
 
-    @abstractmethod
     def make_net(self) -> nn.Module:
-        pass
+        num_classes = self.config["data"]["num_classes"]
+        output_channels = num_classes if num_classes != 2 else 1
+        return make_segmentation_model(
+            self.config["model"],
+            self.config["data"]["num_channels"],
+            output_channels,
+        )
+
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        adam_optimizer = make_optimizer_adam(self.config["optimizer"], self.net)
+        step_scheduler = make_scheduler_step(adam_optimizer, self.config["scheduler"])
+        return [adam_optimizer], [step_scheduler]
 
     def make_dataloader(self, datasets: list[SimpleDataset]):
         mode = datasets[0].mode

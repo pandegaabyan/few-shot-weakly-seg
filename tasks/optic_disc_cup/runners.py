@@ -16,11 +16,8 @@ from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.panet_learner import PANetLearner
-from learners.panet_unet import PANetUnet
 from learners.protoseg_learner import ProtosegLearner
-from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
-from learners.simple_unet import SimpleUnet
 from learners.typings import (
     DatasetLists,
     PANetLearnerKwargs,
@@ -29,7 +26,6 @@ from learners.typings import (
     WeaselLearnerKwargs,
 )
 from learners.weasel_learner import WeaselLearner
-from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
@@ -124,7 +120,7 @@ class SimpleRunner(Runner):
             "optuna_trial": optuna_trial,
         }
 
-        return SimpleUnet, kwargs
+        return SimpleLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
@@ -583,7 +579,7 @@ class WeaselRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return WeaselUnet, kwargs
+        return WeaselLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
@@ -632,7 +628,7 @@ class ProtosegRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return ProtosegUnet, kwargs
+        return ProtosegLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
@@ -677,7 +673,7 @@ class PANetRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return PANetUnet, kwargs
+        return PANetLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)

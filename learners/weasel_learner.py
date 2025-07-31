@@ -1,18 +1,20 @@
-from abc import ABC, abstractmethod
 from collections import OrderedDict
 from copy import deepcopy
 from typing import Literal
 
 import torch
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor
 
 from config.config_type import ConfigWeasel
 from data.typings import FewSparseDataTuple
 from learners.meta_learner import MetaLearner
+from learners.models import make_segmentation_model
+from learners.optimizers import make_optimizer_adam, make_scheduler_step
 from torchmeta.modules.module import MetaModule
 
 
-class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
+class WeaselLearner(MetaLearner[ConfigWeasel]):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -23,9 +25,22 @@ class WeaselLearner(MetaLearner[ConfigWeasel], ABC):
 
         self.automatic_optimization = False
 
-    @abstractmethod
     def make_net(self) -> MetaModule:
-        pass
+        num_classes = self.config["data"]["num_classes"]
+        output_channels = num_classes if num_classes != 2 else 1
+        model = make_segmentation_model(
+            self.config["model"],
+            self.config["data"]["num_channels"],
+            output_channels,
+        )
+        if not isinstance(model, MetaModule):
+            raise ValueError("The model must be a MetaModule.")
+        return model
+
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        adam_optimizer = make_optimizer_adam(self.config["optimizer"], self.net)
+        step_scheduler = make_scheduler_step(adam_optimizer, self.config["scheduler"])
+        return [adam_optimizer], [step_scheduler]
 
     def forward(
         self, supp_image: Tensor, supp_mask: Tensor, qry_image: Tensor

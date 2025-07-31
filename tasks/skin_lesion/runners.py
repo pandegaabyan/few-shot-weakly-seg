@@ -13,7 +13,6 @@ from data.typings import SimpleDatasetKwargs
 from learners.losses import CustomLoss
 from learners.metrics import BinaryIoUMetric
 from learners.simple_learner import SimpleLearner
-from learners.simple_unet import SimpleUnet
 from learners.typings import (
     DatasetLists,
     SimpleLearnerKwargs,
@@ -96,7 +95,7 @@ class SimpleRunner(Runner):
             "optuna_trial": optuna_trial,
         }
 
-        return SimpleUnet, kwargs
+        return SimpleLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
