@@ -100,9 +100,5 @@ def get_optimizer_and_scheduler_names(
             if isinstance(item, optim.Optimizer):
                 opts.append(get_name_from_instance(item))
                 scheds.append("")
-            elif isinstance(item, dict):
-                opt, sched = get_opt_and_sched_from_config(item)
-                opts.append(opt)
-                scheds.append(sched)
         return opts, scheds
     return [], []
