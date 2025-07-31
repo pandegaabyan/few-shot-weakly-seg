@@ -17,6 +17,7 @@ from config.config_type import (
     LearnerType,
     LogConfig,
     MetaLearnerConfig,
+    ModelConfig,
     OptimizerConfig,
     PANetConfig,
     ProtoSegConfig,
@@ -50,6 +51,8 @@ learn_config: LearnConfig = {
     "ref_ckpt": None,
     "optuna_study": None,
 }
+
+model_config: ModelConfig = {"arch": "unetmini"}
 
 optimizer_config: OptimizerConfig = {
     "lr": 1e-3,
@@ -99,6 +102,7 @@ wandb_config: WandbConfig = {
 config_base: ConfigBase = {
     "data": data_config,
     "learn": learn_config,
+    "model": model_config,
     "optimizer": optimizer_config,
     "scheduler": scheduler_config,
     "log": log_config,
