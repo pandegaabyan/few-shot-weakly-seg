@@ -85,21 +85,26 @@ def parse_basic(
     beta2_comp = hyperparams.get("beta2_comp")
     gamma = hyperparams.get("gamma")
 
-    important_config = {}
     if isinstance(lr, float):
         config["optimizer"]["lr"] = lr
-        important_config["lr"] = lr
     if isinstance(weight_decay, float):
         config["optimizer"]["weight_decay"] = weight_decay
-        important_config["weight_decay"] = weight_decay
     if isinstance(beta1_comp, float) and isinstance(beta2_comp, float):
         betas = (1 - beta1_comp, 1 - beta2_comp)
         config["optimizer"]["betas"] = betas
-        important_config["beta1"] = betas[0]
-        important_config["beta2"] = betas[1]
     if isinstance(gamma, float):
         config["scheduler"]["gamma"] = gamma
-        important_config["gamma"] = gamma
+
+    important_config = {}
+    if "lr" in config["optimizer"]:
+        important_config["lr"] = config["optimizer"]["lr"]
+    if "weight_decay" in config["optimizer"]:
+        important_config["weight_decay"] = config["optimizer"]["weight_decay"]
+    if "betas" in config["optimizer"]:
+        important_config["beta1"] = config["optimizer"]["betas"][0]
+        important_config["beta2"] = config["optimizer"]["betas"][1]
+    if "gamma" in config["scheduler"]:
+        important_config["gamma"] = config["scheduler"]["gamma"]
 
     return important_config
 
@@ -131,6 +136,7 @@ class SimpleRunner(Runner):
             important_config = parse_basic(
                 config, self.optuna_config.get("hyperparams", {})
             )
+        important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 32
         variable_epochs = 50
@@ -315,11 +321,25 @@ class MetaRunner(Runner):
         config: ConfigMetaLearner = self.config  # type: ignore
 
         if optuna_trial is not None:
+            config["model"]["arch"] = "deeplabv3plus"
+            config["model"]["backbone"] = optuna_trial.suggest_categorical(
+                "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
+            )
+        else:
+            model = self.optuna_config.get("hyperparams", {}).get("model")
+            if isinstance(model, str):
+                model_split = model.split("_", 2)
+                config["model"]["arch"] = model_split[0]
+                if len(model_split) == 2:
+                    config["model"]["backbone"] = model_split[1]
+
+        if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(
                 config, self.optuna_config.get("hyperparams", {})
             )
+        important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 16
         variable_epochs = 25
