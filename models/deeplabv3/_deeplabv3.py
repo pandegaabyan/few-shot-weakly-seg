@@ -20,6 +20,7 @@ class DeepLabV3(nn.Module):
             the backbone and returns a dense prediction.
         aux_classifier (nn.Module, optional): auxiliary classifier used during training
     """
+
     def __init__(self, backbone, classifier):
         super(DeepLabV3, self).__init__()
         self.backbone = backbone
@@ -123,7 +124,7 @@ class ASPPPooling(nn.Sequential):
         super(ASPPPooling, self).__init__(
             nn.AdaptiveAvgPool2d(1),
             nn.Conv2d(in_channels, out_channels, 1, bias=False),
-            nn.BatchNorm2d(out_channels),
+            nn.GroupNorm(min(32, out_channels), out_channels),
             nn.ReLU(inplace=True),
         )
 
