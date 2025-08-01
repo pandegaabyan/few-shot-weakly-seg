@@ -49,6 +49,11 @@ class LearnConfig(TypedDict):
     optuna_study: NotRequired[str | None]
 
 
+class ModelConfig(TypedDict, total=False):
+    arch: str
+    backbone: str | None
+
+
 class OptimizerConfig(TypedDict, total=False):
     lr: float
     lr_bias_mult: float
@@ -126,6 +131,7 @@ class GuidedNetsConfig(TypedDict):
 class ConfigBase(TypedDict):
     data: DataConfig
     learn: LearnConfig
+    model: ModelConfig
     optimizer: OptimizerConfig
     scheduler: SchedulerConfig
     log: LogConfig

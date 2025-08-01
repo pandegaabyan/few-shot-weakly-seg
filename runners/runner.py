@@ -432,6 +432,13 @@ class Runner(ABC):
             for key in dataset_lists
         }
 
+    def get_model_name(self) -> str:
+        arch = self.config["model"].get("arch", "unknown")
+        backbone = self.config["model"].get("backbone")
+        if backbone is None:
+            return arch
+        return f"{arch}_{backbone}"
+
     def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config
         wandb_settings = wandb.Settings(

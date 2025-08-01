@@ -13,7 +13,6 @@ from data.typings import SimpleDatasetKwargs
 from learners.losses import CustomLoss
 from learners.metrics import BinaryIoUMetric
 from learners.simple_learner import SimpleLearner
-from learners.simple_unet import SimpleUnet
 from learners.typings import (
     DatasetLists,
     SimpleLearnerKwargs,
@@ -61,21 +60,26 @@ def parse_basic(
     beta2_comp = hyperparams.get("beta2_comp")
     gamma = hyperparams.get("gamma")
 
-    important_config = {}
     if isinstance(lr, float):
         config["optimizer"]["lr"] = lr
-        important_config["lr"] = lr
     if isinstance(weight_decay, float):
         config["optimizer"]["weight_decay"] = weight_decay
-        important_config["weight_decay"] = weight_decay
     if isinstance(beta1_comp, float) and isinstance(beta2_comp, float):
         betas = (1 - beta1_comp, 1 - beta2_comp)
         config["optimizer"]["betas"] = betas
-        important_config["beta1"] = betas[0]
-        important_config["beta2"] = betas[1]
     if isinstance(gamma, float):
         config["scheduler"]["gamma"] = gamma
-        important_config["gamma"] = gamma
+
+    important_config = {}
+    if "lr" in config["optimizer"]:
+        important_config["lr"] = config["optimizer"]["lr"]
+    if "weight_decay" in config["optimizer"]:
+        important_config["weight_decay"] = config["optimizer"]["weight_decay"]
+    if "betas" in config["optimizer"]:
+        important_config["beta1"] = config["optimizer"]["betas"][0]
+        important_config["beta2"] = config["optimizer"]["betas"][1]
+    if "gamma" in config["scheduler"]:
+        important_config["gamma"] = config["scheduler"]["gamma"]
 
     return important_config
 
@@ -96,7 +100,7 @@ class SimpleRunner(Runner):
             "optuna_trial": optuna_trial,
         }
 
-        return SimpleUnet, kwargs
+        return SimpleLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
@@ -107,6 +111,7 @@ class SimpleRunner(Runner):
             important_config = parse_basic(
                 config, self.optuna_config.get("hyperparams", {})
             )
+        important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 32
         variable_epochs = 50

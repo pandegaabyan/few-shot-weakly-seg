@@ -118,9 +118,9 @@ class _MetaDecoderBlock(modules.MetaModule):
         return self.decode(x, self.get_subdict(params, "decode"))
 
 
-class UNet(modules.MetaModule):
+class UNetMini(modules.MetaModule):
     def __init__(self, input_channels, output_channels, prototype=False):
-        super(UNet, self).__init__()
+        super(UNetMini, self).__init__()
 
         self.prototype = prototype
 
@@ -151,7 +151,7 @@ class UNet(modules.MetaModule):
 
         initialize_weights(self)
 
-    def forward(self, x, feat=False, params=None):
+    def forward(self, x, params=None):
         enc1 = self.enc1(x, self.get_subdict(params, "enc1"))
         enc2 = self.enc2(enc1, self.get_subdict(params, "enc2"))
         enc3 = self.enc3(enc2, self.get_subdict(params, "enc3"))
@@ -189,12 +189,4 @@ class UNet(modules.MetaModule):
         else:
             final = self.final(dec1, self.get_subdict(params, "final"))
 
-            if feat:
-                return (
-                    functional.interpolate(final, x.size()[2:], mode="bilinear"),
-                    dec1,
-                    functional.interpolate(dec2, x.size()[2:], mode="bilinear"),
-                    functional.interpolate(dec3, x.size()[2:], mode="bilinear"),
-                )
-            else:
-                return functional.interpolate(final, x.size()[2:], mode="bilinear")
+            return functional.interpolate(final, x.size()[2:], mode="bilinear")

@@ -16,11 +16,8 @@ from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.panet_learner import PANetLearner
-from learners.panet_unet import PANetUnet
 from learners.protoseg_learner import ProtosegLearner
-from learners.protoseg_unet import ProtosegUnet
 from learners.simple_learner import SimpleLearner
-from learners.simple_unet import SimpleUnet
 from learners.typings import (
     DatasetLists,
     PANetLearnerKwargs,
@@ -29,7 +26,6 @@ from learners.typings import (
     WeaselLearnerKwargs,
 )
 from learners.weasel_learner import WeaselLearner
-from learners.weasel_unet import WeaselUnet
 from runners.runner import Runner
 from tasks.optic_disc_cup.datasets import (
     DrishtiTestFSDataset,
@@ -89,21 +85,26 @@ def parse_basic(
     beta2_comp = hyperparams.get("beta2_comp")
     gamma = hyperparams.get("gamma")
 
-    important_config = {}
     if isinstance(lr, float):
         config["optimizer"]["lr"] = lr
-        important_config["lr"] = lr
     if isinstance(weight_decay, float):
         config["optimizer"]["weight_decay"] = weight_decay
-        important_config["weight_decay"] = weight_decay
     if isinstance(beta1_comp, float) and isinstance(beta2_comp, float):
         betas = (1 - beta1_comp, 1 - beta2_comp)
         config["optimizer"]["betas"] = betas
-        important_config["beta1"] = betas[0]
-        important_config["beta2"] = betas[1]
     if isinstance(gamma, float):
         config["scheduler"]["gamma"] = gamma
-        important_config["gamma"] = gamma
+
+    important_config = {}
+    if "lr" in config["optimizer"]:
+        important_config["lr"] = config["optimizer"]["lr"]
+    if "weight_decay" in config["optimizer"]:
+        important_config["weight_decay"] = config["optimizer"]["weight_decay"]
+    if "betas" in config["optimizer"]:
+        important_config["beta1"] = config["optimizer"]["betas"][0]
+        important_config["beta2"] = config["optimizer"]["betas"][1]
+    if "gamma" in config["scheduler"]:
+        important_config["gamma"] = config["scheduler"]["gamma"]
 
     return important_config
 
@@ -124,7 +125,7 @@ class SimpleRunner(Runner):
             "optuna_trial": optuna_trial,
         }
 
-        return SimpleUnet, kwargs
+        return SimpleLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
@@ -135,6 +136,7 @@ class SimpleRunner(Runner):
             important_config = parse_basic(
                 config, self.optuna_config.get("hyperparams", {})
             )
+        important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 32
         variable_epochs = 50
@@ -319,11 +321,25 @@ class MetaRunner(Runner):
         config: ConfigMetaLearner = self.config  # type: ignore
 
         if optuna_trial is not None:
+            config["model"]["arch"] = "deeplabv3plus"
+            config["model"]["backbone"] = optuna_trial.suggest_categorical(
+                "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
+            )
+        else:
+            model = self.optuna_config.get("hyperparams", {}).get("model")
+            if isinstance(model, str):
+                model_split = model.split("_", 2)
+                config["model"]["arch"] = model_split[0]
+                if len(model_split) == 2:
+                    config["model"]["backbone"] = model_split[1]
+
+        if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(
                 config, self.optuna_config.get("hyperparams", {})
             )
+        important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 16
         variable_epochs = 25
@@ -391,12 +407,14 @@ class MetaRunner(Runner):
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
+        batch_size = self.config["data"]["batch_size"]
+
         if self.mode == "test":
             query_batch = 5
         elif self.mode == "profile-test":
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = batch_size
         elif "ori" in self.learner_type.split("-"):
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = batch_size
         else:
             query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
@@ -413,9 +431,9 @@ class MetaRunner(Runner):
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
                 "max_items": 4,
-                "shot_options": self.config["data"]["batch_size"],
+                "shot_options": (1, 3),
                 "support_batch_mode": "mixed",
-                "query_batch_size": self.config["data"]["batch_size"],
+                "query_batch_size": 2,
                 "num_iterations": 2,
             }
         else:
@@ -423,7 +441,7 @@ class MetaRunner(Runner):
 
         if "ori" in self.learner_type.split("-"):
             train_kwargs: FewSparseDatasetKwargs = {
-                "shot_options": self.config["data"]["batch_size"],
+                "shot_options": batch_size,
                 "sparsity_options": [("random", "random")],
                 "support_batch_mode": "mixed",
                 "num_iterations": 5,
@@ -583,7 +601,7 @@ class WeaselRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return WeaselUnet, kwargs
+        return WeaselLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
@@ -632,7 +650,7 @@ class ProtosegRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return ProtosegUnet, kwargs
+        return ProtosegLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
@@ -677,7 +695,7 @@ class PANetRunner(MetaRunner):
             "optuna_trial": optuna_trial,
         }
 
-        return PANetUnet, kwargs
+        return PANetLearner, kwargs
 
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)

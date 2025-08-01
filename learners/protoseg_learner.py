@@ -1,16 +1,17 @@
-from abc import ABC, abstractmethod
 from typing import Literal
 
 import torch
-from torch import Tensor
+from pytorch_lightning.utilities.types import OptimizerLRScheduler
+from torch import Tensor, nn
 
 from config.config_type import ConfigProtoSeg
 from data.typings import FewSparseDataTuple
 from learners.meta_learner import MetaLearner
-from torchmeta.modules.module import MetaModule
+from learners.models import make_segmentation_model
+from learners.optimizers import make_optimizer_adam, make_scheduler_step
 
 
-class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
+class ProtosegLearner(MetaLearner[ConfigProtoSeg]):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
@@ -20,9 +21,17 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg], ABC):
 
         self.multi_pred = self.config["protoseg"]["multi_pred"]
 
-    @abstractmethod
-    def make_net(self) -> MetaModule:
-        pass
+    def make_net(self) -> nn.Module:
+        return make_segmentation_model(
+            self.config["model"],
+            self.config["data"]["num_channels"],
+            self.config["protoseg"]["embedding_size"],
+        )
+
+    def configure_optimizers(self) -> OptimizerLRScheduler:
+        adam_optimizer = make_optimizer_adam(self.config["optimizer"], self.net)
+        step_scheduler = make_scheduler_step(adam_optimizer, self.config["scheduler"])
+        return [adam_optimizer], [step_scheduler]
 
     def forward(
         self, supp_image: Tensor, supp_mask: Tensor, qry_image: Tensor
