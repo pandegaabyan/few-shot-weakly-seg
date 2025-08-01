@@ -407,12 +407,14 @@ class MetaRunner(Runner):
     def make_dataset_lists(
         self, query_fold: int, dummy: bool
     ) -> DatasetLists[FewSparseDataset, FewSparseDatasetKwargs]:
+        batch_size = self.config["data"]["batch_size"]
+
         if self.mode == "test":
             query_batch = 5
         elif self.mode == "profile-test":
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = batch_size
         elif "ori" in self.learner_type.split("-"):
-            query_batch = self.config["data"]["batch_size"]
+            query_batch = batch_size
         else:
             query_batch = 10
         base_kwargs: FewSparseDatasetKwargs = {
@@ -429,9 +431,9 @@ class MetaRunner(Runner):
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
                 "max_items": 4,
-                "shot_options": self.config["data"]["batch_size"],
+                "shot_options": (1, 3),
                 "support_batch_mode": "mixed",
-                "query_batch_size": self.config["data"]["batch_size"],
+                "query_batch_size": 2,
                 "num_iterations": 2,
             }
         else:
@@ -439,7 +441,7 @@ class MetaRunner(Runner):
 
         if "ori" in self.learner_type.split("-"):
             train_kwargs: FewSparseDatasetKwargs = {
-                "shot_options": self.config["data"]["batch_size"],
+                "shot_options": batch_size,
                 "sparsity_options": [("random", "random")],
                 "support_batch_mode": "mixed",
                 "num_iterations": 5,
