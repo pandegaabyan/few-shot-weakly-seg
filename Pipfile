@@ -29,6 +29,8 @@ ipykernel = "==6.29.5"
 psycopg2-binary = "==2.9.9"
 optuna-integration = {extras = ["botorch"], version = "==3.6.0"}
 botorch = "==0.9.5"
+torchvision = "==0.18.1"
+albumentations = "==1.4.24"
 
 [dev-packages]
 
