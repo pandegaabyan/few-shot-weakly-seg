@@ -2,7 +2,6 @@ import os
 import random
 from abc import ABC, abstractmethod
 from math import floor
-from typing import Literal
 
 import numpy as np
 import torch
@@ -27,21 +26,21 @@ class BaseDataset(Dataset, ABC):
         self.mode = mode
         self.num_classes = num_classes
         self.resize_to = resize_to
-        self.max_items = kwargs.get("max_items")
+        self.size = kwargs.get("size", 1.0)
         self.split_val_size = kwargs.get("split_val_size", 0)
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
         self.split_test_fold = kwargs.get("split_test_fold", 0)
-        self.augment_flip = kwargs.get("augment_flip", False)
         self.cache_data = kwargs.get("cache_data", False)
         self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
+        self.transforms = kwargs.get("transforms", None)
         self.class_labels = self.set_class_labels()
         self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
             self.dataset_name
         )
 
         # Creating list of paths.
-        self.items, self.original_len = self.make_items()
+        self.items = self.make_items()
         if len(self.items) == 0:
             raise (RuntimeError("Get 0 items, please check"))
 
@@ -112,16 +111,6 @@ class BaseDataset(Dataset, ABC):
         return resized
 
     @staticmethod
-    def flip_image(img: NDArray, mode: Literal["h", "v", "hv", "vh"]) -> NDArray:
-        if mode == "h":
-            return img[:, ::-1].copy()
-        elif mode == "v":
-            return img[::-1].copy()
-        elif mode == "hv" or mode == "vh":
-            return img[::-1, ::-1].copy()
-        raise ValueError("Invalid mode")
-
-    @staticmethod
     def prepare_image_as_tensor(img: NDArray) -> Tensor:
         new_img = BaseDataset.norm(img)
         new_img = BaseDataset.ensure_channels(new_img)
@@ -145,32 +134,40 @@ class BaseDataset(Dataset, ABC):
 
     @staticmethod
     def extend_data(
-        data: list[T], num_items: int, random_state: int | None = 0
+        data: list[T],
+        num_items: int,
+        random_state: int | None = None,
     ) -> list[T]:
         if len(data) >= num_items:
             return data[:num_items]
-        rng = random.Random(random_state)
+
         extended_data = []
         new_data = data.copy()
+        if random_state is not None:
+            rng = random.Random(random_state)
+
         for i in range(num_items // len(data)):
-            if i != 0:
+            if i != 0 and random_state is not None:
                 rng.shuffle(new_data)
             extended_data.extend(new_data)
-        new_data = rng.sample(data, num_items - len(extended_data))
-        extended_data.extend(new_data)
+            if random_state is not None:
+                new_data = rng.sample(data, num_items - len(extended_data))
+            else:
+                new_data = data[: num_items - len(extended_data)]
+            extended_data.extend(new_data)
+
         return extended_data
 
     @staticmethod
     def split_train_test(
         data: list[T],
         test_size: int,
-        shuffle: bool = False,
-        random_state: int | None = 0,
+        random_state: int | None = None,
         fold: int = 0,
     ) -> tuple[list[T], list[T]]:
         if test_size == 0:
             return data, []
-        if shuffle:
+        if random_state is not None:
             rng = random.Random(random_state)
             rng.shuffle(data)
         if (fold + 1) * test_size > len(data):
@@ -179,12 +176,13 @@ class BaseDataset(Dataset, ABC):
         tr = data[: fold * test_size] + data[(fold + 1) * test_size :]
         return tr, ts
 
-    def make_items(self) -> tuple[DataPathList, int]:
-        def finalize(data: list) -> tuple[DataPathList, int]:
-            ori_len = len(data)
-            if self.augment_flip:
-                data = data * 2
-            return data[: self.max_items], ori_len
+    def make_items(self) -> DataPathList:
+        def finalize(data: list) -> DataPathList:
+            if isinstance(self.size, int):
+                num_items = self.size
+            else:
+                num_items = floor(self.size * len(data))
+            return self.extend_data(data, num_items)
 
         all_data = self.get_all_data_path()
         test_size = floor(self.split_test_size * len(all_data))
@@ -193,7 +191,6 @@ class BaseDataset(Dataset, ABC):
         tr_val, ts = self.split_train_test(
             all_data,
             test_size,
-            shuffle=True,
             random_state=self.seed + 4819,
             fold=self.split_test_fold,
         )
@@ -201,12 +198,11 @@ class BaseDataset(Dataset, ABC):
             return finalize(ts)
 
         if self.split_test_size == 1:
-            return [], 0
+            return []
 
         tr, val = self.split_train_test(
             tr_val,
             val_size,
-            shuffle=True,
             random_state=self.seed + 8732,
             fold=self.split_val_fold,
         )
@@ -215,7 +211,7 @@ class BaseDataset(Dataset, ABC):
         if self.mode == "val":
             return finalize(val)
 
-        return [], 0
+        return []
 
     def get_data(self, index: int) -> BaseDataTuple:
         if self.cache_data and len(self.cached_items_data) > index:
@@ -228,10 +224,10 @@ class BaseDataset(Dataset, ABC):
         img = self.resize_image(img, self.resize_to, False)
         msk = self.resize_image(msk, self.resize_to, True)
 
-        if self.augment_flip and index >= self.original_len:
-            flip_mode = "hv"
-            img = self.flip_image(img, flip_mode)
-            msk = self.flip_image(msk, flip_mode)
+        if self.transforms is not None:
+            transformed = self.transforms(image=img, mask=msk)
+            img = transformed["image"]
+            msk = transformed["mask"]
 
         img_filename = self.filename_from_path(img_path)
 

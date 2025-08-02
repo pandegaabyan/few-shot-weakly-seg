@@ -496,8 +496,6 @@ class FewSparseDataset(BaseDataset, ABC):
         support_indices_init, query_indices_init = self.split_train_test(
             indices_init,
             query_size,
-            shuffle=False,
-            random_state=self.seed + 6531,
             fold=self.split_query_fold,
         )
         support_indices = self.extend_data(

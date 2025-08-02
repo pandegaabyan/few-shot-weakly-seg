@@ -1,5 +1,6 @@
 from typing import Type
 
+import albumentations as A
 import optuna
 
 from config.config_maker import gen_id
@@ -209,7 +210,7 @@ class SimpleRunner(Runner):
             "cache_data": True,
         }
         if dummy:
-            base_kwargs["max_items"] = 6
+            base_kwargs["size"] = 6
 
         rim_one_3_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -430,7 +431,7 @@ class MetaRunner(Runner):
 
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
-                "max_items": 4,
+                "size": 4,
                 "shot_options": (1, 3),
                 "support_batch_mode": "mixed",
                 "query_batch_size": 2,
@@ -519,7 +520,19 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
-            drishti_train_kwargs["augment_flip"] = True
+            drishti_train_kwargs["size"] = 2.0
+            drishti_train_kwargs["transforms"] = A.Compose(
+                [
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.2,
+                        contrast_limit=0.2,
+                        ensure_safe_range=True,
+                        p=1.0,
+                    ),
+                ]
+            )
         drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
@@ -544,7 +557,7 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
-            refuge_val_kwargs["max_items"] = 100
+            refuge_val_kwargs["size"] = 100
         refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,

@@ -1,5 +1,6 @@
 from typing import Literal, NamedTuple, TypedDict, TypeVar, Union
 
+from albumentations import BaseCompose, BasicTransform
 from numpy.typing import NDArray
 from torch import Tensor
 
@@ -68,15 +69,15 @@ class FewSparseDataTuple(NamedTuple):
 
 
 class BaseDatasetKwargs(TypedDict, total=False):
-    max_items: int | None
     seed: int
+    size: float | int
     split_val_size: float
     split_val_fold: int
     split_test_size: float
     split_test_fold: int
-    augment_flip: bool
     cache_data: bool
     dataset_name: str | None
+    transforms: BaseCompose | BasicTransform | None
 
 
 class SimpleDatasetKwargs(BaseDatasetKwargs): ...
