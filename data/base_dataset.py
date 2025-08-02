@@ -11,7 +11,14 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from typing_extensions import Unpack
 
-from data.typings import BaseDatasetKwargs, BaseDataTuple, DataPathList, DatasetModes, T
+from data.typings import (
+    BaseDatasetKwargs,
+    BaseDataTuple,
+    DataPathList,
+    DatasetModes,
+    ScalingType,
+    T,
+)
 
 
 class BaseDataset(Dataset, ABC):
@@ -26,14 +33,15 @@ class BaseDataset(Dataset, ABC):
         self.mode = mode
         self.num_classes = num_classes
         self.resize_to = resize_to
+        self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.size = kwargs.get("size", 1.0)
         self.split_val_size = kwargs.get("split_val_size", 0)
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
         self.split_test_fold = kwargs.get("split_test_fold", 0)
-        self.cache_data = kwargs.get("cache_data", False)
-        self.dataset_name = kwargs.get("dataset_name") or self.__class__.__name__
         self.transforms = kwargs.get("transforms", None)
+        self.scaling: ScalingType = kwargs.get("scaling", None)
+        self.cache_data = kwargs.get("cache_data", False)
         self.class_labels = self.set_class_labels()
         self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
             self.dataset_name
@@ -69,16 +77,26 @@ class BaseDataset(Dataset, ABC):
         return sum(i * ord(c) for i, c in enumerate(s, start=1))
 
     @staticmethod
-    def norm(img: NDArray) -> NDArray:
-        normalized = np.zeros(img.shape)
+    def scale_min_max(img: NDArray) -> NDArray:
+        scaled = np.zeros(img.shape)
         if len(img.shape) == 2:
-            normalized = (img - img.mean()) / img.std()
+            scaled = (img - img.min()) / (img.max() - img.min())
         else:
-            for b in range(img.shape[2]):
-                normalized[:, :, b] = (img[:, :, b] - img[:, :, b].mean()) / img[
-                    :, :, b
-                ].std()
-        return normalized.astype(np.float32)
+            for c in range(img.shape[2]):
+                chan = img[:, :, c]
+                scaled[:, :, c] = (chan - chan.min()) / (chan.max() - chan.min())
+        return scaled.astype(np.float32)
+
+    @staticmethod
+    def scale_mean_std(img: NDArray) -> NDArray:
+        scaled = np.zeros(img.shape)
+        if len(img.shape) == 2:
+            scaled = (img - img.mean()) / img.std()
+        else:
+            for c in range(img.shape[2]):
+                chan = img[:, :, c]
+                scaled[:, :, c] = (chan - chan.mean()) / chan.std()
+        return scaled.astype(np.float32)
 
     @staticmethod
     def ensure_channels(img: NDArray) -> NDArray:
@@ -111,8 +129,15 @@ class BaseDataset(Dataset, ABC):
         return resized
 
     @staticmethod
-    def prepare_image_as_tensor(img: NDArray) -> Tensor:
-        new_img = BaseDataset.norm(img)
+    def prepare_image_as_tensor(img: NDArray, scaling: ScalingType = None) -> Tensor:
+        if scaling == "simple":
+            new_img = (img / 255.0).astype(np.float32)
+        elif scaling == "min-max":
+            new_img = BaseDataset.scale_min_max(img)
+        elif scaling == "mean-std":
+            new_img = BaseDataset.scale_mean_std(img)
+        else:
+            new_img = img
         new_img = BaseDataset.ensure_channels(new_img)
         new_img = torch.from_numpy(new_img)
         return new_img

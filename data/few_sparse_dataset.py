@@ -666,7 +666,7 @@ class FewSparseDataset(BaseDataset, ABC):
             img, msk, img_idx, mode, value = self.get_support_data(
                 item_index, sparsity_mode, sparsity_value
             )
-            img = self.prepare_image_as_tensor(img)
+            img = self.prepare_image_as_tensor(img, self.scaling)
             msk = self.prepare_mask_as_tensor(msk)
             support_images_list.append(img)
             support_masks_list.append(msk)
@@ -687,7 +687,7 @@ class FewSparseDataset(BaseDataset, ABC):
         for i in range(self.query_batch_size):
             item_index = self.query_batch_size * index + i
             img, msk, img_idx = self.get_query_data(item_index)
-            img = self.prepare_image_as_tensor(img)
+            img = self.prepare_image_as_tensor(img, self.scaling)
             msk = self.prepare_mask_as_tensor(msk)
             query_images_list.append(img)
             query_masks_list.append(msk)
