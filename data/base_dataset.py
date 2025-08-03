@@ -3,6 +3,7 @@ import random
 from abc import ABC, abstractmethod
 from math import floor
 
+import albumentations as A
 import numpy as np
 import torch
 from numpy.typing import NDArray
@@ -39,13 +40,37 @@ class BaseDataset(Dataset, ABC):
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
         self.split_test_fold = kwargs.get("split_test_fold", 0)
-        self.transforms = kwargs.get("transforms", None)
         self.scaling: ScalingType = kwargs.get("scaling", None)
         self.cache_data = kwargs.get("cache_data", False)
         self.class_labels = self.set_class_labels()
         self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
             self.dataset_name
         )
+
+        transforms = kwargs.get("transforms", None)
+        if transforms == "basic":
+            self.transforms = A.Compose(
+                [
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                    A.GaussNoise(std_range=(0.1, 0.2), p=0.2),
+                    A.GaussianBlur(blur_limit=4, p=0.2),
+                    A.HueSaturationValue(
+                        hue_shift_limit=20,
+                        sat_shift_limit=30,
+                        val_shift_limit=20,
+                        p=0.5,
+                    ),
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.2,
+                        contrast_limit=0.2,
+                        ensure_safe_range=True,
+                        p=0.5,
+                    ),
+                ]
+            )
+        else:
+            self.transforms = transforms
 
         # Creating list of paths.
         self.items = self.make_items()

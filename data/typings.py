@@ -78,7 +78,7 @@ class BaseDatasetKwargs(TypedDict, total=False):
     split_val_fold: int
     split_test_size: float
     split_test_fold: int
-    transforms: BaseCompose | BasicTransform | None
+    transforms: BaseCompose | BasicTransform | Literal["basic"] | None
     scaling: ScalingType
     cache_data: bool
 
