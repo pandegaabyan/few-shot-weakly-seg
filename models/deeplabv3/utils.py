@@ -1,8 +1,8 @@
 from collections import OrderedDict
 
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional
 
 
 class IntermediateLayerGetter(nn.ModuleDict):
@@ -71,19 +71,19 @@ class IntermediateLayerGetter(nn.ModuleDict):
                         x[0].size(2),
                         x[0].size(3),
                     )  # Upsample to size of highest resolution stream
-                    x1 = functional.interpolate(
+                    x1 = F.interpolate(
                         x[1],
                         size=(output_h, output_w),
                         mode="bilinear",
                         align_corners=False,
                     )
-                    x2 = functional.interpolate(
+                    x2 = F.interpolate(
                         x[2],
                         size=(output_h, output_w),
                         mode="bilinear",
                         align_corners=False,
                     )
-                    x3 = functional.interpolate(
+                    x3 = F.interpolate(
                         x[3],
                         size=(output_h, output_w),
                         mode="bilinear",

@@ -1,6 +1,6 @@
 import torch
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional
 
 __all__ = ["DeepLabV3"]
 
@@ -30,9 +30,7 @@ class DeepLabV3(nn.Module):
         input_shape = x.shape[-2:]
         features = self.backbone(x)
         x = self.classifier(features)
-        x = functional.interpolate(
-            x, size=input_shape, mode="bilinear", align_corners=False
-        )
+        x = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
         return x
 
 
@@ -60,7 +58,7 @@ class DeepLabHeadV3Plus(nn.Module):
     def forward(self, feature):
         low_level_feature = self.project(feature["low_level"])
         output_feature = self.aspp(feature["out"])
-        output_feature = functional.interpolate(
+        output_feature = F.interpolate(
             output_feature,
             size=low_level_feature.shape[2:],
             mode="bilinear",
@@ -131,9 +129,7 @@ class ASPPPooling(nn.Sequential):
     def forward(self, x):
         size = x.shape[-2:]
         x = super(ASPPPooling, self).forward(x)
-        return functional.interpolate(
-            x, size=size, mode="bilinear", align_corners=False
-        )
+        return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
 
 
 class ASPP(nn.Module):
