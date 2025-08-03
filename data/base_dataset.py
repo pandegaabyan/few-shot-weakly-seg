@@ -40,7 +40,7 @@ class BaseDataset(Dataset, ABC):
         self.split_val_fold = kwargs.get("split_val_fold", 0)
         self.split_test_size = kwargs.get("split_test_size", 0)
         self.split_test_fold = kwargs.get("split_test_fold", 0)
-        self.scaling: ScalingType = kwargs.get("scaling", None)
+        self.scaling: ScalingType = kwargs.get("scaling", "mean-std")
         self.cache_data = kwargs.get("cache_data", False)
         self.class_labels = self.set_class_labels()
         self.seed = kwargs.get("seed", 0) * int(1e4) + self.str_to_num(
@@ -54,7 +54,7 @@ class BaseDataset(Dataset, ABC):
                     A.HorizontalFlip(p=0.5),
                     A.VerticalFlip(p=0.5),
                     A.GaussNoise(std_range=(0.1, 0.2), p=0.2),
-                    A.GaussianBlur(blur_limit=4, p=0.2),
+                    A.GaussianBlur(blur_limit=5, p=0.2),
                     A.HueSaturationValue(
                         hue_shift_limit=20,
                         sat_shift_limit=30,
@@ -200,11 +200,12 @@ class BaseDataset(Dataset, ABC):
             if i != 0 and random_state is not None:
                 rng.shuffle(new_data)
             extended_data.extend(new_data)
-            if random_state is not None:
-                new_data = rng.sample(data, num_items - len(extended_data))
-            else:
-                new_data = data[: num_items - len(extended_data)]
-            extended_data.extend(new_data)
+
+        if random_state is not None:
+            new_data = rng.sample(data, num_items - len(extended_data))
+        else:
+            new_data = data[: num_items - len(extended_data)]
+        extended_data.extend(new_data)
 
         return extended_data
 
