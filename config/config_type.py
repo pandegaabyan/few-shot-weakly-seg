@@ -15,6 +15,7 @@ LearnerType = Literal[
     "PS-mp",
     "PS-ori",
     "PA",
+    "PAS",
 ]
 ProfilerType = Literal[
     "simple", "advanced", "pytorch", "custom", "custom-1", "custom-10", None
@@ -125,6 +126,14 @@ class PANetConfig(TypedDict):
     metric_func: Literal["euclidean", "cosine"]
 
 
+class PASNetConfig(TypedDict):
+    embedding_size: int
+    par_weight: float
+    consistency_weight: float
+    prototype_metric_func: Literal["euclidean", "cosine"]
+    consistency_metric_func: Literal["euclidean", "cosine"]
+
+
 class GuidedNetsConfig(TypedDict):
     embedding_size: int
 
@@ -160,6 +169,10 @@ class ConfigPANet(ConfigMetaLearner):
     panet: PANetConfig
 
 
+class ConfigPASNet(ConfigMetaLearner):
+    pasnet: PASNetConfig
+
+
 class ConfigGuidedNets(ConfigMetaLearner):
     guidednets: GuidedNetsConfig
 
@@ -171,5 +184,6 @@ ConfigUnion = Union[
     ConfigWeasel,
     ConfigProtoSeg,
     ConfigPANet,
+    ConfigPASNet,
     ConfigGuidedNets,
 ]
