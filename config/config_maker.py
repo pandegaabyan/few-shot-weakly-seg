@@ -129,6 +129,7 @@ protoseg_config: ProtoSegConfig = {
 panet_config: PANetConfig = {
     "embedding_size": 4,
     "par_weight": 0.5,
+    "metric_func": "euclidean",
 }
 
 guidednets_config: GuidedNetsConfig = {"embedding_size": 4}

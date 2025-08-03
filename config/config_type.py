@@ -122,6 +122,7 @@ class ProtoSegConfig(TypedDict):
 class PANetConfig(TypedDict):
     embedding_size: int
     par_weight: float
+    metric_func: Literal["euclidean", "cosine"]
 
 
 class GuidedNetsConfig(TypedDict):

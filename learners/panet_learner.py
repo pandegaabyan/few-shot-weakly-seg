@@ -1,6 +1,7 @@
 from typing import Literal
 
 import torch
+import torch.nn.functional as F
 from pytorch_lightning.utilities.types import OptimizerLRScheduler
 from torch import Tensor, nn
 
@@ -24,6 +25,7 @@ class PANetLearner(MetaLearner[ConfigPANet]):
 
         self.num_classes = self.config["data"]["num_classes"]
         self.par_weight = self.config["panet"]["par_weight"]
+        self.metric_func = self.config["panet"]["metric_func"]
 
     def make_net(self) -> nn.Module:
         return make_segmentation_model(
@@ -164,12 +166,24 @@ class PANetLearner(MetaLearner[ConfigPANet]):
     def get_predictions(self, prototypes: Tensor, embeddings: Tensor) -> Tensor:
         # [C E], [B H*W E] -> [B C H*W]
 
-        def calc_squared_distances(proto: Tensor, embed: Tensor) -> Tensor:
-            return torch.sum(
-                (proto.unsqueeze(0).unsqueeze(2) - embed.unsqueeze(1)) ** 2, dim=-1
+        if self.metric_func == "euclidean":
+            return -torch.sum(
+                (prototypes.unsqueeze(0).unsqueeze(2) - embeddings.unsqueeze(1)) ** 2,
+                dim=-1,
             )
+        elif self.metric_func == "cosine":
+            # Normalize the prototypes and embeddings along the E dimension
+            prototypes_normalized = F.normalize(prototypes, dim=1)
+            embeddings_normalized = F.normalize(embeddings, dim=2)
 
-        return -calc_squared_distances(prototypes, embeddings)
+            # Calculate the dot product using matmul
+            # Multiply [B, H*W, E] by [E, C] -> [B, H*W, C]
+            similarities = torch.matmul(embeddings_normalized, prototypes_normalized.T)
+
+            # [B, H*W, C] -> [B, C, H*W]
+            return similarities.permute(0, 2, 1)
+        else:
+            raise ValueError(f"Unsupported metric function: {self.metric_func}")
 
     def get_support_predictions(self, qry_pred: Tensor) -> Tensor:
         assert self.query_embedding is not None and self.support_embedding is not None
