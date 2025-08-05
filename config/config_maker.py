@@ -7,6 +7,7 @@ from config.config_type import (
     CallbacksConfig,
     ConfigBase,
     ConfigPANet,
+    ConfigPASNet,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -20,6 +21,7 @@ from config.config_type import (
     ModelConfig,
     OptimizerConfig,
     PANetConfig,
+    PASNetConfig,
     ProtoSegConfig,
     RunMode,
     SchedulerConfig,
@@ -129,6 +131,16 @@ protoseg_config: ProtoSegConfig = {
 panet_config: PANetConfig = {
     "embedding_size": 4,
     "par_weight": 0.5,
+    "metric_func": "euclidean",
+}
+
+pasnet_config: PASNetConfig = {
+    "embedding_size": 4,
+    "par_weight": 0.5,
+    "consistency_weight": 0.5,
+    "prototype_metric_func": "cosine",
+    "consistency_metric_func": "euclidean",
+    "high_confidence_threshold": 0.5,
 }
 
 guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
@@ -353,6 +365,21 @@ def make_config(
             config_panet["data"]["batch_size"] = 1
             config_panet["learn"]["num_epochs"] = 2
         config = config_panet
+    elif runner_name == "PAS":
+        config_pasnet: ConfigPASNet = {
+            **config_ref,
+            "meta_learner": meta_learner_config,
+            "pasnet": pasnet_config,
+        }
+        if not dummy:
+            config_pasnet["data"]["batch_size"] = 12
+            config_pasnet["learn"]["num_epochs"] = 100
+            config_pasnet["learn"]["val_freq"] = 2
+            config_pasnet["callbacks"]["stop_patience"] = 10
+        else:
+            config_pasnet["data"]["batch_size"] = 1
+            config_pasnet["learn"]["num_epochs"] = 2
+        config = config_pasnet
 
     exp_name = learner
     exp_name += " " + name_suffix

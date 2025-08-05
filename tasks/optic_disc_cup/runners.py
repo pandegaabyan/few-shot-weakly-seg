@@ -1,11 +1,13 @@
 from typing import Type
 
+import albumentations as A
 import optuna
 
 from config.config_maker import gen_id
 from config.config_type import (
     ConfigMetaLearner,
     ConfigPANet,
+    ConfigPASNet,
     ConfigProtoSeg,
     ConfigSimpleLearner,
     ConfigUnion,
@@ -16,11 +18,13 @@ from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.panet_learner import PANetLearner
+from learners.pasnet_learner import PASNetLearner
 from learners.protoseg_learner import ProtosegLearner
 from learners.simple_learner import SimpleLearner
 from learners.typings import (
     DatasetLists,
     PANetLearnerKwargs,
+    PASNetLearnerKwargs,
     ProtoSegLearnerKwargs,
     SimpleLearnerKwargs,
     WeaselLearnerKwargs,
@@ -209,7 +213,7 @@ class SimpleRunner(Runner):
             "cache_data": True,
         }
         if dummy:
-            base_kwargs["max_items"] = 6
+            base_kwargs["size"] = 6
 
         rim_one_3_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
@@ -430,7 +434,7 @@ class MetaRunner(Runner):
 
         if dummy:
             dummy_kwargs: FewSparseDatasetKwargs = {
-                "max_items": 4,
+                "size": 4,
                 "shot_options": (1, 3),
                 "support_batch_mode": "mixed",
                 "query_batch_size": 2,
@@ -519,7 +523,19 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
-            drishti_train_kwargs["augment_flip"] = True
+            drishti_train_kwargs["size"] = 2.0
+            drishti_train_kwargs["transforms"] = A.Compose(
+                [
+                    A.HorizontalFlip(p=0.5),
+                    A.VerticalFlip(p=0.5),
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.2,
+                        contrast_limit=0.2,
+                        ensure_safe_range=True,
+                        p=1.0,
+                    ),
+                ]
+            )
         drishti_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
@@ -544,7 +560,7 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
         if self.dataset == "all-B":
-            refuge_val_kwargs["max_items"] = 100
+            refuge_val_kwargs["size"] = 100
         refuge_test_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **test_kwargs,
@@ -728,6 +744,96 @@ class PANetRunner(MetaRunner):
         return config
 
 
+class PASNetRunner(MetaRunner):
+    def make_learner(
+        self,
+        dataset_fold: int = 0,
+        optuna_trial: optuna.Trial | None = None,
+    ) -> tuple[Type[PASNetLearner], PASNetLearnerKwargs]:
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
+
+        kwargs: PASNetLearnerKwargs = {
+            **dataset_lists,
+            "config": self.config,
+            "loss": (DiscCupLoss, {"mode": "ce"}),
+            "metric": (DiscCupIoU, {}),
+            "optuna_trial": optuna_trial,
+        }
+
+        return PASNetLearner, kwargs
+
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        important_config = super().update_config(optuna_trial)
+        config: ConfigPASNet = self.config  # type: ignore
+
+        if optuna_trial is not None:
+            pas_embedding = optuna_trial.suggest_int("pas_embedding", 2, 16)
+            pas_par_weight = optuna_trial.suggest_float("pas_par_weight", 0.0, 1.0)
+            pas_consistency_weight = optuna_trial.suggest_float(
+                "pas_consistency_weight", 0.0, 1.0
+            )
+            pas_prototype_metric = optuna_trial.suggest_categorical(
+                "pas_prototype_metric", ["cosine", "euclidean"]
+            )
+            pas_consistency_metric = optuna_trial.suggest_categorical(
+                "pas_consistency_metric", ["cosine", "euclidean"]
+            )
+            pas_high_conf_thres = optuna_trial.suggest_float(
+                "pas_high_conf_thres", 1 / self.config["data"]["num_classes"], 0.9
+            )
+            config["pasnet"]["embedding_size"] = pas_embedding
+            important_config["pas_embedding"] = pas_embedding
+            config["pasnet"]["par_weight"] = pas_par_weight
+            important_config["pas_par_weight"] = pas_par_weight
+            config["pasnet"]["consistency_weight"] = pas_consistency_weight
+            important_config["pas_consistency_weight"] = pas_consistency_weight
+            config["pasnet"]["prototype_metric_func"] = pas_prototype_metric  # type: ignore
+            important_config["pas_prototype_metric"] = pas_prototype_metric
+            config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
+            important_config["pas_consistency_metric"] = pas_consistency_metric
+            config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
+            important_config["pas_high_conf_thres"] = pas_high_conf_thres
+        else:
+            hyperparams = self.optuna_config.get("hyperparams", {})
+            pas_embedding = hyperparams.get("pas_embedding")
+            pas_par_weight = hyperparams.get("pas_par_weight")
+            pas_consistency_weight = hyperparams.get("pas_consistency_weight")
+            pas_prototype_metric = hyperparams.get("pas_prototype_metric")
+            pas_consistency_metric = hyperparams.get("pas_consistency_metric")
+            pas_high_conf_thres = hyperparams.get("pas_high_conf_thres")
+            if isinstance(pas_embedding, int):
+                config["pasnet"]["embedding_size"] = pas_embedding
+                important_config["pas_embedding"] = pas_embedding
+            if isinstance(pas_par_weight, float):
+                config["pasnet"]["par_weight"] = pas_par_weight
+                important_config["pas_par_weight"] = pas_par_weight
+            if isinstance(pas_consistency_weight, float):
+                config["pasnet"]["consistency_weight"] = pas_consistency_weight
+                important_config["pas_consistency_weight"] = pas_consistency_weight
+            if isinstance(pas_prototype_metric, str) and (
+                pas_prototype_metric == "cosine" or pas_prototype_metric == "euclidean"
+            ):
+                config["pasnet"]["prototype_metric_func"] = pas_prototype_metric
+                important_config["pas_prototype_metric"] = pas_prototype_metric
+            if isinstance(pas_consistency_metric, str) and (
+                pas_consistency_metric == "cosine"
+                or pas_consistency_metric == "euclidean"
+            ):
+                config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
+                important_config["pas_consistency_metric"] = pas_consistency_metric
+            if isinstance(pas_high_conf_thres, float):
+                config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
+                important_config["pas_high_conf_thres"] = pas_high_conf_thres
+
+        self.config = config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["pruner_patience"] = 3
+        return config
+
+
 def get_runner_class(learner: str) -> Type[Runner]:
     runner_name = learner.split("-")[0]
     if runner_name == "SL":
@@ -738,5 +844,7 @@ def get_runner_class(learner: str) -> Type[Runner]:
         return ProtosegRunner
     elif runner_name == "PA":
         return PANetRunner
+    elif runner_name == "PAS":
+        return PASNetRunner
     else:
         raise ValueError(f"Unknown runner: {runner_name}")

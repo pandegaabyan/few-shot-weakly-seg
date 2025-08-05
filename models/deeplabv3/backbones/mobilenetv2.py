@@ -1,5 +1,5 @@
+import torch.nn.functional as F
 from torch import nn
-from torch.nn import functional
 
 __all__ = ["MobileNetV2", "mobilenetv2"]
 
@@ -87,7 +87,7 @@ class InvertedResidual(nn.Module):
         self.input_padding = fixed_padding(3, dilation)
 
     def forward(self, x):
-        x_pad = functional.pad(x, self.input_padding)
+        x_pad = F.pad(x, self.input_padding)
         if self.use_res_connect:
             return x + self.conv(x_pad)
         else:

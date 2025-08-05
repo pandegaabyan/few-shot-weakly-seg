@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 import torch
-import torch.nn.functional as functional
+import torch.nn.functional as F
 from torch import nn
 
 from torchmeta import modules
@@ -54,7 +54,7 @@ class MetaConvTranspose2d(nn.ConvTranspose2d, modules.MetaModule):
             list(self.dilation),
         )
 
-        return functional.conv_transpose2d(
+        return F.conv_transpose2d(
             input,
             weights,
             bias,
@@ -162,7 +162,7 @@ class UNetMini(modules.MetaModule):
             torch.cat(
                 [
                     center,
-                    functional.interpolate(enc3, center.size()[2:], mode="bilinear"),
+                    F.interpolate(enc3, center.size()[2:], mode="bilinear"),
                 ],
                 1,
             ),
@@ -170,23 +170,23 @@ class UNetMini(modules.MetaModule):
         )
         dec2 = self.dec2(
             torch.cat(
-                [dec3, functional.interpolate(enc2, dec3.size()[2:], mode="bilinear")],
+                [dec3, F.interpolate(enc2, dec3.size()[2:], mode="bilinear")],
                 1,
             ),
             self.get_subdict(params, "dec2"),
         )
         dec1 = self.dec1(
             torch.cat(
-                [dec2, functional.interpolate(enc1, dec2.size()[2:], mode="bilinear")],
+                [dec2, F.interpolate(enc1, dec2.size()[2:], mode="bilinear")],
                 1,
             ),
             self.get_subdict(params, "dec1"),
         )
 
         if self.prototype:
-            return functional.interpolate(dec1, x.size()[2:], mode="bilinear")
+            return F.interpolate(dec1, x.size()[2:], mode="bilinear")
 
         else:
             final = self.final(dec1, self.get_subdict(params, "final"))
 
-            return functional.interpolate(final, x.size()[2:], mode="bilinear")
+            return F.interpolate(final, x.size()[2:], mode="bilinear")

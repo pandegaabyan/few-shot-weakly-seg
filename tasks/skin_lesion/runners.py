@@ -184,7 +184,7 @@ class SimpleRunner(Runner):
             "cache_data": True,
         }
         if dummy:
-            base_kwargs["max_items"] = 6
+            base_kwargs["size"] = 6
 
         isic16_kwargs: SimpleDatasetKwargs = {
             **base_kwargs,

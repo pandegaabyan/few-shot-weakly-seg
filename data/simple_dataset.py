@@ -8,7 +8,7 @@ class SimpleDataset(BaseDataset, ABC):
     def __getitem__(self, index: int) -> SimpleDataTuple:
         img, msk, _ = self.get_data(index)
 
-        img = self.prepare_image_as_tensor(img)
+        img = self.prepare_image_as_tensor(img, self.scaling)
         msk = self.prepare_mask_as_tensor(msk)
 
         # Returning to iterator.

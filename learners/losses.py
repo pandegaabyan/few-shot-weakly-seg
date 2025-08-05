@@ -1,6 +1,6 @@
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
-from torch.nn import functional
 
 
 class CustomLoss(nn.Module):
@@ -40,7 +40,7 @@ class CustomLoss(nn.Module):
         ignore_index: int = -1,
         weight: Tensor | None = None,
     ):
-        return functional.cross_entropy(
+        return F.cross_entropy(
             inputs, targets, ignore_index=ignore_index, weight=weight
         )
 
@@ -54,7 +54,7 @@ class CustomLoss(nn.Module):
         new_inputs, new_targets = CustomLoss.validate_and_filter_binary(
             inputs, targets, ignore_index
         )
-        return functional.binary_cross_entropy_with_logits(
+        return F.binary_cross_entropy_with_logits(
             new_inputs, new_targets.float(), weight=weight
         )
 
@@ -65,7 +65,7 @@ class CustomLoss(nn.Module):
         new_inputs, new_targets = CustomLoss.validate_and_filter_binary(
             inputs, targets, ignore_index
         )
-        new_inputs = functional.sigmoid(new_inputs)
+        new_inputs = F.sigmoid(new_inputs)
 
         intersection = (new_inputs * new_targets).sum()
         union = (new_inputs + new_targets).sum() - intersection
