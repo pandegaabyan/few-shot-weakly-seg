@@ -31,6 +31,9 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
         self.consistency_weight = self.config["pasnet"]["consistency_weight"]
         self.prototype_metric_func = self.config["pasnet"]["prototype_metric_func"]
         self.consistency_metric_func = self.config["pasnet"]["consistency_metric_func"]
+        self.high_confidence_threshold = self.config["pasnet"][
+            "high_confidence_threshold"
+        ]
 
         self.style_transforms = v2.Compose(
             [
@@ -252,9 +255,14 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
 
         qry_pred_shape = qry_pred.shape  # [Q C H W] or [Q 1 H W] if binary
         if qry_pred_shape[1] == 1:
-            qry_pred_label = (qry_pred > 0.5).type(torch.int64).squeeze(1)  # [Q H W]
+            qry_probs = torch.sigmoid(qry_pred).squeeze(1)  # [Q H W]
+            low_confidence_mask = qry_probs < self.high_confidence_threshold  # [Q H W]
+            qry_pred_label = (qry_probs > 0.5).type(torch.int64)  # [Q H W]
         else:
-            qry_pred_label = qry_pred.argmax(dim=1).type(torch.int64)  # [Q H W]
+            qry_probs = F.softmax(qry_pred, dim=1)  # [Q C H W]
+            max_probs, qry_pred_label = torch.max(qry_probs, dim=1)  # [Q H W]
+            low_confidence_mask = max_probs < self.high_confidence_threshold  # [Q H W]
+        qry_pred_label[low_confidence_mask] = -1
 
         qry_pred_linear = qry_pred_label.view(
             qry_pred_shape[0], qry_pred_shape[2] * qry_pred_shape[3]

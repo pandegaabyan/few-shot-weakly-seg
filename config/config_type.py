@@ -132,6 +132,7 @@ class PASNetConfig(TypedDict):
     consistency_weight: float
     prototype_metric_func: Literal["euclidean", "cosine"]
     consistency_metric_func: Literal["euclidean", "cosine"]
+    high_confidence_threshold: float
 
 
 class GuidedNetsConfig(TypedDict):

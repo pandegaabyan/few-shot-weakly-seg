@@ -778,6 +778,9 @@ class PASNetRunner(MetaRunner):
             pas_consistency_metric = optuna_trial.suggest_categorical(
                 "pas_consistency_metric", ["cosine", "euclidean"]
             )
+            pas_high_conf_thres = optuna_trial.suggest_float(
+                "pas_high_conf_thres", 1 / self.config["data"]["num_classes"], 0.9
+            )
             config["pasnet"]["embedding_size"] = pas_embedding
             important_config["pas_embedding"] = pas_embedding
             config["pasnet"]["par_weight"] = pas_par_weight
@@ -788,6 +791,8 @@ class PASNetRunner(MetaRunner):
             important_config["pas_prototype_metric"] = pas_prototype_metric
             config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
             important_config["pas_consistency_metric"] = pas_consistency_metric
+            config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
+            important_config["pas_high_conf_thres"] = pas_high_conf_thres
         else:
             hyperparams = self.optuna_config.get("hyperparams", {})
             pas_embedding = hyperparams.get("pas_embedding")
@@ -795,6 +800,7 @@ class PASNetRunner(MetaRunner):
             pas_consistency_weight = hyperparams.get("pas_consistency_weight")
             pas_prototype_metric = hyperparams.get("pas_prototype_metric")
             pas_consistency_metric = hyperparams.get("pas_consistency_metric")
+            pas_high_conf_thres = hyperparams.get("pas_high_conf_thres")
             if isinstance(pas_embedding, int):
                 config["pasnet"]["embedding_size"] = pas_embedding
                 important_config["pas_embedding"] = pas_embedding
@@ -815,6 +821,9 @@ class PASNetRunner(MetaRunner):
             ):
                 config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
                 important_config["pas_consistency_metric"] = pas_consistency_metric
+            if isinstance(pas_high_conf_thres, float):
+                config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
+                important_config["pas_high_conf_thres"] = pas_high_conf_thres
 
         self.config = config
         return important_config

@@ -140,6 +140,7 @@ pasnet_config: PASNetConfig = {
     "consistency_weight": 0.5,
     "prototype_metric_func": "cosine",
     "consistency_metric_func": "euclidean",
+    "high_confidence_threshold": 0.5,
 }
 
 guidednets_config: GuidedNetsConfig = {"embedding_size": 4}
