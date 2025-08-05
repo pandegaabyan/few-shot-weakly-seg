@@ -190,7 +190,7 @@ class PANetLearner(MetaLearner[ConfigPANet]):
 
         qry_pred_shape = qry_pred.shape  # [Q C H W] or [Q 1 H W] if binary
         if qry_pred_shape[1] == 1:
-            qry_pred_label = (qry_pred > 0.5).type(torch.int64).squeeze(1)  # [Q H W]
+            qry_pred_label = (qry_pred > 0).type(torch.int64).squeeze(1)  # [Q H W]
         else:
             qry_pred_label = qry_pred.argmax(dim=1).type(torch.int64)  # [Q H W]
 
