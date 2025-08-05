@@ -80,17 +80,18 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
             [supp_image, supp_mask, qry_image]
         )
 
-        with self.profile("get_transformed_support_embedding"):
-            ts_emb_linear_list = []
-            for s_image in s_images:
-                ts_image = self.style_transforms(s_image)
-                ts_image = self.scale_image(ts_image)
-                ts_emb: Tensor = self.net(ts_image)  # [B E H W]
-                ts_emb_linear = self.linearize_embeddings(ts_emb)  # [B H*W E]
-                ts_emb_linear_list.append(ts_emb_linear)
-            self.transformed_support_embedding = torch.vstack(
-                ts_emb_linear_list
-            )  # [S H*W E]
+        if self.consistency_weight != 0:
+            with self.profile("get_transformed_support_embedding"):
+                ts_emb_linear_list = []
+                for s_image in s_images:
+                    ts_image = self.style_transforms(s_image)
+                    ts_image = self.scale_image(ts_image)
+                    ts_emb: Tensor = self.net(ts_image)  # [B E H W]
+                    ts_emb_linear = self.linearize_embeddings(ts_emb)  # [B H*W E]
+                    ts_emb_linear_list.append(ts_emb_linear)
+                self.transformed_support_embedding = torch.vstack(
+                    ts_emb_linear_list
+                )  # [S H*W E]
 
         with self.profile("get_prototypes"):
             s_emb_linear_list, s_mask_linear_list = [], []
@@ -139,11 +140,17 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
             pred = self.forward(support.images, support.masks, query.images)
         loss = self.loss(pred, query.masks)
 
-        with self.profile("get_support_predictions"):
-            supp_pred = self.get_support_predictions(pred)
-        par_loss = self.loss(supp_pred, support.masks)
+        if self.par_weight != 0:
+            with self.profile("get_support_predictions"):
+                supp_pred = self.get_support_predictions(pred)
+            par_loss = self.loss(supp_pred, support.masks)
+        else:
+            par_loss = 0
 
-        consistency_loss = self.calc_consistency_loss()
+        if self.consistency_weight != 0:
+            consistency_loss = self.calc_consistency_loss()
+        else:
+            consistency_loss = 0
 
         total_loss = (
             loss
@@ -162,11 +169,17 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
         loss = self.loss(pred, query.masks)
         score = self.metric(pred, query.masks)
 
-        with self.profile("get_support_predictions"):
-            supp_pred = self.get_support_predictions(pred)
-        par_loss = self.loss(supp_pred, support.masks)
+        if self.par_weight != 0:
+            with self.profile("get_support_predictions"):
+                supp_pred = self.get_support_predictions(pred)
+            par_loss = self.loss(supp_pred, support.masks)
+        else:
+            par_loss = 0
 
-        consistency_loss = self.calc_consistency_loss()
+        if self.consistency_weight != 0:
+            consistency_loss = self.calc_consistency_loss()
+        else:
+            consistency_loss = 0
 
         total_loss = (
             loss
