@@ -80,7 +80,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
             [supp_image, supp_mask, qry_image]
         )
 
-        if self.consistency_weight != 0:
+        if self.consistency_weight != 0 and self.trainer.state.fn == "fit":
             with self.profile("get_transformed_support_embedding"):
                 ts_emb_linear_list = []
                 for s_image in s_images:
@@ -169,25 +169,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
         loss = self.loss(pred, query.masks)
         score = self.metric(pred, query.masks)
 
-        if self.par_weight != 0:
-            with self.profile("get_support_predictions"):
-                supp_pred = self.get_support_predictions(pred)
-            par_loss = self.loss(supp_pred, support.masks)
-        else:
-            par_loss = 0
-
-        if self.consistency_weight != 0:
-            consistency_loss = self.calc_consistency_loss()
-        else:
-            consistency_loss = 0
-
-        total_loss = (
-            loss
-            + self.par_weight * par_loss
-            + self.consistency_weight * consistency_loss
-        )
-
-        return (pred, total_loss, score)
+        return pred, loss, score
 
     def linearize_embeddings(self, embeddings: Tensor) -> Tensor:
         # [B E H W] -> [B H*W E]
