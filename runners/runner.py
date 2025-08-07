@@ -136,6 +136,11 @@ class Runner(ABC):
     ):
         seed_everything(self.seed, workers=True)
 
+        if dataset_fold != 0:
+            base_run_name = self.run_name
+            new_run_name = f"{base_run_name} F{dataset_fold}"
+            self.update_attr(run_name=new_run_name)
+
         important_config = self.update_config()
 
         if test_only and self.config["learn"].get("ref_ckpt") is None:
