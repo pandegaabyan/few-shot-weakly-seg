@@ -248,6 +248,9 @@ class Runner(ABC):
             new_score = mean(scores)
             self.wandb_log_trial(base_wandb_run_id, trial, new_score, False)
 
+            self.update_attr(run_name=base_run_name)
+            self.clean_log_on_end()
+
             return new_score
 
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
@@ -365,8 +368,6 @@ class Runner(ABC):
             if self.config.get("wandb", {}).get("log_metrics"):
                 wandb.log({"pruned": learner.optuna_pruned})
             wandb.finish()
-
-        self.clean_log_on_end()
 
         assert learner.best_monitor_value is not None
         return learner.best_monitor_value, learner.optuna_pruned
@@ -634,5 +635,9 @@ class Runner(ABC):
     def clean_log_on_end(self):
         if not self.config["log"].get("clean_on_end", False):
             return
-        log_path = os.path.join(FILENAMES["log_folder"], self.exp_name, self.run_name)
-        shutil.rmtree(log_path, ignore_errors=True)
+        exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
+        for run_name in os.listdir(exp_path):
+            if not run_name.startswith(self.run_name):
+                continue
+            log_path = os.path.join(exp_path, run_name)
+            shutil.rmtree(log_path, ignore_errors=True)
