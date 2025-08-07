@@ -618,7 +618,7 @@ class BaseLearner(
             pred = pred.argmax(dim=0)
         scores = self.metric.prepare_for_log(
             self.metric.measure(
-                pred, BaseDataset.prepare_mask_as_tensor(msk).to(self.device)
+                pred, BaseDataset.prepare_mask_as_tensor(msk).to(pred.device)
             )
         )
 

@@ -34,12 +34,6 @@ from utils.wandb import wandb_use_alert
     default="all",
 )
 @click.option(
-    "--number_of_multi",
-    "-num",
-    type=int,
-    default=-1,
-)
-@click.option(
     "--configs",
     "-c",
     nargs=2,
@@ -47,6 +41,15 @@ from utils.wandb import wandb_use_alert
     type=(str, str),
     default=[],
     help="(key, value) for overriding config, use '/' for nesting keys",
+)
+@click.option(
+    "--options",
+    "-o",
+    nargs=2,
+    multiple=True,
+    type=(str, str),
+    default=[],
+    help="(key, value) for minor options, there are number_of_multi (int) and dataset_fold (int)",
 )
 @click.option(
     "--optuna_configs",
@@ -64,8 +67,8 @@ def main(
     dummy: bool,
     resume: bool,
     no_wandb: bool,
-    number_of_multi: int,
     configs: list[tuple[str, str]],
+    options: list[tuple[str, str]],
     optuna_configs: list[tuple[str, str]],
 ):
     if not dummy and not check_git_clean():
@@ -80,12 +83,13 @@ def main(
         [parent_key, child_key] = key.split("/")
         config[parent_key][child_key] = parse_string(value)
 
+    options_dict = dict(options)
+    number_of_multi = int(options_dict.get("number_of_multi", 0))
+    dataset_fold = int(options_dict.get("dataset_fold", 0))
+
     runner_class = get_runner_class(learner)
 
     runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
-
-    if number_of_multi > 0:
-        runner.number_of_multi = number_of_multi
 
     for key, value in optuna_configs:
         if key == "hyperparams":
@@ -93,18 +97,21 @@ def main(
             continue
         runner.optuna_config[key] = parse_string(value)
 
+    if number_of_multi > 0:
+        runner.number_of_multi = number_of_multi
+
     if mode in ["fit-test", "fit", "test"]:
         with wandb_use_alert():
-            runner.run_fit_test(mode == "fit", mode == "test")
+            runner.run_fit_test(mode == "fit", mode == "test", dataset_fold)
         return
 
     if mode == "profile-fit":
         with wandb_use_alert():
-            runner.run_multi_fit_test(True, False)
+            runner.run_multi_fit_test(True, False, dataset_fold)
         return
     if mode == "profile-test":
         with wandb_use_alert():
-            runner.run_multi_fit_test(False, True)
+            runner.run_multi_fit_test(False, True, dataset_fold)
         return
 
     if mode == "study":

@@ -110,14 +110,7 @@ class PANetLearner(MetaLearner[ConfigPANet]):
         loss = self.loss(pred, query.masks)
         score = self.metric(pred, query.masks)
 
-        if self.par_weight == 0:
-            return pred, loss, score
-
-        with self.profile("get_support_predictions"):
-            supp_pred = self.get_support_predictions(pred)
-        par_loss = self.loss(supp_pred, support.masks)
-
-        return pred, loss + self.par_weight * par_loss, score
+        return pred, loss, score
 
     def linearize_embeddings(self, embeddings: Tensor) -> Tensor:
         # [B E H W] -> [B H*W E]

@@ -132,6 +132,7 @@ class Runner(ABC):
         self,
         fit_only: bool = False,
         test_only: bool = False,
+        dataset_fold: int = 0,
     ):
         seed_everything(self.seed, workers=True)
 
@@ -154,7 +155,7 @@ class Runner(ABC):
 
         ckpt_path = self.resolve_ckpt()
 
-        learner_class, learner_kwargs = self.make_learner()
+        learner_class, learner_kwargs = self.make_learner(dataset_fold=dataset_fold)
         if ckpt_path is None:
             learner = learner_class(**learner_kwargs)
         else:
@@ -189,10 +190,14 @@ class Runner(ABC):
 
         self.clean_log_on_end()
 
-    def run_multi_fit_test(self, fit_only: bool = False, test_only: bool = False):
+    def run_multi_fit_test(
+        self, fit_only: bool = False, test_only: bool = False, dataset_fold: int = 0
+    ):
         while self.number_of_multi < self.limit_of_multi and not self.last_of_multi:
             self.update_attr(run_name=make_run_name())
-            self.run_fit_test(fit_only, test_only)
+            self.run_fit_test(
+                fit_only=fit_only, test_only=test_only, dataset_fold=dataset_fold
+            )
             self.number_of_multi += 1
             time.sleep(30)
 
