@@ -324,18 +324,18 @@ class MetaRunner(Runner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigMetaLearner = self.config  # type: ignore
 
-        if optuna_trial is not None:
-            config["model"]["arch"] = "deeplabv3plus"
-            config["model"]["backbone"] = optuna_trial.suggest_categorical(
-                "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
-            )
-        else:
-            model = self.optuna_config.get("hyperparams", {}).get("model")
-            if isinstance(model, str):
-                model_split = model.split("_", 2)
-                config["model"]["arch"] = model_split[0]
-                if len(model_split) == 2:
-                    config["model"]["backbone"] = model_split[1]
+        # if optuna_trial is not None:
+        #     config["model"]["arch"] = "deeplabv3plus"
+        #     config["model"]["backbone"] = optuna_trial.suggest_categorical(
+        #         "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
+        #     )
+        # else:
+        #     model = self.optuna_config.get("hyperparams", {}).get("model")
+        #     if isinstance(model, str):
+        #         model_split = model.split("_", 2)
+        #         config["model"]["arch"] = model_split[0]
+        #         if len(model_split) == 2:
+        #             config["model"]["backbone"] = model_split[1]
 
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
