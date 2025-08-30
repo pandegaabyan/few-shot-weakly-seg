@@ -80,9 +80,8 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     }
 
 
-def parse_basic(
-    config: ConfigUnion, hyperparams: dict[str, bool | int | float | str]
-) -> dict:
+def parse_basic(config: ConfigUnion, optuna_config: OptunaConfig) -> dict:
+    hyperparams = optuna_config.get("hyperparams", {})
     lr = hyperparams.get("lr")
     weight_decay = hyperparams.get("weight_decay")
     beta1_comp = hyperparams.get("beta1_comp")
@@ -113,6 +112,24 @@ def parse_basic(
     return important_config
 
 
+def suggest_or_parse_model(
+    config: ConfigUnion, trial: optuna.Trial | None, optuna_config: OptunaConfig
+) -> None:
+    if trial is not None and (
+        config["model"].get("arch") in ["deeplabv3", "deeplabv3plus"]
+    ):
+        config["model"]["backbone"] = trial.suggest_categorical(
+            "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
+        )
+    else:
+        model = optuna_config.get("hyperparams", {}).get("model")
+        if isinstance(model, str):
+            model_split = model.split("_", 2)
+            config["model"]["arch"] = model_split[0]
+            if len(model_split) == 2:
+                config["model"]["backbone"] = model_split[1]
+
+
 class SimpleRunner(Runner):
     def make_learner(
         self,
@@ -134,12 +151,12 @@ class SimpleRunner(Runner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
 
+        suggest_or_parse_model(config, optuna_trial, self.optuna_config)
+
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = parse_basic(
-                config, self.optuna_config.get("hyperparams", {})
-            )
+            important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 32
@@ -324,25 +341,12 @@ class MetaRunner(Runner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigMetaLearner = self.config  # type: ignore
 
-        # if optuna_trial is not None:
-        #     config["model"]["arch"] = "deeplabv3plus"
-        #     config["model"]["backbone"] = optuna_trial.suggest_categorical(
-        #         "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
-        #     )
-        # else:
-        #     model = self.optuna_config.get("hyperparams", {}).get("model")
-        #     if isinstance(model, str):
-        #         model_split = model.split("_", 2)
-        #         config["model"]["arch"] = model_split[0]
-        #         if len(model_split) == 2:
-        #             config["model"]["backbone"] = model_split[1]
+        suggest_or_parse_model(config, optuna_trial, self.optuna_config)
 
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = parse_basic(
-                config, self.optuna_config.get("hyperparams", {})
-            )
+            important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 16
@@ -765,6 +769,7 @@ class PASNetRunner(MetaRunner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
         config: ConfigPASNet = self.config  # type: ignore
+        is_nc = "nc" in self.learner_type.split("-")
 
         if optuna_trial is not None:
             pas_embedding = optuna_trial.suggest_int("pas_embedding", 2, 16)
@@ -785,21 +790,20 @@ class PASNetRunner(MetaRunner):
             important_config["pas_embedding"] = pas_embedding
             config["pasnet"]["par_weight"] = pas_par_weight
             important_config["pas_par_weight"] = pas_par_weight
-            config["pasnet"]["consistency_weight"] = pas_consistency_weight
-            important_config["pas_consistency_weight"] = pas_consistency_weight
             config["pasnet"]["prototype_metric_func"] = pas_prototype_metric  # type: ignore
             important_config["pas_prototype_metric"] = pas_prototype_metric
-            config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
-            important_config["pas_consistency_metric"] = pas_consistency_metric
             config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
             important_config["pas_high_conf_thres"] = pas_high_conf_thres
+            if not is_nc:
+                config["pasnet"]["consistency_weight"] = pas_consistency_weight
+                important_config["pas_consistency_weight"] = pas_consistency_weight
+                config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
+                important_config["pas_consistency_metric"] = pas_consistency_metric
         else:
             hyperparams = self.optuna_config.get("hyperparams", {})
             pas_embedding = hyperparams.get("pas_embedding")
             pas_par_weight = hyperparams.get("pas_par_weight")
-            pas_consistency_weight = hyperparams.get("pas_consistency_weight")
             pas_prototype_metric = hyperparams.get("pas_prototype_metric")
-            pas_consistency_metric = hyperparams.get("pas_consistency_metric")
             pas_high_conf_thres = hyperparams.get("pas_high_conf_thres")
             if isinstance(pas_embedding, int):
                 config["pasnet"]["embedding_size"] = pas_embedding
@@ -807,23 +811,26 @@ class PASNetRunner(MetaRunner):
             if isinstance(pas_par_weight, float):
                 config["pasnet"]["par_weight"] = pas_par_weight
                 important_config["pas_par_weight"] = pas_par_weight
-            if isinstance(pas_consistency_weight, float):
-                config["pasnet"]["consistency_weight"] = pas_consistency_weight
-                important_config["pas_consistency_weight"] = pas_consistency_weight
             if isinstance(pas_prototype_metric, str) and (
                 pas_prototype_metric == "cosine" or pas_prototype_metric == "euclidean"
             ):
                 config["pasnet"]["prototype_metric_func"] = pas_prototype_metric
                 important_config["pas_prototype_metric"] = pas_prototype_metric
-            if isinstance(pas_consistency_metric, str) and (
-                pas_consistency_metric == "cosine"
-                or pas_consistency_metric == "euclidean"
-            ):
-                config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
-                important_config["pas_consistency_metric"] = pas_consistency_metric
             if isinstance(pas_high_conf_thres, float):
                 config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
                 important_config["pas_high_conf_thres"] = pas_high_conf_thres
+            if not is_nc:
+                pas_consistency_weight = hyperparams.get("pas_consistency_weight")
+                pas_consistency_metric = hyperparams.get("pas_consistency_metric")
+                if isinstance(pas_consistency_weight, float):
+                    config["pasnet"]["consistency_weight"] = pas_consistency_weight
+                    important_config["pas_consistency_weight"] = pas_consistency_weight
+                if isinstance(pas_consistency_metric, str) and (
+                    pas_consistency_metric == "cosine"
+                    or pas_consistency_metric == "euclidean"
+                ):
+                    config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
+                    important_config["pas_consistency_metric"] = pas_consistency_metric
 
         self.config = config
         return important_config
