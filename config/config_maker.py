@@ -379,6 +379,9 @@ def make_config(
         else:
             config_pasnet["data"]["batch_size"] = 1
             config_pasnet["learn"]["num_epochs"] = 2
+        if "nc" in learner.split("-"):
+            config_pasnet["pasnet"]["consistency_weight"] = 0.0
+            config_pasnet["pasnet"]["consistency_metric_func"] = None
         config = config_pasnet
 
     exp_name = learner

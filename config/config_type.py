@@ -16,6 +16,7 @@ LearnerType = Literal[
     "PS-ori",
     "PA",
     "PAS",
+    "PAS-nc",
 ]
 ProfilerType = Literal[
     "simple", "advanced", "pytorch", "custom", "custom-1", "custom-10", None
@@ -131,7 +132,7 @@ class PASNetConfig(TypedDict):
     par_weight: float
     consistency_weight: float
     prototype_metric_func: Literal["euclidean", "cosine"]
-    consistency_metric_func: Literal["euclidean", "cosine"]
+    consistency_metric_func: Literal["euclidean", "cosine", None]
     high_confidence_threshold: float
 
 

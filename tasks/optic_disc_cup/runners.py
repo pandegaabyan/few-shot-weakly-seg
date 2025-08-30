@@ -765,6 +765,7 @@ class PASNetRunner(MetaRunner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
         config: ConfigPASNet = self.config  # type: ignore
+        is_nc = "nc" in self.learner_type.split("-")
 
         if optuna_trial is not None:
             pas_embedding = optuna_trial.suggest_int("pas_embedding", 2, 16)
@@ -785,21 +786,20 @@ class PASNetRunner(MetaRunner):
             important_config["pas_embedding"] = pas_embedding
             config["pasnet"]["par_weight"] = pas_par_weight
             important_config["pas_par_weight"] = pas_par_weight
-            config["pasnet"]["consistency_weight"] = pas_consistency_weight
-            important_config["pas_consistency_weight"] = pas_consistency_weight
             config["pasnet"]["prototype_metric_func"] = pas_prototype_metric  # type: ignore
             important_config["pas_prototype_metric"] = pas_prototype_metric
-            config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
-            important_config["pas_consistency_metric"] = pas_consistency_metric
             config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
             important_config["pas_high_conf_thres"] = pas_high_conf_thres
+            if not is_nc:
+                config["pasnet"]["consistency_weight"] = pas_consistency_weight
+                important_config["pas_consistency_weight"] = pas_consistency_weight
+                config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
+                important_config["pas_consistency_metric"] = pas_consistency_metric
         else:
             hyperparams = self.optuna_config.get("hyperparams", {})
             pas_embedding = hyperparams.get("pas_embedding")
             pas_par_weight = hyperparams.get("pas_par_weight")
-            pas_consistency_weight = hyperparams.get("pas_consistency_weight")
             pas_prototype_metric = hyperparams.get("pas_prototype_metric")
-            pas_consistency_metric = hyperparams.get("pas_consistency_metric")
             pas_high_conf_thres = hyperparams.get("pas_high_conf_thres")
             if isinstance(pas_embedding, int):
                 config["pasnet"]["embedding_size"] = pas_embedding
@@ -807,23 +807,26 @@ class PASNetRunner(MetaRunner):
             if isinstance(pas_par_weight, float):
                 config["pasnet"]["par_weight"] = pas_par_weight
                 important_config["pas_par_weight"] = pas_par_weight
-            if isinstance(pas_consistency_weight, float):
-                config["pasnet"]["consistency_weight"] = pas_consistency_weight
-                important_config["pas_consistency_weight"] = pas_consistency_weight
             if isinstance(pas_prototype_metric, str) and (
                 pas_prototype_metric == "cosine" or pas_prototype_metric == "euclidean"
             ):
                 config["pasnet"]["prototype_metric_func"] = pas_prototype_metric
                 important_config["pas_prototype_metric"] = pas_prototype_metric
-            if isinstance(pas_consistency_metric, str) and (
-                pas_consistency_metric == "cosine"
-                or pas_consistency_metric == "euclidean"
-            ):
-                config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
-                important_config["pas_consistency_metric"] = pas_consistency_metric
             if isinstance(pas_high_conf_thres, float):
                 config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
                 important_config["pas_high_conf_thres"] = pas_high_conf_thres
+            if not is_nc:
+                pas_consistency_weight = hyperparams.get("pas_consistency_weight")
+                pas_consistency_metric = hyperparams.get("pas_consistency_metric")
+                if isinstance(pas_consistency_weight, float):
+                    config["pasnet"]["consistency_weight"] = pas_consistency_weight
+                    important_config["pas_consistency_weight"] = pas_consistency_weight
+                if isinstance(pas_consistency_metric, str) and (
+                    pas_consistency_metric == "cosine"
+                    or pas_consistency_metric == "euclidean"
+                ):
+                    config["pasnet"]["consistency_metric_func"] = pas_consistency_metric
+                    important_config["pas_consistency_metric"] = pas_consistency_metric
 
         self.config = config
         return important_config
