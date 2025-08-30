@@ -106,7 +106,9 @@ class Runner(ABC):
         return default_optuna_config
 
     def make_trainer(self, **kwargs) -> Trainer:
-        reload_dataloaders = self.config["data"]["num_workers"] > 0
+        reload_dataloaders = (
+            self.learner_type != "SL" and self.config["data"]["num_workers"] > 0
+        )
         callbacks = self.make_callbacks()
         progress = self.config["callbacks"].get("progress", True)
         profiler = resolve_profiler(
