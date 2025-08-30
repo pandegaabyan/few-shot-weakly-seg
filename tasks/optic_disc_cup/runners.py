@@ -80,9 +80,8 @@ def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
     }
 
 
-def parse_basic(
-    config: ConfigUnion, hyperparams: dict[str, bool | int | float | str]
-) -> dict:
+def parse_basic(config: ConfigUnion, optuna_config: OptunaConfig) -> dict:
+    hyperparams = optuna_config.get("hyperparams", {})
     lr = hyperparams.get("lr")
     weight_decay = hyperparams.get("weight_decay")
     beta1_comp = hyperparams.get("beta1_comp")
@@ -113,6 +112,24 @@ def parse_basic(
     return important_config
 
 
+def suggest_or_parse_model(
+    config: ConfigUnion, trial: optuna.Trial | None, optuna_config: OptunaConfig
+) -> None:
+    if trial is not None and (
+        config["model"].get("arch") in ["deeplabv3", "deeplabv3plus"]
+    ):
+        config["model"]["backbone"] = trial.suggest_categorical(
+            "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
+        )
+    else:
+        model = optuna_config.get("hyperparams", {}).get("model")
+        if isinstance(model, str):
+            model_split = model.split("_", 2)
+            config["model"]["arch"] = model_split[0]
+            if len(model_split) == 2:
+                config["model"]["backbone"] = model_split[1]
+
+
 class SimpleRunner(Runner):
     def make_learner(
         self,
@@ -134,12 +151,12 @@ class SimpleRunner(Runner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigSimpleLearner = self.config  # type: ignore
 
+        suggest_or_parse_model(config, optuna_trial, self.optuna_config)
+
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = parse_basic(
-                config, self.optuna_config.get("hyperparams", {})
-            )
+            important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 32
@@ -324,25 +341,12 @@ class MetaRunner(Runner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         config: ConfigMetaLearner = self.config  # type: ignore
 
-        if optuna_trial is not None:
-            config["model"]["arch"] = "deeplabv3plus"
-            config["model"]["backbone"] = optuna_trial.suggest_categorical(
-                "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
-            )
-        else:
-            model = self.optuna_config.get("hyperparams", {}).get("model")
-            if isinstance(model, str):
-                model_split = model.split("_", 2)
-                config["model"]["arch"] = model_split[0]
-                if len(model_split) == 2:
-                    config["model"]["backbone"] = model_split[1]
+        suggest_or_parse_model(config, optuna_trial, self.optuna_config)
 
         if optuna_trial is not None:
             important_config = suggest_basic(config, optuna_trial)
         else:
-            important_config = parse_basic(
-                config, self.optuna_config.get("hyperparams", {})
-            )
+            important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
 
         variable_max_batch = 16
