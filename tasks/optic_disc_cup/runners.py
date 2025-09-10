@@ -769,19 +769,13 @@ class PASNetRunner(MetaRunner):
     def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
         important_config = super().update_config(optuna_trial)
         config: ConfigPASNet = self.config  # type: ignore
-        is_nc = "nc" in self.learner_type.split("-")
+        not_nc = "nc" not in self.learner_type.split("-")
 
         if optuna_trial is not None:
             pas_embedding = optuna_trial.suggest_int("pas_embedding", 2, 16)
             pas_par_weight = optuna_trial.suggest_float("pas_par_weight", 0.0, 1.0)
-            pas_consistency_weight = optuna_trial.suggest_float(
-                "pas_consistency_weight", 0.0, 1.0
-            )
             pas_prototype_metric = optuna_trial.suggest_categorical(
                 "pas_prototype_metric", ["cosine", "euclidean"]
-            )
-            pas_consistency_metric = optuna_trial.suggest_categorical(
-                "pas_consistency_metric", ["cosine", "euclidean"]
             )
             pas_high_conf_thres = optuna_trial.suggest_float(
                 "pas_high_conf_thres", 1 / self.config["data"]["num_classes"], 0.9
@@ -794,7 +788,13 @@ class PASNetRunner(MetaRunner):
             important_config["pas_prototype_metric"] = pas_prototype_metric
             config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
             important_config["pas_high_conf_thres"] = pas_high_conf_thres
-            if not is_nc:
+            if not_nc:
+                pas_consistency_weight = optuna_trial.suggest_float(
+                    "pas_consistency_weight", 0.0, 1.0
+                )
+                pas_consistency_metric = optuna_trial.suggest_categorical(
+                    "pas_consistency_metric", ["cosine", "euclidean"]
+                )
                 config["pasnet"]["consistency_weight"] = pas_consistency_weight
                 important_config["pas_consistency_weight"] = pas_consistency_weight
                 config["pasnet"]["consistency_metric_func"] = pas_consistency_metric  # type: ignore
@@ -819,7 +819,7 @@ class PASNetRunner(MetaRunner):
             if isinstance(pas_high_conf_thres, float):
                 config["pasnet"]["high_confidence_threshold"] = pas_high_conf_thres
                 important_config["pas_high_conf_thres"] = pas_high_conf_thres
-            if not is_nc:
+            if not_nc:
                 pas_consistency_weight = hyperparams.get("pas_consistency_weight")
                 pas_consistency_metric = hyperparams.get("pas_consistency_metric")
                 if isinstance(pas_consistency_weight, float):
