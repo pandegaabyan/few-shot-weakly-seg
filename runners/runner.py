@@ -235,6 +235,7 @@ class Runner(ABC):
             base_wandb_run_id = self.config.get("wandb", {}).get("run_id")
             if pruned:
                 self.wandb_log_trial(base_wandb_run_id, trial, score, pruned)
+                self.clean_log_on_end()
                 raise optuna.TrialPruned()
             if score is not None:
                 scores.append(score)
