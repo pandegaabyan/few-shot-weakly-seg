@@ -74,6 +74,7 @@ class LogConfig(TypedDict, total=False):
     model_onnx: bool
     tensorboard_graph: bool
     clean_on_end: bool
+    optuna_step_report: bool
 
 
 class CallbacksConfig(TypedDict, total=False):

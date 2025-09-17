@@ -697,7 +697,8 @@ class BaseLearner(
     def optuna_log_and_prune(self, value: float):
         if self.optuna_trial is None:
             return
-        self.optuna_trial.report(value, self.current_epoch)
+        if self.config["log"].get("optuna_step_report"):
+            self.optuna_trial.report(value, self.current_epoch)
         if self.optuna_trial.should_prune():
             self.optuna_pruned = True
             self.trainer.should_stop = True

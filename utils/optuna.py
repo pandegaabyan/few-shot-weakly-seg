@@ -25,12 +25,14 @@ def get_optuna_storage(
     )
 
 
-def load_study(study_id: str, dummy: bool = False) -> optuna.Study:
+def load_study(study_id: str, dummy: bool = False) -> optuna.Study | None:
     storage = get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
     try:
         study_names = optuna.get_all_study_names(storage)
         study_name = next(filter(lambda x: x.endswith(study_id), study_names))
         return optuna.load_study(study_name=study_name, storage=storage)
+    except Exception:
+        return None
     finally:
         storage.engine.dispose()
 
@@ -39,6 +41,8 @@ def get_study_best_name(
     study_id: str, dummy: bool = False
 ) -> tuple[str | None, str | None]:
     study = load_study(study_id, dummy)
+    if study is None or len(study.trials) == 0:
+        return None, None
     return study.best_trial.user_attrs.get("run_name"), study.user_attrs.get("exp_name")
 
 
