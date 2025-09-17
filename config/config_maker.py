@@ -73,6 +73,7 @@ log_config: LogConfig = {
     "model_onnx": False,
     "tensorboard_graph": False,
     "clean_on_end": False,
+    "optuna_step_report": False,
 }
 
 callbacks_config: CallbacksConfig = {
@@ -205,6 +206,7 @@ def make_config(
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False
         config_ref["log"]["tensorboard_graph"] = False
+        config_ref["log"]["optuna_step_report"] = True
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 1
