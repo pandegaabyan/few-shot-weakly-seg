@@ -837,7 +837,19 @@ class PASNetRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner_patience"] = 3
+        config["pruner_patience"] = 0
+        config["sampler"] = "random"
+        config["pruner"] = "median"
+        config["sampler_params"] = {"seed": config.get("seed", self.seed)}
+        config["pruner_params"] = {
+            "n_startup_trials": 20,
+            "n_warmup_steps": 30,
+            "interval_steps": 10,
+            "n_min_trials": 10,
+        }
+        if not self.dummy:
+            config["num_folds"] = 3
+            config["timeout_sec"] = 3 * 24 * 3600
         return config
 
 

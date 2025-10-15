@@ -18,6 +18,7 @@ class OptunaConfig(TypedDict):
     sampler_params: NotRequired[dict[str, Any]]
     pruner_params: NotRequired[dict[str, Any]]
     pruner_patience: NotRequired[int]
+    seed: NotRequired[int]
     hyperparams: NotRequired[dict[str, bool | int | float | str]]
 
 
