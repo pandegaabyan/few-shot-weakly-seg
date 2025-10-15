@@ -840,7 +840,7 @@ class PASNetRunner(MetaRunner):
         config["pruner_patience"] = 0
         config["sampler"] = "random"
         config["pruner"] = "median"
-        config["sampler_params"] = {"seed": config.get("seed", self.seed)}
+        config["sampler_params"] = {"seed": self.seed}
         config["pruner_params"] = {
             "n_startup_trials": 20,
             "n_warmup_steps": 30,
