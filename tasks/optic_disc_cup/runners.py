@@ -848,7 +848,7 @@ class PASNetRunner(MetaRunner):
             "n_min_trials": 10,
         }
         if not self.dummy:
-            config["num_folds"] = 3
+            config["num_folds"] = 2
             config["timeout_sec"] = 3 * 24 * 3600
         return config
 
