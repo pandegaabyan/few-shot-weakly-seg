@@ -52,13 +52,13 @@ class DiscCupIoUHausdorff(BaseMetric):
             d_tgt.unsqueeze(1),
             num_classes=2,
             include_background=False,
-        )
+        ).mean()
         hausdorff_cup = hausdorff_distance(
             c_inp.unsqueeze(1),
             c_tgt.unsqueeze(1),
             num_classes=2,
             include_background=False,
-        )
+        ).mean()
         return {
             "iou_disc": iou_disc,
             "iou_cup": iou_cup,
