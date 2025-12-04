@@ -135,6 +135,9 @@ class BaseDataset(Dataset, ABC):
     def resize_image(
         img: NDArray, resize_to: tuple[int, ...], is_mask: bool
     ) -> NDArray:
+        if img.shape[:2] == resize_to:
+            return img
+
         if is_mask:
             order = 0
             anti_aliasing = False

@@ -77,6 +77,7 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
+    config["data"]["num_classes"] = 3
 
     for key, value in configs:
         [parent_key, child_key] = key.split("/")

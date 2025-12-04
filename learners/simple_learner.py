@@ -153,4 +153,6 @@ class SimpleLearner(
         preds: Tensor,
     ):
         _, _, indices, datasets = batch
+        if isinstance(indices, Tensor):
+            indices = indices.int().tolist()
         self.wandb_handle_preds(type, batch_idx, preds, indices, datasets)
