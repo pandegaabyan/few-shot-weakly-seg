@@ -86,6 +86,9 @@ def main(
     options_dict = dict(options)
     number_of_multi = int(options_dict.get("number_of_multi", 0))
     dataset_fold = int(options_dict.get("dataset_fold", 0))
+    optuna_seed = (
+        int(options_dict["optuna_seed"]) if "optuna_seed" in options_dict else None
+    )
 
     runner_class = get_runner_class(learner)
 
@@ -96,6 +99,8 @@ def main(
             runner.optuna_config[key] = parse_hyperparams(value)
             continue
         runner.optuna_config[key] = parse_string(value)
+    if "sampler_params" in runner.optuna_config and optuna_seed is not None:
+        runner.optuna_config["sampler_params"]["seed"] = optuna_seed
 
     if number_of_multi > 0:
         runner.number_of_multi = number_of_multi
