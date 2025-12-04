@@ -4,8 +4,8 @@ from torch import Tensor
 from torchmetrics.functional.classification import binary_jaccard_index
 from torchmetrics.functional.segmentation import hausdorff_distance
 
-from learners.distance_metrics import DistanceMetrics
 from learners.metrics import BaseMetric
+from learners.metrics_distance import DistanceMetrics
 
 
 def split_disc_cup(
