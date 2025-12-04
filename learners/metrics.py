@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Literal, Optional, Union
 
 import torch
 from torch import Tensor
@@ -8,6 +8,7 @@ from torchmetrics.functional.classification import (
     binary_jaccard_index,
     multiclass_jaccard_index,
 )
+from torchmetrics.functional.segmentation import dice_score
 
 from utils.utils import mean
 
@@ -15,9 +16,11 @@ from utils.utils import mean
 class BaseMetric(Metric, ABC):
     def __init__(
         self,
+        ignore_index: Optional[int] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self.ignore_index = ignore_index
         self.metrics: set[str] = set()
 
     def add_state(
@@ -30,9 +33,8 @@ class BaseMetric(Metric, ABC):
         self.metrics.add(name)
         return super().add_state(name, default, dist_reduce_fx, persistent)
 
-    @staticmethod
     @abstractmethod
-    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         pass
 
     def update(self, inputs: Tensor, targets: Tensor):
@@ -56,21 +58,58 @@ class BinaryIoUMetric(BaseMetric):
         super().__init__(**kwargs)
         self.add_state("iou", default=torch.tensor(0), dist_reduce_fx="mean")
 
-    @staticmethod
-    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         input_size = inputs.size()
         if len(input_size) == 4 and input_size[1] == 1:
             inputs = inputs[:, 0]
-        return {"iou": binary_jaccard_index(inputs, targets)}
+        return {
+            "iou": binary_jaccard_index(inputs, targets, ignore_index=self.ignore_index)
+        }
 
 
 class MultiIoUMetric(BaseMetric):
-    def __init__(self, **kwargs):
+    def __init__(
+        self,
+        num_classes: int,
+        average: Literal["micro", "macro", "weighted"] = "macro",
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        self.num_classes = num_classes
+        self.average = average
         self.add_state("iou", default=torch.tensor(0), dist_reduce_fx="mean")
 
-    @staticmethod
-    def measure(inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
         return {
-            "iou": multiclass_jaccard_index(inputs, targets, targets.unique().numel())
+            "iou": multiclass_jaccard_index(
+                inputs,
+                targets,
+                num_classes=self.num_classes,
+                ignore_index=self.ignore_index,
+                average=self.average,  # type: ignore
+            )
+        }
+
+
+class DiceMetric(BaseMetric):
+    def __init__(
+        self,
+        num_classes: int,
+        average: Literal["micro", "macro", "weighted"] = "macro",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.num_classes = num_classes
+        self.average = average
+        self.add_state("dice", default=torch.tensor(0), dist_reduce_fx="mean")
+
+    def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+        return {
+            "dice": dice_score(
+                inputs,
+                targets,
+                num_classes=self.num_classes,
+                include_background=False,
+                average=self.average,  # type: ignore
+            )
         }
