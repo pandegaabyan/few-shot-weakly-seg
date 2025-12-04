@@ -8,7 +8,10 @@ from models.unetmini import UNetMini
 
 
 def make_segmentation_model(
-    config: ModelConfig, input_channels: int, output_channels: int
+    config: ModelConfig,
+    input_size: tuple[int, int],
+    input_channels: int,
+    output_channels: int,
 ) -> nn.Module:
     arch = config.get("arch")
     if arch is None:
@@ -23,8 +26,11 @@ def make_segmentation_model(
             raise ValueError(
                 "Backbone should not be specified for UNetMini architecture."
             )
-        return UNetMini(input_channels, output_channels, **kwargs)
+        return UNetMini(
+            input_channels, output_channels, input_size=input_size, **kwargs
+        )
     if arch in ["deeplabv3", "deeplabv3plus"]:
+        kwargs["in_channels"] = input_channels
         if backbone is None:
             raise ValueError("Backbone must be specified for DeepLabV3 architecture.")
         return load_deeplabv3(False, backbone, output_channels, **kwargs)

@@ -15,9 +15,12 @@ class CustomLoss(nn.Module):
             raise ValueError(f"Invalid loss type: {mode}")
         self.mode = mode
         self.ignored_index = ignored_index
-        self.ce_weights = ce_weights
+        self.ce_weights = Tensor(ce_weights) if ce_weights is not None else None
 
     def forward(self, inputs: Tensor, targets: Tensor) -> Tensor:
+        if self.ce_weights is not None and self.ce_weights.device != inputs.device:
+            self.ce_weights = self.ce_weights.to(inputs.device)
+
         if self.mode == "bce":
             return self.bce_loss(
                 inputs, targets, ignore_index=self.ignored_index, weight=self.ce_weights

@@ -30,6 +30,7 @@ class SimpleLearner(
         output_channels = num_classes if num_classes != 2 else 1
         return make_segmentation_model(
             self.config["model"],
+            self.config["data"]["resize_to"],
             self.config["data"]["num_channels"],
             output_channels,
         )
@@ -152,4 +153,6 @@ class SimpleLearner(
         preds: Tensor,
     ):
         _, _, indices, datasets = batch
+        if isinstance(indices, Tensor):
+            indices = indices.int().tolist()
         self.wandb_handle_preds(type, batch_idx, preds, indices, datasets)

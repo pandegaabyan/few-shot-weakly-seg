@@ -34,7 +34,7 @@ def load_study(study_id: str, dummy: bool = False) -> optuna.Study | None:
     except Exception:
         return None
     finally:
-        storage.engine.dispose()
+        storage.engine.dispose()  # type: ignore
 
 
 def get_study_best_name(

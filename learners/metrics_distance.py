@@ -47,7 +47,7 @@ class MorphologyOps(object):
 
     def border_map(self):
         eroded = ndimage.binary_erosion(self.binary_map)
-        border = self.binary_map - eroded
+        border = self.binary_map - eroded  # type: ignore
         return border
 
 
@@ -122,6 +122,14 @@ class DistanceMetrics(object):
             border_pred = MorphologyOps(self.pred, self.connectivity).border_map()
             distance_border_pred = ndimage.distance_transform_edt(1 - border_pred)
 
+            if (
+                distance_border_ref is None
+                or distance_border_pred is None
+                or isinstance(distance_border_ref, tuple)
+                or isinstance(distance_border_pred, tuple)
+            ):
+                raise ValueError("Distance transform could not be computed.")
+
             lim_dbp = np.where(
                 np.logical_and(distance_border_pred < distance, self.pred > 0),
                 np.ones_like(border_pred),
@@ -154,6 +162,8 @@ class DistanceMetrics(object):
         distance_pred = ndimage.distance_transform_edt(
             1 - border_pred, sampling=self.pixdim
         )
+        if distance_ref is None or distance_pred is None:
+            raise ValueError("Distance transform could not be computed.")
         distance_border_pred = border_ref * distance_pred
         distance_border_ref = border_pred * distance_ref
         return distance_border_ref, distance_border_pred, border_ref, border_pred
