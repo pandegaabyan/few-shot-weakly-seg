@@ -30,6 +30,7 @@ class WeaselLearner(MetaLearner[ConfigWeasel]):
         output_channels = num_classes if num_classes != 2 else 1
         model = make_segmentation_model(
             self.config["model"],
+            self.config["data"]["resize_to"],
             self.config["data"]["num_channels"],
             output_channels,
         )

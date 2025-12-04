@@ -102,6 +102,7 @@ class MobileNetV2(nn.Module):
         width_mult=1.0,
         inverted_residual_setting=None,
         round_nearest=8,
+        in_channels=3,
     ):
         """
         MobileNet V2 main class
@@ -146,7 +147,7 @@ class MobileNetV2(nn.Module):
         self.last_channel = _make_divisible(
             last_channel * max(1.0, width_mult), round_nearest
         )
-        features = [ConvBNReLU(3, input_channel, stride=2)]
+        features = [ConvBNReLU(in_channels, input_channel, stride=2)]
         current_stride *= 2
         dilation = 1
         previous_dilation = 1

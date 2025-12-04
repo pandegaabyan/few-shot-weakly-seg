@@ -30,6 +30,7 @@ class SimpleLearner(
         output_channels = num_classes if num_classes != 2 else 1
         return make_segmentation_model(
             self.config["model"],
+            self.config["data"]["resize_to"],
             self.config["data"]["num_channels"],
             output_channels,
         )

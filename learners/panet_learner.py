@@ -30,6 +30,7 @@ class PANetLearner(MetaLearner[ConfigPANet]):
     def make_net(self) -> nn.Module:
         return make_segmentation_model(
             self.config["model"],
+            self.config["data"]["resize_to"],
             self.config["data"]["num_channels"],
             self.config["panet"]["embedding_size"],
         )

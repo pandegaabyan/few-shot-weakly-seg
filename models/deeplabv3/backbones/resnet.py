@@ -146,6 +146,7 @@ class ResNet(nn.Module):
         width_per_group=64,
         replace_stride_with_dilation=None,
         norm_layer=None,
+        in_channels=3,
     ):
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -166,7 +167,7 @@ class ResNet(nn.Module):
         self.groups = groups
         self.base_width = width_per_group
         self.conv1 = nn.Conv2d(
-            3, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False
+            in_channels, self.inplanes, kernel_size=7, stride=2, padding=3, bias=False
         )
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
