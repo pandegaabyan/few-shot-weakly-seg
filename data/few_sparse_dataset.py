@@ -93,7 +93,6 @@ class FewSparseDataset(BaseDataset, ABC):
     @staticmethod
     def sparse_point(
         msk: NDArray,
-        num_classes: int,
         sparsity: SparsityValue = "random",
         dot_size: int | None = None,
         seed=0,
@@ -117,12 +116,12 @@ class FewSparseDataset(BaseDataset, ABC):
         small_msk_point[:] = -1
 
         total_count = msk_ravel.shape[0]
-        class_counts = np.unique(msk_ravel, return_counts=True)[1]
+        classes, class_counts = np.unique(msk_ravel, return_counts=True)
         class_ratios = np.sqrt(class_counts / total_count)
         class_points = class_ratios / class_ratios.sum() * sparsity_num
         class_points = np.round(class_points).astype(int)
 
-        for c in range(num_classes):
+        for c in classes:
             msk_class = small_msk_point[msk_ravel == c]
             perm = np_nrg.permutation(msk_class.shape[0])
             msk_class[perm[: min(class_points[c], len(perm))]] = c
@@ -135,7 +134,7 @@ class FewSparseDataset(BaseDataset, ABC):
         new_msk = np.zeros_like(msk) - 1
         disk_size = dot_size // 3 or 1
 
-        for c in range(num_classes):
+        for c in classes:
             mask_point_c = morphology.binary_erosion(
                 msk_point == c, footprint=morphology.disk(disk_size)
             )
@@ -201,7 +200,6 @@ class FewSparseDataset(BaseDataset, ABC):
     @staticmethod
     def sparse_contour(
         msk: NDArray,
-        num_classes: int,
         sparsity: SparsityValue = "random",
         radius_dist: int | None = None,
         radius_thick: int | None = None,
@@ -222,7 +220,7 @@ class FewSparseDataset(BaseDataset, ABC):
         selem_dist = morphology.disk(radius_dist)
         selem_thick = morphology.disk(radius_thick)
 
-        for c in range(num_classes):
+        for c in np.unique(msk):
             msk_class = morphology.binary_erosion(msk == c, selem_dist)
             msk_contr = measure.find_contours(msk_class, 0.0)
 
@@ -247,7 +245,6 @@ class FewSparseDataset(BaseDataset, ABC):
     @staticmethod
     def sparse_skeleton(
         msk: NDArray,
-        num_classes: int,
         sparsity: SparsityValue = "random",
         radius_thick: int | None = None,
         seed=0,
@@ -265,7 +262,7 @@ class FewSparseDataset(BaseDataset, ABC):
         radius_thick = radius_thick or auto_radius_thick
         selem_thick = morphology.disk(radius_thick)
 
-        for c in range(num_classes):
+        for c in np.unique(msk):
             c_msk = msk == c
             c_skel = morphology.skeletonize(c_msk)
             c_msk = morphology.binary_dilation(c_skel, footprint=selem_thick)
@@ -290,7 +287,6 @@ class FewSparseDataset(BaseDataset, ABC):
     def sparse_region(
         msk: NDArray,
         img: NDArray,
-        num_classes: int,
         segments: int | None = 250,
         compactness: float | None = 0.5,
         sparsity: SparsityValue = "random",
@@ -305,22 +301,29 @@ class FewSparseDataset(BaseDataset, ABC):
 
         segments = segments or 250
         compactness = compactness or 0.5
+        channel_axis = -1 if len(img.shape) > 2 else None
 
         slic = segmentation.slic(
-            img, n_segments=segments, compactness=compactness, start_label=1
+            img,
+            n_segments=segments,
+            compactness=compactness,
+            start_label=1,
+            channel_axis=channel_axis,
         )
         labels = np.unique(slic)
 
-        pure_regions = [[] for _ in range(num_classes)]
+        unique_msk = np.unique(msk)
+        pure_regions = [[] for _ in unique_msk]
         for label in labels:
             sp = msk[slic == label].ravel()
             cnt = np.bincount(sp)
 
-            for c in range(num_classes):
-                if (cnt[c] if c < len(cnt) else None) == cnt.sum():
-                    pure_regions[c].append(label)
+            for i, c in enumerate(unique_msk):
+                region_class_cnt = cnt[c] if c < len(cnt) else None
+                if region_class_cnt == cnt.sum():
+                    pure_regions[i].append(label)
 
-        for c, pure_region in enumerate(pure_regions):
+        for c, pure_region in zip(unique_msk, pure_regions):
             perm = np_rng.permutation(len(pure_region))
 
             perm_last_idx = max(1, round(sparsity_num * len(perm)))
@@ -539,6 +542,16 @@ class FewSparseDataset(BaseDataset, ABC):
     ) -> NDArray:
         sparse_msk = np.copy(msk)
 
+        msk_unique = np.unique(msk)
+        if len(msk_unique) > self.num_classes:
+            raise ValueError(
+                f"Number of classes in the mask ({len(msk_unique)}) exceeds num_classes ({self.num_classes})"
+            )
+        if (msk_unique.min() < 0) or (msk_unique.max() >= self.num_classes):
+            raise ValueError(
+                f"Mask values must be in the range [0, {self.num_classes - 1}]"
+            )
+
         if sparsity_mode == "random":
             selected_sparsity_mode = self.rng.choice(
                 self.sparsity_mode_default + self.sparsity_mode_additional
@@ -556,7 +569,6 @@ class FewSparseDataset(BaseDataset, ABC):
         elif selected_sparsity_mode == "point":
             sparse_msk = self.sparse_point(
                 msk,
-                self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
                 dot_size=self.sparsity_params.get("point_dot_size"),
@@ -572,7 +584,6 @@ class FewSparseDataset(BaseDataset, ABC):
         elif selected_sparsity_mode == "contour":
             sparse_msk = self.sparse_contour(
                 msk,
-                self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
                 radius_dist=self.sparsity_params.get("contour_radius_dist"),
@@ -581,7 +592,6 @@ class FewSparseDataset(BaseDataset, ABC):
         elif selected_sparsity_mode == "skeleton":
             sparse_msk = self.sparse_skeleton(
                 msk,
-                self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
                 radius_thick=self.sparsity_params.get("skeleton_radius_thick"),
@@ -590,7 +600,6 @@ class FewSparseDataset(BaseDataset, ABC):
             sparse_msk = self.sparse_region(
                 msk,
                 img,
-                self.num_classes,
                 sparsity=selected_sparsity_value,
                 seed=seed,
                 segments=self.sparsity_params.get("region_segments"),
