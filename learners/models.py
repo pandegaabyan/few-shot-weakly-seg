@@ -34,7 +34,7 @@ def make_segmentation_model(
         if backbone is None:
             raise ValueError("Backbone must be specified for DeepLabV3 architecture.")
         return load_deeplabv3(
-            backbone == "deeplabv3plus", backbone, output_channels, **kwargs
+            arch == "deeplabv3plus", backbone, output_channels, **kwargs
         )
     raise ValueError(
         f"Unsupported architecture: {arch}. Supported architectures are 'unetmini', 'deeplabv3', and 'deeplabv3plus'"
