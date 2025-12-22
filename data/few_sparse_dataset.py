@@ -111,20 +111,36 @@ class FewSparseDataset(BaseDataset, ABC):
         )
 
         msk_ravel = small_msk.ravel()
-
         small_msk_point = np.zeros(msk_ravel.shape[0], dtype=msk.dtype)
         small_msk_point[:] = -1
 
         total_count = msk_ravel.shape[0]
         classes, class_counts = np.unique(msk_ravel, return_counts=True)
-        class_ratios = np.sqrt(class_counts / total_count)
-        class_points = class_ratios / class_ratios.sum() * sparsity_num
-        class_points = np.round(class_points).astype(int)
+        class_weights = np.sqrt(class_counts / total_count)
+        class_ratios = class_weights / class_weights.sum()
 
-        for c in classes:
+        class_points = np.zeros(len(classes), dtype=int)
+        if sparsity_num < len(classes):
+            class_points[np_nrg.permutation(len(classes))[:sparsity_num]] = 1
+            remainder = 0
+        else:
+            class_points += 1
+            remainder = sparsity_num - len(classes)
+
+        if remainder > 0:
+            ideal_counts = remainder * class_ratios
+            class_points += np.floor(ideal_counts).astype(int)
+            remainder = sparsity_num - class_points.sum()
+        if remainder > 0:
+            fractional_parts = ideal_counts - np.floor(ideal_counts)
+            sorted_indices = np.argsort(fractional_parts)[::-1]
+            for i in range(int(remainder)):
+                class_points[sorted_indices[i]] += 1
+
+        for c, p in zip(classes, class_points):
             msk_class = small_msk_point[msk_ravel == c]
             perm = np_nrg.permutation(msk_class.shape[0])
-            msk_class[perm[: min(class_points[c], len(perm))]] = c
+            msk_class[perm[: min(p, len(perm))]] = c
             small_msk_point[msk_ravel == c] = msk_class
 
         small_msk_point = small_msk_point.reshape(small_msk.shape)
