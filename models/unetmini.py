@@ -128,6 +128,7 @@ class UNetMini(modules.MetaModule):
         coord_conv: Literal["cartesian", "radial", False] = False,
         learnable_pe: Literal["add", "concat", False] = False,
         input_size: tuple[int, int] = (256, 256),
+        **kwargs,
     ):
         super(UNetMini, self).__init__()
 

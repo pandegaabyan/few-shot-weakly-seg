@@ -11,6 +11,8 @@ from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import DataPathList, SparsityMode, SparsityValue
 
+NUM_CLASSES = 3
+
 
 def get_all_data_path(dir: str) -> DataPathList:
     img_dir = "/images/"
