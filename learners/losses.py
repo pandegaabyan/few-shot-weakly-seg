@@ -58,7 +58,7 @@ class CustomLoss(nn.Module):
             inputs, targets, ignore_index
         )
         return F.binary_cross_entropy_with_logits(
-            new_inputs, new_targets.float(), weight=weight
+            new_inputs, new_targets.float(), pos_weight=weight
         )
 
     @staticmethod
