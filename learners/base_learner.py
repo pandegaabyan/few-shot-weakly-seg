@@ -78,9 +78,13 @@ class BaseLearner(
         self.val_datasets = self.make_dataset(
             "val", self.val_dataset_list or self.dataset_list
         )
-        self.test_datasets = self.make_dataset(
-            "test", self.test_dataset_list or self.val_dataset_list or self.dataset_list
-        )
+        if self.test_dataset_list == []:
+            self.test_datasets = []
+        else:
+            self.test_datasets = self.make_dataset(
+                "test",
+                self.test_dataset_list or self.val_dataset_list or self.dataset_list,
+            )
 
         (loss_class, loss_kwargs) = kwargs.get("loss") or (CustomLoss, {})
         self.loss = loss_class(**loss_kwargs)
