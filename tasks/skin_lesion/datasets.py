@@ -11,6 +11,8 @@ from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import DataPathList, SparsityMode, SparsityValue
 
+NUM_CLASSES = 2
+
 
 def get_all_data_path(dir: str) -> DataPathList:
     img_dir = "/input/"
@@ -79,3 +81,17 @@ ISIC16SimpleDataset, ISIC16FSDataset = create_dataset_classes("ISIC16")
 ISIC17SimpleDataset, ISIC17FSDataset = create_dataset_classes("ISIC17")
 ISIC18SimpleDataset, ISIC18FSDataset = create_dataset_classes("ISIC18")
 PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
+
+ISIC1617NVSimpleDataset, ISIC1617NVFSDataset = create_dataset_classes("ISIC1617-NV")
+ISIC16MELSimpleDataset, ISIC16MELFSDataset = create_dataset_classes("ISIC16-MEL")
+
+isic1617_sparsity_params = {
+    "point_dot_size": 10,
+    "grid_spacing": 25,
+    "grid_dot_size": 7,
+    "contour_radius_dist": 9,
+    "contour_radius_thick": 3,
+    "skeleton_radius_thick": 4,
+    "region_segments": 20,
+    "region_compactness": 1,
+}
