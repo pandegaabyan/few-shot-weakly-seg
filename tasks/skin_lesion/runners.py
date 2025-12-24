@@ -8,28 +8,33 @@ from config.config_type import (
     ConfigPANet,
     ConfigPASNet,
     ConfigProtoSeg,
+    ConfigSimpleLearner,
     ConfigUnion,
     ConfigWeasel,
 )
 from config.optuna import OptunaConfig
 from data.few_sparse_dataset import FewSparseDataset
-from data.typings import FewSparseDatasetKwargs
+from data.simple_dataset import SimpleDataset
+from data.typings import FewSparseDatasetKwargs, SimpleDatasetKwargs
 from learners.losses import CustomLoss
 from learners.metrics import BinaryIoUMetric
 from learners.panet_learner import PANetLearner
 from learners.pasnet_learner import PASNetLearner
 from learners.protoseg_learner import ProtosegLearner
+from learners.simple_learner import SimpleLearner
 from learners.typings import (
     DatasetLists,
     PANetLearnerKwargs,
     PASNetLearnerKwargs,
     ProtoSegLearnerKwargs,
+    SimpleLearnerKwargs,
     WeaselLearnerKwargs,
 )
 from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
     ISIC16MELFSDataset,
+    ISIC16SimpleDataset,
     ISIC1617NVFSDataset,
     isic1617_sparsity_params,
 )
@@ -122,6 +127,85 @@ def define_loss(
         },
     )
     return loss
+
+
+class SimpleRunner(Runner):
+    def make_learner(
+        self,
+        dataset_fold: int = 0,
+        optuna_trial: optuna.Trial | None = None,
+    ) -> tuple[Type[SimpleLearner], SimpleLearnerKwargs]:
+        dataset_lists = self.make_dataset_lists(dataset_fold, self.dummy)
+
+        kwargs: SimpleLearnerKwargs = {
+            **dataset_lists,
+            "config": self.config,
+            "loss": define_loss(self.config),
+            "metric": (BinaryIoUMetric, {}),
+            "optuna_trial": optuna_trial,
+        }
+
+        return SimpleLearner, kwargs
+
+    def update_config(self, optuna_trial: optuna.Trial | None = None) -> dict:
+        config: ConfigSimpleLearner = self.config  # type: ignore
+
+        suggest_or_parse_model(config, optuna_trial, self.optuna_config)
+
+        if optuna_trial is not None:
+            important_config = suggest_basic(config, optuna_trial)
+        else:
+            important_config = parse_basic(config, self.optuna_config)
+        important_config = {"model": self.get_model_name(), **important_config}
+
+        self.config = config
+        return important_config
+
+    def make_optuna_config(self) -> OptunaConfig:
+        config = super().make_optuna_config()
+        config["study_name"] = self.learner_type + " " + gen_id(5)
+        config["sampler_params"] = {
+            "n_startup_trials": 20,
+            "n_ei_candidates": 30,
+            "multivariate": True,
+            "group": True,
+            "constant_liar": True,
+            "seed": self.seed,
+        }
+        config["pruner_params"] = {
+            "min_resource": 10,
+            "max_resource": self.config["learn"]["num_epochs"],
+            "reduction_factor": 2,
+            "bootstrap_count": 2,
+        }
+        config["pruner_patience"] = 5
+        if not self.dummy:
+            config["num_folds"] = 3
+            config["timeout_sec"] = 8 * 3600
+        return config
+
+    def make_dataset_lists(
+        self, val_fold: int, dummy: bool
+    ) -> DatasetLists[SimpleDataset, SimpleDatasetKwargs]:
+        base_kwargs: SimpleDatasetKwargs = {
+            "seed": self.seed,
+            "split_val_fold": val_fold,
+            "split_test_fold": 0,
+            "cache_data": True,
+        }
+        if dummy:
+            base_kwargs["size"] = 6
+
+        isic16_mel_kwargs: SimpleDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            "dataset_name": "ISIC16-MEL",
+            "split_val_size": 0.2,
+        }
+
+        return {
+            "dataset_list": [(ISIC16SimpleDataset, isic16_mel_kwargs)],
+            "test_dataset_list": [],
+        }
 
 
 class MetaRunner(Runner):
@@ -496,7 +580,9 @@ class PASNetRunner(MetaRunner):
 
 def get_runner_class(learner: str) -> Type[Runner]:
     runner_name = learner.split("-")[0]
-    if runner_name == "WS":
+    if runner_name == "SL":
+        return SimpleRunner
+    elif runner_name == "WS":
         return WeaselRunner
     elif runner_name == "PS":
         return ProtosegRunner
