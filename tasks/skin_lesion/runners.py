@@ -34,7 +34,7 @@ from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
     ISIC16MELFSDataset,
-    ISIC16SimpleDataset,
+    ISIC16MELSimpleDataset,
     ISIC1617NVFSDataset,
     isic1617_sparsity_params,
 )
@@ -203,7 +203,7 @@ class SimpleRunner(Runner):
         }
 
         return {
-            "dataset_list": [(ISIC16SimpleDataset, isic16_mel_kwargs)],
+            "dataset_list": [(ISIC16MELSimpleDataset, isic16_mel_kwargs)],
             "test_dataset_list": [],
         }
 
