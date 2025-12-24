@@ -218,7 +218,9 @@ class StageModule(nn.Module):
 
 
 class HRNet(nn.Module):
-    def __init__(self, c=48, num_blocks=[1, 4, 3], num_classes=1000, in_channels=3):
+    def __init__(
+        self, c=48, num_blocks=[1, 4, 3], num_classes=1000, in_channels=3, **kwargs
+    ):
         super(HRNet, self).__init__()
 
         # Stem:
