@@ -84,6 +84,7 @@ PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
 
 ISIC1617NVSimpleDataset, ISIC1617NVFSDataset = create_dataset_classes("ISIC1617-NV")
 ISIC16MELSimpleDataset, ISIC16MELFSDataset = create_dataset_classes("ISIC16-MEL")
+ISIC17BKLSimpleDataset, ISIC17BKLFSDataset = create_dataset_classes("ISIC17-BKL")
 
 isic1617_sparsity_params = {
     "point_dot_size": 10,

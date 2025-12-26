@@ -35,6 +35,8 @@ from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
+    ISIC17BKLFSDataset,
+    ISIC17BKLSimpleDataset,
     ISIC1617NVFSDataset,
     isic1617_sparsity_params,
 )
@@ -304,7 +306,7 @@ class MetaRunner(Runner):
                     ("region", (0.1, 1.0)),
                 ],
                 "support_batch_mode": "mixed",
-                "num_iterations": 5.0,
+                "num_iterations": 2.0,
             }
 
         val_kwargs: FewSparseDatasetKwargs = {
@@ -334,10 +336,18 @@ class MetaRunner(Runner):
             "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
         }
+        isic17_bkl_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            **val_kwargs,
+            "dataset_name": "ISIC17-MEL",
+            "split_val_size": 1,
+            "sparsity_params": isic1617_sparsity_params,
+            **dummy_kwargs,
+        }
 
         return {
             "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
-            "val_dataset_list": [(ISIC16MELFSDataset, isic16_mel_kwargs)],
+            "val_dataset_list": [(ISIC17BKLFSDataset, isic17_bkl_kwargs)],
             "test_dataset_list": [],
         }
 
