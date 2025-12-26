@@ -339,7 +339,7 @@ class MetaRunner(Runner):
         isic17_bkl_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
-            "dataset_name": "ISIC17-MEL",
+            "dataset_name": "ISIC17-BKL",
             "split_val_size": 1,
             "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
