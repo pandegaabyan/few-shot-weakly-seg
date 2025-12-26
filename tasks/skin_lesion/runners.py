@@ -33,11 +33,13 @@ from learners.typings import (
 from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
+    ISIC16FSDataset,
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
     ISIC17BKLFSDataset,
     ISIC17BKLSimpleDataset,
     ISIC1617NVFSDataset,
+    PH2FSDataset,
     isic1617_sparsity_params,
 )
 
@@ -345,9 +347,26 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
 
+        isic16_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            **train_kwargs,
+            "dataset_name": "ISIC16",
+            "sparsity_params": isic1617_sparsity_params,
+            **dummy_kwargs,
+        }
+
+        ph2_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            **val_kwargs,
+            "dataset_name": "PH2",
+            "split_val_size": 1,
+            "sparsity_params": isic1617_sparsity_params,
+            **dummy_kwargs,
+        }
+
         return {
-            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
-            "val_dataset_list": [(ISIC17BKLFSDataset, isic17_bkl_kwargs)],
+            "dataset_list": [(ISIC16FSDataset, isic16_kwargs)],
+            "val_dataset_list": [(PH2FSDataset, ph2_kwargs)],
             "test_dataset_list": [],
         }
 
