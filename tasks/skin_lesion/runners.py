@@ -359,9 +359,26 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
 
+        isic1617_nv_kwargs_tr: FewSparseDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            **train_kwargs,
+            "dataset_name": "ISIC1617-NV",
+            "split_val_size": 0.2,
+            "sparsity_params": isic1617_sparsity_params,
+            **dummy_kwargs,
+        }
+        isic1617_nv_kwargs_val: FewSparseDatasetKwargs = {  # noqa: F841
+            **base_kwargs,
+            **val_kwargs,
+            "dataset_name": "ISIC1617-NV",
+            "split_val_size": 0.2,
+            "sparsity_params": isic1617_sparsity_params,
+            **dummy_kwargs,
+        }
+
         return {
-            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
-            "val_dataset_list": [(ISIC16MELFSDataset, isic16_mel_kwargs)],
+            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs_tr)],
+            "val_dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs_val)],
             "test_dataset_list": [],
         }
 
