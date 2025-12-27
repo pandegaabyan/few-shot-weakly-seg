@@ -33,13 +33,9 @@ from learners.typings import (
 from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
-    ISIC16FSDataset,
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
-    ISIC17BKLFSDataset,
-    ISIC17BKLSimpleDataset,
     ISIC1617NVFSDataset,
-    PH2FSDataset,
     isic1617_sparsity_params,
 )
 
@@ -122,7 +118,7 @@ def suggest_or_parse_model(
 def define_loss(
     config: ConfigUnion,
 ) -> tuple[Type[CustomLoss], dict[str, Any]]:
-    bg_weight = config["model"].get("bg_weight", 0.1)
+    bg_weight = config["model"].get("bg_weight", 1.0)
     loss = (
         CustomLoss,
         {
@@ -161,6 +157,14 @@ class SimpleRunner(Runner):
         else:
             important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
+
+        bg_weight = (
+            optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
+            if optuna_trial is not None
+            else self.optuna_config.get("hyperparams", {}).get("bg_weight", 0.1)
+        )
+        config["model"]["bg_weight"] = bg_weight  # type: ignore
+        important_config["bg_weight"] = bg_weight
 
         self.config = config
         return important_config
@@ -223,14 +227,6 @@ class MetaRunner(Runner):
         else:
             important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
-
-        bg_weight = (
-            optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
-            if optuna_trial is not None
-            else self.optuna_config.get("hyperparams", {}).get("bg_weight", 0.1)
-        )
-        config["model"]["bg_weight"] = bg_weight  # type: ignore
-        important_config["bg_weight"] = bg_weight
 
         self.config = config
         return important_config
@@ -354,7 +350,6 @@ class MetaRunner(Runner):
             "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
         }
-
         ph2_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **val_kwargs,
@@ -365,8 +360,8 @@ class MetaRunner(Runner):
         }
 
         return {
-            "dataset_list": [(ISIC16FSDataset, isic16_kwargs)],
-            "val_dataset_list": [(PH2FSDataset, ph2_kwargs)],
+            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
+            "val_dataset_list": [(ISIC16MELFSDataset, isic16_mel_kwargs)],
             "test_dataset_list": [],
         }
 
@@ -431,7 +426,7 @@ class ProtosegRunner(MetaRunner):
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
             "config": self.config,
-            "loss": define_loss(self.config),
+            "loss": (CustomLoss, {"mode": "bce"}),
             "metric": (BinaryIoUMetric, {}),
             "optuna_trial": optuna_trial,
         }
