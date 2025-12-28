@@ -129,7 +129,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
 
         # if C == 2, convert to binary (C == 1)
         if self.num_classes == 2:
-            qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
+            qry_pred = qry_pred[..., 1:2, :, :] - qry_pred[..., 0:1, :, :]
 
         return qry_pred  # [Q C H W]
 
@@ -252,12 +252,12 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
         qry_pred_shape = qry_pred.shape  # [Q C H W] or [Q 1 H W] if binary
         if qry_pred_shape[1] == 1:
             qry_probs = torch.sigmoid(qry_pred).squeeze(1)  # [Q H W]
-            low_confidence_mask = qry_probs < self.high_confidence_threshold  # [Q H W]
+            max_probs = torch.max(qry_probs, 1 - qry_probs)  # [Q H W]
             qry_pred_label = (qry_probs > 0.5).type(torch.int64)  # [Q H W]
         else:
             qry_probs = F.softmax(qry_pred, dim=1)  # [Q C H W]
             max_probs, qry_pred_label = torch.max(qry_probs, dim=1)  # [Q H W]
-            low_confidence_mask = max_probs < self.high_confidence_threshold  # [Q H W]
+        low_confidence_mask = max_probs < self.high_confidence_threshold
         qry_pred_label[low_confidence_mask] = -1
 
         qry_pred_linear = qry_pred_label.view(
@@ -277,7 +277,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
 
         # if C == 2, convert to binary prediction
         if self.num_classes == 2:
-            supp_pred = supp_pred[..., 0:1, :, :] - supp_pred[..., 1:2, :, :]
+            supp_pred = supp_pred[..., 1:2, :, :] - supp_pred[..., 0:1, :, :]
 
         return supp_pred  # [S 1 H W] if binary else [S C H W]
 

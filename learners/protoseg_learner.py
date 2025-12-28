@@ -75,7 +75,7 @@ class ProtosegLearner(MetaLearner[ConfigProtoSeg]):
 
         # if C == 2, convert to binary (C == 1)
         if num_classes == 2:
-            qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
+            qry_pred = qry_pred[..., 1:2, :, :] - qry_pred[..., 0:1, :, :]
 
         return qry_pred  # [Q S C H W] if multi_pred else [Q C H W]
 
