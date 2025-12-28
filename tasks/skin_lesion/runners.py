@@ -228,6 +228,14 @@ class MetaRunner(Runner):
             important_config = parse_basic(config, self.optuna_config)
         important_config = {"model": self.get_model_name(), **important_config}
 
+        bg_weight = (
+            optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
+            if optuna_trial is not None
+            else self.optuna_config.get("hyperparams", {}).get("bg_weight", 0.1)
+        )
+        config["model"]["bg_weight"] = bg_weight  # type: ignore
+        important_config["bg_weight"] = bg_weight
+
         self.config = config
         return important_config
 
@@ -334,51 +342,10 @@ class MetaRunner(Runner):
             "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
         }
-        isic17_bkl_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            **val_kwargs,
-            "dataset_name": "ISIC17-BKL",
-            "split_val_size": 1,
-            "sparsity_params": isic1617_sparsity_params,
-            **dummy_kwargs,
-        }
-
-        isic16_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            **train_kwargs,
-            "dataset_name": "ISIC16",
-            "sparsity_params": isic1617_sparsity_params,
-            **dummy_kwargs,
-        }
-        ph2_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            **val_kwargs,
-            "dataset_name": "PH2",
-            "split_val_size": 1,
-            "sparsity_params": isic1617_sparsity_params,
-            **dummy_kwargs,
-        }
-
-        isic1617_nv_kwargs_tr: FewSparseDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            **train_kwargs,
-            "dataset_name": "ISIC1617-NV",
-            "split_val_size": 0.2,
-            "sparsity_params": isic1617_sparsity_params,
-            **dummy_kwargs,
-        }
-        isic1617_nv_kwargs_val: FewSparseDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            **val_kwargs,
-            "dataset_name": "ISIC1617-NV",
-            "split_val_size": 0.2,
-            "sparsity_params": isic1617_sparsity_params,
-            **dummy_kwargs,
-        }
 
         return {
-            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs_tr)],
-            "val_dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs_val)],
+            "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
+            "val_dataset_list": [(ISIC16MELFSDataset, isic16_mel_kwargs)],
             "test_dataset_list": [],
         }
 
@@ -443,7 +410,7 @@ class ProtosegRunner(MetaRunner):
         kwargs: ProtoSegLearnerKwargs = {
             **dataset_lists,
             "config": self.config,
-            "loss": (CustomLoss, {"mode": "bce"}),
+            "loss": define_loss(self.config),
             "metric": (BinaryIoUMetric, {}),
             "optuna_trial": optuna_trial,
         }
