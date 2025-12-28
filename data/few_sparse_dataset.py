@@ -133,7 +133,7 @@ class FewSparseDataset(BaseDataset, ABC):
             remainder = sparsity_num - class_points.sum()
         if remainder > 0:
             fractional_parts = ideal_counts - np.floor(ideal_counts)
-            sorted_indices = np.argsort(fractional_parts)[::-1]
+            sorted_indices = np.argsort(fractional_parts, kind="stable")[::-1]
             for i in range(int(remainder)):
                 class_points[sorted_indices[i]] += 1
 
