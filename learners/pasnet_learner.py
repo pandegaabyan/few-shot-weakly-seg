@@ -129,7 +129,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
 
         # if C == 2, convert to binary (C == 1)
         if self.num_classes == 2:
-            qry_pred = qry_pred[..., 0:1, :, :] - qry_pred[..., 1:2, :, :]
+            qry_pred = qry_pred[..., 1:2, :, :] - qry_pred[..., 0:1, :, :]
 
         return qry_pred  # [Q C H W]
 
@@ -277,7 +277,7 @@ class PASNetLearner(MetaLearner[ConfigPASNet]):
 
         # if C == 2, convert to binary prediction
         if self.num_classes == 2:
-            supp_pred = supp_pred[..., 0:1, :, :] - supp_pred[..., 1:2, :, :]
+            supp_pred = supp_pred[..., 1:2, :, :] - supp_pred[..., 0:1, :, :]
 
         return supp_pred  # [S 1 H W] if binary else [S C H W]
 
