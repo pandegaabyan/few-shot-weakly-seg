@@ -84,9 +84,13 @@ PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
 
 ISIC1617NVSimpleDataset, ISIC1617NVFSDataset = create_dataset_classes("ISIC1617-NV")
 ISIC16MELSimpleDataset, ISIC16MELFSDataset = create_dataset_classes("ISIC16-MEL")
+ISIC16BKLSimpleDataset, ISIC16BKLFSDataset = create_dataset_classes("ISIC16-BKL")
 ISIC17BKLSimpleDataset, ISIC17BKLFSDataset = create_dataset_classes("ISIC17-BKL")
+ISIC18NVSimpleDataset, ISIC18NVFSDataset = create_dataset_classes("ISIC18-NV")
+ISIC18MELSimpleDataset, ISIC18MELFSDataset = create_dataset_classes("ISIC18-MEL")
+ISIC18BKLSimpleDataset, ISIC18BKLFSDataset = create_dataset_classes("ISIC18-BKL")
 
-isic1617_sparsity_params = {
+isic_sparsity_params = {
     "point_dot_size": 10,
     "grid_spacing": 25,
     "grid_dot_size": 7,

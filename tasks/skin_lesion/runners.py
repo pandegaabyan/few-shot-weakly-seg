@@ -33,10 +33,15 @@ from learners.typings import (
 from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
+    ISIC16BKLFSDataset,
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
+    ISIC17BKLFSDataset,
+    ISIC18BKLFSDataset,
+    ISIC18MELFSDataset,
+    ISIC18NVFSDataset,
     ISIC1617NVFSDataset,
-    isic1617_sparsity_params,
+    isic_sparsity_params,
 )
 
 
@@ -281,6 +286,7 @@ class MetaRunner(Runner):
             "query_batch_size": query_batch,
             "split_query_size": 0.5,
             "split_query_fold": query_fold,
+            "sparsity_params": isic_sparsity_params,
         }
 
         if dummy:
@@ -327,11 +333,23 @@ class MetaRunner(Runner):
             "support_batch_mode": "permutation",
         }
 
+        test_kwargs: FewSparseDatasetKwargs = {
+            "shot_options": [1, 5, 10, 15, 20],
+            "sparsity_options": [
+                ("point", [1, 13, 25, 37, 50]),
+                ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("region", [0.1, 0.25, 0.5, 0.75, 1.0]),
+            ],
+            "support_query_data": "mixed",
+            "support_batch_mode": "full_permutation",
+        }
+
         isic1617_nv_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
             **base_kwargs,
             **train_kwargs,
             "dataset_name": "ISIC1617-NV",
-            "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
         }
         isic16_mel_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
@@ -339,14 +357,47 @@ class MetaRunner(Runner):
             **val_kwargs,
             "dataset_name": "ISIC16-MEL",
             "split_val_size": 1,
-            "sparsity_params": isic1617_sparsity_params,
             **dummy_kwargs,
         }
+
+        test_dataset_classes = [
+            ISIC16BKLFSDataset,
+            ISIC17BKLFSDataset,
+            ISIC18NVFSDataset,
+            ISIC18MELFSDataset,
+            ISIC18BKLFSDataset,
+        ]
+        test_dataset_names = [
+            "ISIC16-BKL",
+            "ISIC17-BKL",
+            "ISIC18-NV",
+            "ISIC18-MEL",
+            "ISIC18-BKL",
+        ]
+        test_datasets = {}
+        for clas, name in zip(test_dataset_classes, test_dataset_names):
+            test_kwargs_specific: FewSparseDatasetKwargs = {
+                **base_kwargs,
+                **test_kwargs,
+                "dataset_name": name,
+                "split_test_size": 1,
+                **dummy_kwargs,
+            }
+            test_datasets[name] = (clas, test_kwargs_specific)
+
+        if self.dataset == "":
+            test_dataset_list = []
+        elif self.dataset == "all":
+            test_dataset_list = list(test_datasets.values())
+        elif self.dataset in test_dataset_names:
+            test_dataset_list = [test_datasets[self.dataset]]
+        else:
+            raise ValueError(f"Unknown dataset {self.dataset} for testing")
 
         return {
             "dataset_list": [(ISIC1617NVFSDataset, isic1617_nv_kwargs)],
             "val_dataset_list": [(ISIC16MELFSDataset, isic16_mel_kwargs)],
-            "test_dataset_list": [],
+            "test_dataset_list": test_dataset_list,
         }
 
 
