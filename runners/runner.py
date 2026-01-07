@@ -144,8 +144,9 @@ class Runner(ABC):
             self.update_attr(run_name=new_run_name)
 
         important_config = self.update_config()
+        ref_ckpt = self.config["learn"].get("ref_ckpt")
 
-        if test_only and self.config["learn"].get("ref_ckpt") is None:
+        if test_only and ref_ckpt is None:
             self.resume = True
 
         if self.use_wandb:
@@ -169,9 +170,17 @@ class Runner(ABC):
             learner = learner_class.load_from_checkpoint(ckpt_path, **learner_kwargs)
 
         if self.use_wandb:
+            additional_config: dict = {
+                "git": self.git_hash,
+            }
+            study_id = self.config["learn"].get("optuna_study")
+            if study_id is None and ref_ckpt is not None and "study:" in ref_ckpt:
+                study_id = ref_ckpt.split("study:")[1].replace("-study-ckpt", "")
+            if study_id is not None:
+                additional_config["study"] = study_id
             dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
             wandb.config.update(
-                {"git": self.git_hash, **dataset_names, **important_config}
+                {**additional_config, **dataset_names, **important_config}
             )
         init_ok = learner.init(
             resume=self.resume,
