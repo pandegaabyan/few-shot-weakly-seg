@@ -147,6 +147,7 @@ class ResNet(nn.Module):
         replace_stride_with_dilation=None,
         norm_layer=None,
         in_channels=3,
+        **kwargs,
     ):
         super(ResNet, self).__init__()
         if norm_layer is None:

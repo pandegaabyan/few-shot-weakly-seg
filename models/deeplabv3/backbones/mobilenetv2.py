@@ -103,6 +103,7 @@ class MobileNetV2(nn.Module):
         inverted_residual_setting=None,
         round_nearest=8,
         in_channels=3,
+        **kwargs,
     ):
         """
         MobileNet V2 main class
