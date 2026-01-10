@@ -37,10 +37,13 @@ from tasks.skin_lesion.datasets import (
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
     ISIC17BKLFSDataset,
+    ISIC17MELFSDataset,
     ISIC18BKLFSDataset,
     ISIC18MELFSDataset,
     ISIC18NVFSDataset,
     ISIC1617NVFSDataset,
+    PH2MELFSDataset,
+    PH2NVFSDataset,
     isic_sparsity_params,
 )
 
@@ -362,17 +365,23 @@ class MetaRunner(Runner):
 
         test_dataset_classes = [
             ISIC16BKLFSDataset,
+            ISIC17MELFSDataset,
             ISIC17BKLFSDataset,
             ISIC18NVFSDataset,
             ISIC18MELFSDataset,
             ISIC18BKLFSDataset,
+            PH2NVFSDataset,
+            PH2MELFSDataset,
         ]
         test_dataset_names = [
             "ISIC16-BKL",
+            "ISIC17-MEL",
             "ISIC17-BKL",
             "ISIC18-NV",
             "ISIC18-MEL",
             "ISIC18-BKL",
+            "PH2-NV",
+            "PH2-MEL",
         ]
         test_datasets = {}
         for clas, name in zip(test_dataset_classes, test_dataset_names):
