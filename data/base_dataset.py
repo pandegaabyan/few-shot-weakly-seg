@@ -191,8 +191,8 @@ class BaseDataset(Dataset, ABC):
         num_items: int,
         random_state: int | None = None,
     ) -> list[T]:
-        if len(data) >= num_items:
-            return data[:num_items]
+        if len(data) == num_items:
+            return data
 
         extended_data = []
         new_data = data.copy()
@@ -236,7 +236,7 @@ class BaseDataset(Dataset, ABC):
                 num_items = self.size
             else:
                 num_items = floor(self.size * len(data))
-            return self.extend_data(data, num_items)
+            return self.extend_data(data, num_items, random_state=self.seed + 9013)
 
         all_data = self.get_all_data_path()
         test_size = floor(self.split_test_size * len(all_data))
