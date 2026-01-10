@@ -175,7 +175,7 @@ class Runner(ABC):
             }
             study_id = self.config["learn"].get("optuna_study")
             if study_id is None and ref_ckpt is not None and "study:" in ref_ckpt:
-                study_id = ref_ckpt.split("study:")[1].replace("-study-ckpt", "")
+                study_id = ref_ckpt.split(":")[1].replace("-study-ckpt", "")
             if study_id is not None:
                 additional_config["study"] = study_id
             dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
