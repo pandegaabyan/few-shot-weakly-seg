@@ -1,6 +1,10 @@
+from typing import Literal
+
 import torch
 import torch.nn.functional as F
 from torch import nn
+
+from models.utils import CoordConv, LearnablePE
 
 __all__ = ["DeepLabV3"]
 
@@ -19,15 +23,28 @@ class DeepLabV3(nn.Module):
         classifier (nn.Module): module that takes the "out" element returned from
             the backbone and returns a dense prediction.
         aux_classifier (nn.Module, optional): auxiliary classifier used during training
+        coord_conv: Type of coordinate convolution to apply ("cartesian", "radial", or False)
+        input_size: Input image size for initializing coordinate grids
     """
 
-    def __init__(self, backbone, classifier):
+    def __init__(
+        self,
+        backbone,
+        classifier,
+        coord_conv: Literal["cartesian", "radial", False] = False,
+        input_size: tuple[int, int] = (256, 256),
+    ):
         super(DeepLabV3, self).__init__()
         self.backbone = backbone
         self.classifier = classifier
+        self.coord_conv = coord_conv
+        if coord_conv:
+            self.coord_conv_input = CoordConv(coord_conv, input_size[0], input_size[1])
 
     def forward(self, x):
         input_shape = x.shape[-2:]
+        if self.coord_conv:
+            x = self.coord_conv_input(x)
         features = self.backbone(x)
         x = self.classifier(features)
         x = F.interpolate(x, size=input_shape, mode="bilinear", align_corners=False)
@@ -36,14 +53,57 @@ class DeepLabV3(nn.Module):
 
 class DeepLabHeadV3Plus(nn.Module):
     def __init__(
-        self, in_channels, low_level_channels, num_classes, aspp_dilate=[12, 24, 36]
+        self,
+        in_channels,
+        low_level_channels,
+        num_classes,
+        aspp_dilate=[12, 24, 36],
+        coord_conv: Literal["cartesian", "radial", False] = False,
+        learnable_pe: Literal["add", "concat", False] = False,
+        feature_size: tuple[int, int] = (32, 32),
+        low_level_size: tuple[int, int] = (64, 64),
     ):
         super(DeepLabHeadV3Plus, self).__init__()
+        self.coord_conv = coord_conv
+        self.learnable_pe = learnable_pe
+
+        if self.learnable_pe == "add":
+            self.learnable_pe_low = LearnablePE(
+                "add", low_level_size[0], low_level_size[1], low_level_channels
+            )
+        elif self.learnable_pe == "concat":
+            pe_low_channels = 16
+            self.learnable_pe_low = LearnablePE(
+                "concat", low_level_size[0], low_level_size[1], pe_low_channels
+            )
+            low_level_channels += pe_low_channels
+        if self.coord_conv:
+            self.coord_conv_low = CoordConv(
+                self.coord_conv, low_level_size[0], low_level_size[1]
+            )
+            low_level_channels += 2
+
         self.project = nn.Sequential(
             nn.Conv2d(low_level_channels, 48, 1, bias=False),
             nn.BatchNorm2d(48),
             nn.ReLU(inplace=True),
         )
+
+        if self.learnable_pe == "add":
+            self.learnable_pe_feat = LearnablePE(
+                "add", feature_size[0], feature_size[1], in_channels
+            )
+        elif self.learnable_pe == "concat":
+            pe_feat_channels = 16
+            self.learnable_pe_feat = LearnablePE(
+                "concat", feature_size[0], feature_size[1], pe_feat_channels
+            )
+            in_channels += pe_feat_channels
+        if self.coord_conv:
+            self.coord_conv_feat = CoordConv(
+                self.coord_conv, feature_size[0], feature_size[1]
+            )
+            in_channels += 2
 
         self.aspp = ASPP(in_channels, aspp_dilate)
 
@@ -56,8 +116,25 @@ class DeepLabHeadV3Plus(nn.Module):
         self._init_weight()
 
     def forward(self, feature):
-        low_level_feature = self.project(feature["low_level"])
-        output_feature = self.aspp(feature["out"])
+        low_level_feature = feature["low_level"]
+
+        if self.learnable_pe:
+            low_level_feature = self.learnable_pe_low(low_level_feature)
+
+        if self.coord_conv:
+            low_level_feature = self.coord_conv_low(low_level_feature)
+
+        low_level_feature = self.project(low_level_feature)
+
+        output_feature = feature["out"]
+
+        if self.learnable_pe:
+            output_feature = self.learnable_pe_feat(output_feature)
+
+        if self.coord_conv:
+            output_feature = self.coord_conv_feat(output_feature)
+
+        output_feature = self.aspp(output_feature)
         output_feature = F.interpolate(
             output_feature,
             size=low_level_feature.shape[2:],
@@ -76,8 +153,34 @@ class DeepLabHeadV3Plus(nn.Module):
 
 
 class DeepLabHead(nn.Module):
-    def __init__(self, in_channels, num_classes, aspp_dilate=[12, 24, 36]):
+    def __init__(
+        self,
+        in_channels,
+        num_classes,
+        aspp_dilate=[12, 24, 36],
+        coord_conv: Literal["cartesian", "radial", False] = False,
+        learnable_pe: Literal["add", "concat", False] = False,
+        feature_size: tuple[int, int] = (32, 32),
+    ):
         super(DeepLabHead, self).__init__()
+        self.coord_conv = coord_conv
+        self.learnable_pe = learnable_pe
+
+        if self.learnable_pe == "add":
+            self.learnable_pe_feat = LearnablePE(
+                "add", feature_size[0], feature_size[1], in_channels
+            )
+        elif self.learnable_pe == "concat":
+            pe_feat_channels = 16
+            self.learnable_pe_feat = LearnablePE(
+                "concat", feature_size[0], feature_size[1], pe_feat_channels
+            )
+            in_channels += pe_feat_channels
+        if self.coord_conv:
+            self.coord_conv_feat = CoordConv(
+                self.coord_conv, feature_size[0], feature_size[1]
+            )
+            in_channels += 2
 
         self.classifier = nn.Sequential(
             ASPP(in_channels, aspp_dilate),
@@ -89,7 +192,15 @@ class DeepLabHead(nn.Module):
         self._init_weight()
 
     def forward(self, feature):
-        return self.classifier(feature["out"])
+        output_feature = feature["out"]
+
+        if self.learnable_pe:
+            output_feature = self.learnable_pe_feat(output_feature)
+
+        if self.coord_conv:
+            output_feature = self.coord_conv_feat(output_feature)
+
+        return self.classifier(output_feature)
 
     def _init_weight(self):
         for m in self.modules():

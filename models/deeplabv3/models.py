@@ -1,11 +1,18 @@
 from torch import nn
 
+from models.utils import IntermediateLayerGetter
+
 from ._deeplabv3 import DeepLabHead, DeepLabHeadV3Plus, DeepLabV3
 from .backbones import hrnetv2, mobilenetv2, resnet
-from .utils import IntermediateLayerGetter
 
 
 def _segm_hrnet(name, backbone_name, num_classes, **kwargs):
+    coord_conv = kwargs.pop("coord_conv", False)
+    learnable_pe = kwargs.pop("learnable_pe", False)
+    input_size = kwargs.pop("input_size")
+
+    feature_size = (64, 64)
+
     if backbone_name not in hrnetv2.__dict__:
         raise ValueError(f"Unknown backbone: {backbone_name}")
     backbone = hrnetv2.__dict__[backbone_name](**kwargs)
@@ -21,21 +28,44 @@ def _segm_hrnet(name, backbone_name, num_classes, **kwargs):
 
     if name == "deeplabv3plus":
         return_layers = {"stage4": "out", "layer1": "low_level"}
+        low_level_size = (input_size[0] // 4, input_size[1] // 4)
         classifier = DeepLabHeadV3Plus(
-            inplanes, low_level_planes, num_classes, aspp_dilate
+            inplanes,
+            low_level_planes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+            low_level_size=low_level_size,
         )
     elif name == "deeplabv3":
         return_layers = {"stage4": "out"}
-        classifier = DeepLabHead(inplanes, num_classes, aspp_dilate)
+        classifier = DeepLabHead(
+            inplanes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+        )
 
     backbone = IntermediateLayerGetter(
         backbone, return_layers=return_layers, hrnet_flag=True
     )
-    model = DeepLabV3(backbone, classifier)
+    model = DeepLabV3(
+        backbone, classifier, coord_conv=coord_conv, input_size=input_size
+    )
     return model
 
 
 def _segm_resnet(name, backbone_name, num_classes, output_stride, **kwargs):
+    coord_conv = kwargs.pop("coord_conv", False)
+    learnable_pe = kwargs.pop("learnable_pe", False)
+    input_size = kwargs.pop("input_size")
+
+    feature_size = (input_size[0] // output_stride, input_size[1] // output_stride)
+
     if output_stride == 8:
         replace_stride_with_dilation = [False, True, True]
         aspp_dilate = [12, 24, 36]
@@ -55,19 +85,42 @@ def _segm_resnet(name, backbone_name, num_classes, output_stride, **kwargs):
 
     if name == "deeplabv3plus":
         return_layers = {"layer4": "out", "layer1": "low_level"}
+        low_level_size = (input_size[0] // 4, input_size[1] // 4)
         classifier = DeepLabHeadV3Plus(
-            inplanes, low_level_planes, num_classes, aspp_dilate
+            inplanes,
+            low_level_planes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+            low_level_size=low_level_size,
         )
     elif name == "deeplabv3":
         return_layers = {"layer4": "out"}
-        classifier = DeepLabHead(inplanes, num_classes, aspp_dilate)
+        classifier = DeepLabHead(
+            inplanes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+        )
     backbone = IntermediateLayerGetter(backbone, return_layers=return_layers)
 
-    model = DeepLabV3(backbone, classifier)
+    model = DeepLabV3(
+        backbone, classifier, coord_conv=coord_conv, input_size=input_size
+    )
     return model
 
 
 def _segm_mobilenet(name, num_classes, output_stride, **kwargs):
+    coord_conv = kwargs.pop("coord_conv", False)
+    learnable_pe = kwargs.pop("learnable_pe", False)
+    input_size = kwargs.pop("input_size")
+
+    feature_size = (input_size[0] // output_stride, input_size[1] // output_stride)
+
     if output_stride == 8:
         aspp_dilate = [12, 24, 36]
     else:
@@ -89,20 +142,41 @@ def _segm_mobilenet(name, num_classes, output_stride, **kwargs):
             "high_level_features": "out",
             "low_level_features": "low_level",
         }
+        low_level_size = (input_size[0] // 4, input_size[1] // 4)
         classifier = DeepLabHeadV3Plus(
-            inplanes, low_level_planes, num_classes, aspp_dilate
+            inplanes,
+            low_level_planes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+            low_level_size=low_level_size,
         )
     elif name == "deeplabv3":
         return_layers = {"high_level_features": "out"}
-        classifier = DeepLabHead(inplanes, num_classes, aspp_dilate)
+        classifier = DeepLabHead(
+            inplanes,
+            num_classes,
+            aspp_dilate,
+            coord_conv=coord_conv,
+            learnable_pe=learnable_pe,
+            feature_size=feature_size,
+        )
     backbone = IntermediateLayerGetter(backbone, return_layers=return_layers)
 
-    model = DeepLabV3(backbone, classifier)
+    model = DeepLabV3(
+        backbone, classifier, coord_conv=coord_conv, input_size=input_size
+    )
     return model
 
 
 def load_deeplabv3(
-    plus: bool, backbone: str, output_channels: int, **kwargs
+    plus: bool,
+    backbone: str,
+    output_channels: int,
+    input_size: tuple[int, int] = (256, 256),
+    **kwargs,
 ) -> nn.Module:
     """
     Load a DeepLabV3 model with the specified architecture and backbone.
@@ -111,6 +185,7 @@ def load_deeplabv3(
         plus (bool): Whether to load DeepLabV3+ (True) or DeepLabV3 (False).
         backbone (str): Backbone model to use (e.g., "resnet50", "mobilenetv2", "hrnetv2_48").
         output_channels (int): Number of output channels for the model.
+        input_size (tuple[int, int]): Input image size (height, width) for computing feature size.
         **kwargs: Additional keyword arguments for initilizing the backbone.
 
     Returns:
@@ -119,6 +194,9 @@ def load_deeplabv3(
     arch_type = "deeplabv3plus" if plus else "deeplabv3"
     if "output_stride" not in kwargs and backbone in ["mobilenetv2", "resnet50"]:
         kwargs["output_stride"] = 8
+    if "in_channels" in kwargs and kwargs.get("coord_conv"):
+        kwargs["in_channels"] = kwargs["in_channels"] + 2
+    kwargs["input_size"] = input_size
 
     if backbone == "mobilenetv2":
         model = _segm_mobilenet(arch_type, output_channels, **kwargs)

@@ -5,6 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from models.utils import CoordConv, LearnablePE
 from torchmeta import modules
 
 
@@ -137,31 +138,33 @@ class UNetMini(modules.MetaModule):
         self.learnable_pe = learnable_pe
         height, width = input_size
 
-        effective_input_channels = input_channels
         if self.coord_conv:
-            self.create_coords(height, width)
-            effective_input_channels += 2
+            self.coord_conv_input = CoordConv(self.coord_conv, height, width)
+            input_channels += 2
 
-        self.enc1 = _MetaEncoderBlock(effective_input_channels, 32)
+        center_channels = 128
+        self.enc1 = _MetaEncoderBlock(input_channels, 32)
         self.enc2 = _MetaEncoderBlock(32, 64)
-        self.enc3 = _MetaEncoderBlock(64, 128, dropout=True)
+        self.enc3 = _MetaEncoderBlock(64, center_channels, dropout=True)
 
-        effective_center_channels = 128
+        center_h = height // 8
+        center_w = width // 8
         if self.learnable_pe == "add":
-            self.create_pe_decompose(height // 8, width // 8, effective_center_channels)
-            self.pe_alpha = nn.Parameter(
-                torch.ones(effective_center_channels, 1, 1) * -6.0
+            self.learnable_pe_center = LearnablePE(
+                "add", center_h, center_w, center_channels
             )
-            self.pe_dropout = nn.Dropout2d(0.2)
         elif self.learnable_pe == "concat":
             pe_channels = 16
-            effective_center_channels += pe_channels
-            self.create_pe_2d(height // 8, width // 8, pe_channels)
-            self.pe_dropout = nn.Dropout2d(0.2)
+            self.learnable_pe_center = LearnablePE(
+                "concat", center_h, center_w, pe_channels
+            )
+            center_channels += pe_channels
+        if self.coord_conv:
+            self.coord_conv_center = CoordConv(self.coord_conv, center_h, center_w)
+            center_channels += 2
 
-        self.center = _MetaDecoderBlock(effective_center_channels, 256, 128)
-
-        self.dec3 = _MetaDecoderBlock(128 + effective_center_channels, 128, 64)
+        self.center = _MetaDecoderBlock(center_channels, 256, 128)
+        self.dec3 = _MetaDecoderBlock(128 + center_channels, 128, 64)
         self.dec2 = _MetaDecoderBlock(128, 64, 32)
 
         dec1_out_channels = output_channels if self.prototype else 32
@@ -182,74 +185,19 @@ class UNetMini(modules.MetaModule):
 
         initialize_weights(self)
 
-    def create_coords(self, height, width):
-        y_coords = torch.linspace(-1, 1, height).view(height, 1).expand(height, width)
-        x_coords = torch.linspace(-1, 1, width).view(1, width).expand(height, width)
-
-        if self.coord_conv == "cartesian":
-            self.coord_1, self.coord_2 = x_coords, y_coords
-        if self.coord_conv == "radial":
-            r_coords = torch.sqrt(x_coords**2 + y_coords**2) / (2**0.5)
-            theta_coords = torch.atan2(y_coords, x_coords) / torch.pi
-            self.coord_1, self.coord_2 = r_coords, theta_coords
-
-    def create_pe_decompose(self, height, width, channels):
-        self.pe_h = nn.Parameter(torch.zeros(1, channels, height, 1))
-        self.pe_w = nn.Parameter(torch.zeros(1, channels, 1, width))
-
-        h_pos = (
-            torch.arange(height).float().unsqueeze(0).unsqueeze(0).unsqueeze(-1)
-            / height
-        )
-        w_pos = (
-            torch.arange(width).float().unsqueeze(0).unsqueeze(0).unsqueeze(0) / width
-        )
-        div_term = torch.exp(
-            torch.arange(0, channels, 2).float()
-            * (-torch.log(torch.tensor(10000.0)) / channels)
-        )
-
-        with torch.no_grad():
-            self.pe_h[:, 0::2, :, :] = torch.sin(h_pos * div_term.view(1, -1, 1, 1))
-            self.pe_h[:, 1::2, :, :] = torch.cos(h_pos * div_term.view(1, -1, 1, 1))
-            self.pe_w[:, 0::2, :, :] = torch.sin(w_pos * div_term.view(1, -1, 1, 1))
-            self.pe_w[:, 1::2, :, :] = torch.cos(w_pos * div_term.view(1, -1, 1, 1))
-
-    def create_pe_2d(self, height, width, channels):
-        self.pe_2d = nn.Parameter(torch.zeros(1, channels, height, width))
-
-        h_pos = torch.arange(height).float().view(1, 1, height, 1) / height
-        w_pos = torch.arange(width).float().view(1, 1, 1, width) / width
-        grid = h_pos + w_pos
-
-        div_term = torch.exp(
-            torch.arange(0, channels, 2).float()
-            * (-torch.log(torch.tensor(10000.0)) / channels)
-        )
-
-        with torch.no_grad():
-            self.pe_2d[:, 0::2, :, :] = torch.sin(grid * div_term.view(-1, 1, 1))
-            self.pe_2d[:, 1::2, :, :] = torch.cos(grid * div_term.view(-1, 1, 1))
-
     def forward(self, x, params=None):
         if self.coord_conv:
-            batch_size = x.size(0)
-            coord_1 = self.coord_1.expand(batch_size, 1, -1, -1).to(x.device)
-            coord_2 = self.coord_2.expand(batch_size, 1, -1, -1).to(x.device)
-            x = torch.cat([x, coord_1, coord_2], dim=1)
+            x = self.coord_conv_input(x)
 
         enc1 = self.enc1(x, self.get_subdict(params, "enc1"))
         enc2 = self.enc2(enc1, self.get_subdict(params, "enc2"))
         enc3 = self.enc3(enc2, self.get_subdict(params, "enc3"))
 
-        if self.learnable_pe == "add":
-            positional_encoding = self.pe_dropout(self.pe_h + self.pe_w)
-            enc3 = enc3 + torch.sigmoid(self.pe_alpha) * positional_encoding
-        elif self.learnable_pe == "concat":
-            positional_encoding = self.pe_dropout(self.pe_2d)
-            enc3 = torch.cat(
-                [enc3, positional_encoding.expand(enc3.size(0), -1, -1, -1)], dim=1
-            )
+        if self.learnable_pe:
+            enc3 = self.learnable_pe_center(enc3)
+
+        if self.coord_conv:
+            enc3 = self.coord_conv_center(enc3)
 
         center = self.center(enc3, self.get_subdict(params, "center"))
 
