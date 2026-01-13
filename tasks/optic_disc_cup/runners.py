@@ -52,7 +52,7 @@ from tasks.optic_disc_cup.datasets import (
     rim_one_3_sparsity_params,
 )
 from tasks.optic_disc_cup.losses import DiscCupLoss
-from tasks.optic_disc_cup.metrics import DiscCupIoU, DiscCupIoUDistance
+from tasks.optic_disc_cup.metrics import DiscCupIoU
 
 
 def suggest_basic(config: ConfigUnion, trial: optuna.Trial) -> dict:
@@ -665,7 +665,7 @@ class ProtosegRunner(MetaRunner):
             **dataset_lists,
             "config": self.config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
-            "metric": (DiscCupIoUDistance, {}),
+            "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
@@ -710,7 +710,7 @@ class PANetRunner(MetaRunner):
             **dataset_lists,
             "config": self.config,
             "loss": (DiscCupLoss, {"mode": "ce"}),
-            "metric": (DiscCupIoUDistance, {}),
+            "metric": (DiscCupIoU, {}),
             "optuna_trial": optuna_trial,
         }
 
