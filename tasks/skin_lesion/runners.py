@@ -115,12 +115,11 @@ def suggest_or_parse_model(
             "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
         )
     else:
-        model = optuna_config.get("hyperparams", {}).get("model")
-        if isinstance(model, str):
-            model_split = model.split("_", 2)
-            config["model"]["arch"] = model_split[0]
-            if len(model_split) == 2:
-                config["model"]["backbone"] = model_split[1]
+        backbone = optuna_config.get("hyperparams", {}).get("backbone")
+        if isinstance(backbone, str):
+            config["model"]["backbone"] = backbone
+            if "arch" not in config["model"]:
+                config["model"]["arch"] = "deeplabv3plus"
 
 
 def define_loss(
@@ -164,7 +163,7 @@ class SimpleRunner(Runner):
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(config, self.optuna_config)
-        important_config = {"model": self.get_model_name(), **important_config}
+        important_config = {**self.get_model_config(), **important_config}
 
         bg_weight = (
             optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
@@ -234,7 +233,7 @@ class MetaRunner(Runner):
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(config, self.optuna_config)
-        important_config = {"model": self.get_model_name(), **important_config}
+        important_config = {**self.get_model_config(), **important_config}
 
         bg_weight = (
             optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)

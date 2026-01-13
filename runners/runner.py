@@ -455,12 +455,26 @@ class Runner(ABC):
             for key in dataset_lists
         }
 
-    def get_model_name(self) -> str:
-        arch = self.config["model"].get("arch", "unknown")
-        backbone = self.config["model"].get("backbone")
+    def get_model_config(self) -> dict[str, str]:
+        model_config: dict[str, str] = {}
+        ref_config = self.config["model"]
+
+        arch = ref_config.get("arch", "unknown")
+        backbone = ref_config.get("backbone")
         if backbone is None:
-            return arch
-        return f"{arch}_{backbone}"
+            model_config["model"] = arch
+        else:
+            model_config["model"] = f"{arch}_{backbone}"
+
+        coord_conv = ref_config.get("coord_conv")
+        if coord_conv:
+            model_config["coord_conv"] = str(coord_conv)
+
+        learnable_pe = ref_config.get("learnable_pe")
+        if learnable_pe:
+            model_config["learnable_pe"] = str(learnable_pe)
+
+        return model_config
 
     def wandb_init(self, run_id: str, resume: bool = False):
         assert "wandb" in self.config
