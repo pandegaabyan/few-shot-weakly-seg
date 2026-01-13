@@ -34,16 +34,25 @@ from learners.weasel_learner import WeaselLearner
 from runners.runner import Runner
 from tasks.skin_lesion.datasets import (
     ISIC16BKLFSDataset,
+    ISIC16BKLSimpleDataset,
     ISIC16MELFSDataset,
     ISIC16MELSimpleDataset,
     ISIC17BKLFSDataset,
+    ISIC17BKLSimpleDataset,
     ISIC17MELFSDataset,
+    ISIC17MELSimpleDataset,
     ISIC18BKLFSDataset,
+    ISIC18BKLSimpleDataset,
     ISIC18MELFSDataset,
+    ISIC18MELSimpleDataset,
     ISIC18NVFSDataset,
+    ISIC18NVSimpleDataset,
     ISIC1617NVFSDataset,
+    ISIC1617NVSimpleDataset,
     PH2MELFSDataset,
+    PH2MELSimpleDataset,
     PH2NVFSDataset,
+    PH2NVSimpleDataset,
     isic_sparsity_params,
 )
 
@@ -115,12 +124,11 @@ def suggest_or_parse_model(
             "backbone", ["mobilenetv2", "resnet50", "hrnetv2_32"]
         )
     else:
-        model = optuna_config.get("hyperparams", {}).get("model")
-        if isinstance(model, str):
-            model_split = model.split("_", 2)
-            config["model"]["arch"] = model_split[0]
-            if len(model_split) == 2:
-                config["model"]["backbone"] = model_split[1]
+        backbone = optuna_config.get("hyperparams", {}).get("backbone")
+        if isinstance(backbone, str):
+            config["model"]["backbone"] = backbone
+            if "arch" not in config["model"]:
+                config["model"]["arch"] = "deeplabv3plus"
 
 
 def define_loss(
@@ -164,7 +172,7 @@ class SimpleRunner(Runner):
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(config, self.optuna_config)
-        important_config = {"model": self.get_model_name(), **important_config}
+        important_config = {**self.get_model_config(), **important_config}
 
         bg_weight = (
             optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
@@ -212,15 +220,96 @@ class SimpleRunner(Runner):
         if dummy:
             base_kwargs["size"] = 6
 
-        isic16_mel_kwargs: SimpleDatasetKwargs = {  # noqa: F841
-            **base_kwargs,
-            "dataset_name": "ISIC16-MEL",
-            "split_val_size": 0.2,
+        dataset_names = [
+            "ISIC1617-NV",
+            "ISIC16-MEL",
+            "ISIC16-BKL",
+            "ISIC17-MEL",
+            "ISIC17-BKL",
+            "ISIC18-NV",
+            "ISIC18-MEL",
+            "ISIC18-BKL",
+            "PH2-NV",
+            "PH2-MEL",
+        ]
+        dataset_classes = [
+            ISIC1617NVSimpleDataset,
+            ISIC16MELSimpleDataset,
+            ISIC16BKLSimpleDataset,
+            ISIC17MELSimpleDataset,
+            ISIC17BKLSimpleDataset,
+            ISIC18NVSimpleDataset,
+            ISIC18MELSimpleDataset,
+            ISIC18BKLSimpleDataset,
+            PH2NVSimpleDataset,
+            PH2MELSimpleDataset,
+        ]
+        dataset_class_map = {
+            name: clas for name, clas in zip(dataset_names, dataset_classes)
         }
 
+        if self.dataset.split(":")[0] == "all":
+            dataset_list = []
+            for clas, name in zip(dataset_classes[:2], dataset_names[:2]):
+                dataset_kwargs: SimpleDatasetKwargs = {
+                    **base_kwargs,
+                    "dataset_name": name,
+                    "split_val_size": 0.2,
+                }
+                dataset_list.append((clas, dataset_kwargs))
+            test_dataset_list = []
+            for clas, name in zip(dataset_classes[2:], dataset_names[2:]):
+                test_kwargs: SimpleDatasetKwargs = {
+                    **base_kwargs,
+                    "dataset_name": name,
+                    "split_test_size": 1,
+                }
+                test_dataset_list.append((clas, test_kwargs))
+            all_dataset_lists: DatasetLists[SimpleDataset, SimpleDatasetKwargs] = {
+                "dataset_list": dataset_list,
+                "test_dataset_list": test_dataset_list,
+            }
+
+        if self.dataset == "all":
+            return all_dataset_lists
+
+        if ":" not in self.dataset:
+            dataset_class = dataset_class_map[self.dataset]
+            dataset_kwargs: SimpleDatasetKwargs = {
+                **base_kwargs,
+                "split_val_size": 0.15,
+                "split_test_size": 0.15,
+                "dataset_name": self.dataset,
+            }
+            return {"dataset_list": [(dataset_class, dataset_kwargs)]}
+
+        dataset_name, test_name = self.dataset.split(":")
+        if dataset_name == "all":
+            dataset_list = all_dataset_lists["dataset_list"]
+        else:
+            dataset_kwargs: SimpleDatasetKwargs = {
+                **base_kwargs,
+                "split_val_size": 0.2,
+                "dataset_name": dataset_name,
+            }
+            dataset_class = dataset_class_map[dataset_name]
+            dataset_list = [(dataset_class, dataset_kwargs)]
+
+        if test_name == "":
+            return {
+                "dataset_list": dataset_list,
+                "test_dataset_list": [],
+            }
+
+        test_kwargs: SimpleDatasetKwargs = {
+            **base_kwargs,
+            "split_test_size": 1,
+            "dataset_name": test_name,
+        }
+        test_class = dataset_class_map[test_name]
         return {
-            "dataset_list": [(ISIC16MELSimpleDataset, isic16_mel_kwargs)],
-            "test_dataset_list": [],
+            "dataset_list": dataset_list,
+            "test_dataset_list": [(test_class, test_kwargs)],
         }
 
 
@@ -234,7 +323,7 @@ class MetaRunner(Runner):
             important_config = suggest_basic(config, optuna_trial)
         else:
             important_config = parse_basic(config, self.optuna_config)
-        important_config = {"model": self.get_model_name(), **important_config}
+        important_config = {**self.get_model_config(), **important_config}
 
         bg_weight = (
             optuna_trial.suggest_float("bg_weight", 0.1, 1.0, log=True)
@@ -349,13 +438,13 @@ class MetaRunner(Runner):
             "support_batch_mode": "full_permutation",
         }
 
-        isic1617_nv_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
+        isic1617_nv_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
             **train_kwargs,
             "dataset_name": "ISIC1617-NV",
             **dummy_kwargs,
         }
-        isic16_mel_kwargs: FewSparseDatasetKwargs = {  # noqa: F841
+        isic16_mel_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
             **val_kwargs,
             "dataset_name": "ISIC16-MEL",
