@@ -416,6 +416,8 @@ class BaseLearner(
                     new_kwargs["transforms"] = get_name_from_class(
                         new_kwargs["transforms"]
                     )
+                else:
+                    new_kwargs = kwargs  # type: ignore
                 ds = {
                     "class": get_name_from_class(cls),
                     "kwargs": new_kwargs,
