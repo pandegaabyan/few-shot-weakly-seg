@@ -409,10 +409,19 @@ class BaseLearner(
         def serialize_datasets(
             datasets: list[tuple[Type[DatasetClass], DatasetKwargs]],
         ):
-            return [
-                {"class": get_name_from_class(cls), "kwargs": kwargs}
-                for cls, kwargs in datasets
-            ]
+            serialized = []
+            for cls, kwargs in datasets:
+                if "transforms" in kwargs:
+                    new_kwargs: dict = kwargs.copy()  # type: ignore
+                    new_kwargs["transforms"] = get_name_from_class(
+                        new_kwargs["transforms"]
+                    )
+                ds = {
+                    "class": get_name_from_class(cls),
+                    "kwargs": new_kwargs,
+                }
+                serialized.append(ds)
+            return serialized
 
         optimizer_classes, scheduler_classes = get_optimizer_and_scheduler_names(
             self.configure_optimizers()
