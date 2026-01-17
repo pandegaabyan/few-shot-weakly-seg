@@ -438,6 +438,27 @@ class MetaRunner(Runner):
             "support_batch_mode": "full_permutation",
         }
 
+        if self.dataset == "PH2:all:":
+            ph2_nv_kwargs: FewSparseDatasetKwargs = {
+                **base_kwargs,
+                **train_kwargs,
+                "dataset_name": "PH2-NV",
+                "num_iterations": 10.0,
+                **dummy_kwargs,
+            }
+            ph2_mel_kwargs: FewSparseDatasetKwargs = {
+                **base_kwargs,
+                **val_kwargs,
+                "dataset_name": "PH2-MEL",
+                "split_val_size": 1,
+                **dummy_kwargs,
+            }
+            return {
+                "dataset_list": [(PH2NVFSDataset, ph2_nv_kwargs)],
+                "val_dataset_list": [(PH2MELFSDataset, ph2_mel_kwargs)],
+                "test_dataset_list": [],
+            }
+
         isic1617_nv_kwargs: FewSparseDatasetKwargs = {
             **base_kwargs,
             **train_kwargs,
