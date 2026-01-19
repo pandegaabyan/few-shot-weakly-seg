@@ -51,6 +51,8 @@ from tasks.skin_lesion.datasets import (
     ISIC1617NVSimpleDataset,
     PH2MELFSDataset,
     PH2MELSimpleDataset,
+    PH2NVAFSDataset,
+    PH2NVCFSDataset,
     PH2NVFSDataset,
     PH2NVSimpleDataset,
     isic_sparsity_params,
@@ -438,25 +440,92 @@ class MetaRunner(Runner):
             "support_batch_mode": "full_permutation",
         }
 
-        if self.dataset == "PH2:all:":
-            ph2_nv_kwargs: FewSparseDatasetKwargs = {
+        dataset_classes = [
+            ISIC1617NVFSDataset,
+            ISIC16MELFSDataset,
+            ISIC16BKLFSDataset,
+            ISIC17MELFSDataset,
+            ISIC17BKLFSDataset,
+            ISIC18NVFSDataset,
+            ISIC18MELFSDataset,
+            ISIC18BKLFSDataset,
+            PH2NVFSDataset,
+            PH2NVCFSDataset,
+            PH2NVAFSDataset,
+            PH2MELFSDataset,
+        ]
+        dataset_names = [
+            "ISIC1617-NV",
+            "ISIC16-MEL",
+            "ISIC16-BKL",
+            "ISIC17-MEL",
+            "ISIC17-BKL",
+            "ISIC18-NV",
+            "ISIC18-MEL",
+            "ISIC18-BKL",
+            "PH2-NV",
+            "PH2-NVC",
+            "PH2-NVA",
+            "PH2-MEL",
+        ]
+        dataset_class_map = {
+            name: clas for name, clas in zip(dataset_names, dataset_classes)
+        }
+
+        test_datasets = {}
+        for clas, name in zip(dataset_classes, dataset_names):
+            test_kwargs_specific: FewSparseDatasetKwargs = {
                 **base_kwargs,
-                **train_kwargs,
-                "dataset_name": "PH2-NV",
-                "num_iterations": 10.0,
+                **test_kwargs,
+                "dataset_name": name,
+                "split_test_size": 1,
                 **dummy_kwargs,
             }
-            ph2_mel_kwargs: FewSparseDatasetKwargs = {
+            test_datasets[name] = (clas, test_kwargs_specific)
+
+        if self.dataset.startswith("PH2:"):
+            _, train_val_part, test_part = self.dataset.split(":")
+
+            if train_val_part == "all":
+                train_name = "PH2-NV"
+                num_iterations = 10.0
+                val_name = "PH2-MEL"
+            else:
+                train_name, val_name = train_val_part.split("-")
+                data_name = ["MEL", "NVA", "NVC"]
+                if train_name not in data_name or val_name not in data_name:
+                    raise ValueError(f"Unknown PH2 train/val split {train_val_part}")
+                num_iterations = 40.0 if train_name == "MEL" else 20.0
+                train_name, val_name = "PH2-" + train_name, "PH2-" + val_name
+
+            train_class = dataset_class_map[train_name]
+            val_class = dataset_class_map[val_name]
+            train_kwargs: FewSparseDatasetKwargs = {
+                **base_kwargs,
+                **train_kwargs,
+                "dataset_name": train_name,
+                "num_iterations": num_iterations,
+                **dummy_kwargs,
+            }
+            val_kwargs: FewSparseDatasetKwargs = {
                 **base_kwargs,
                 **val_kwargs,
-                "dataset_name": "PH2-MEL",
+                "dataset_name": val_name,
                 "split_val_size": 1,
                 **dummy_kwargs,
             }
+
+            if test_part == "":
+                test_dataset_list = []
+            elif test_part in test_datasets:
+                test_dataset_list = [test_datasets[test_part]]
+            else:
+                raise ValueError(f"Unknown dataset {test_part} for testing PH2")
+
             return {
-                "dataset_list": [(PH2NVFSDataset, ph2_nv_kwargs)],
-                "val_dataset_list": [(PH2MELFSDataset, ph2_mel_kwargs)],
-                "test_dataset_list": [],
+                "dataset_list": [(train_class, train_kwargs)],
+                "val_dataset_list": [(val_class, val_kwargs)],
+                "test_dataset_list": test_dataset_list,
             }
 
         isic1617_nv_kwargs: FewSparseDatasetKwargs = {
@@ -473,42 +542,11 @@ class MetaRunner(Runner):
             **dummy_kwargs,
         }
 
-        test_dataset_classes = [
-            ISIC16BKLFSDataset,
-            ISIC17MELFSDataset,
-            ISIC17BKLFSDataset,
-            ISIC18NVFSDataset,
-            ISIC18MELFSDataset,
-            ISIC18BKLFSDataset,
-            PH2NVFSDataset,
-            PH2MELFSDataset,
-        ]
-        test_dataset_names = [
-            "ISIC16-BKL",
-            "ISIC17-MEL",
-            "ISIC17-BKL",
-            "ISIC18-NV",
-            "ISIC18-MEL",
-            "ISIC18-BKL",
-            "PH2-NV",
-            "PH2-MEL",
-        ]
-        test_datasets = {}
-        for clas, name in zip(test_dataset_classes, test_dataset_names):
-            test_kwargs_specific: FewSparseDatasetKwargs = {
-                **base_kwargs,
-                **test_kwargs,
-                "dataset_name": name,
-                "split_test_size": 1,
-                **dummy_kwargs,
-            }
-            test_datasets[name] = (clas, test_kwargs_specific)
-
         if self.dataset == "":
             test_dataset_list = []
         elif self.dataset == "all":
-            test_dataset_list = list(test_datasets.values())
-        elif self.dataset in test_dataset_names:
+            test_dataset_list = list(test_datasets.values())[2:]
+        elif self.dataset in dataset_names:
             test_dataset_list = [test_datasets[self.dataset]]
         else:
             raise ValueError(f"Unknown dataset {self.dataset} for testing")
