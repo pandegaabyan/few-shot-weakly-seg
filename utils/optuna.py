@@ -35,15 +35,6 @@ def load_study(study_id: str, dummy: bool = False) -> optuna.Study | None:
         storage.engine.dispose()  # type: ignore
 
 
-def get_study_best_name(
-    study_id: str, dummy: bool = False
-) -> tuple[str | None, str | None]:
-    study = load_study(study_id, dummy)
-    if study is None or len(study.trials) == 0:
-        return None, None
-    return study.best_trial.user_attrs.get("run_name"), study.user_attrs.get("exp_name")
-
-
 def parse_hyperparams(hparams: str) -> dict[str, bool | int | float | str]:
     return {
         key.strip(): parse_string(value.strip())
