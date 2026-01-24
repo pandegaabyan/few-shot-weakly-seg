@@ -3,6 +3,7 @@ from typing import Literal, Union, get_args
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
+TaskType = Literal["optic", "skin"]
 LearnerType = Literal[
     "SL",
     "WS",
@@ -23,6 +24,7 @@ ProfilerType = Literal[
 ]
 
 run_modes: list[RunMode] = list(get_args(RunMode))
+task_types: list[TaskType] = list(get_args(TaskType))
 learner_types: list[LearnerType] = list(get_args(LearnerType))
 profiler_types: list[ProfilerType] = list(get_args(ProfilerType))
 

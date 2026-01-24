@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Generator, Generic, Literal, Mapping, Sequence, Type
 
 import numpy as np
+from albumentations.core.serialization import Serializable
 from pytorch_lightning import LightningModule
 from pytorch_lightning.core.optimizer import LightningOptimizer
 from pytorch_lightning.profilers.profiler import Profiler
@@ -413,9 +414,11 @@ class BaseLearner(
             for cls, kwargs in datasets:
                 if "transforms" in kwargs:
                     new_kwargs: dict = kwargs.copy()  # type: ignore
-                    new_kwargs["transforms"] = get_name_from_class(
-                        new_kwargs["transforms"]
-                    )
+                    transforms = new_kwargs["transforms"]
+                    if isinstance(transforms, Serializable):
+                        new_kwargs["transforms"] = transforms.to_dict()
+                    else:
+                        new_kwargs["transforms"] = str(transforms)
                 else:
                     new_kwargs = kwargs  # type: ignore
                 ds = {
@@ -483,6 +486,7 @@ class BaseLearner(
                 wandb_delete_files(
                     artifact_name,
                     "configuration",
+                    project=wandb.run.project if wandb.run else None,
                     excluded_aliases=["base"],
                     dummy=dummy,
                 )
@@ -577,6 +581,7 @@ class BaseLearner(
             wandb_delete_files(
                 artifact_name,
                 "checkpoint",
+                project=wandb.run.project if wandb.run else None,
                 dummy=self.config["learn"].get("dummy") is True,
             )
 

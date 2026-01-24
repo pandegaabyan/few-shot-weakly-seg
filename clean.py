@@ -1,7 +1,9 @@
 from typing import Literal
 
 import click
+from dotenv import load_dotenv
 
+from config.config_type import TaskType, task_types
 from runners.cleaners import clean_local_wandb, clean_logging_data
 
 
@@ -25,8 +27,14 @@ from runners.cleaners import clean_local_wandb, clean_logging_data
     help="If True, will clean local wandb folders instead of logging data.",
 )
 @click.option(
-    "--target",
+    "--task",
     "-t",
+    type=click.Choice(task_types),
+    default="optic",
+)
+@click.option(
+    "--mode",
+    "-m",
     type=click.Choice(["local", "wandb", "both"]),
     default="both",
     help="If local_wandb is False, this determine which logging data to clean.",
@@ -40,7 +48,8 @@ def main(
     limit: str,
     dummy_only: bool,
     local_wandb: bool,
-    target: Literal["local", "wandb", "both"],
+    task: TaskType,
+    mode: Literal["local", "wandb", "both"],
     force_clean: bool,
 ):
     try:
@@ -48,10 +57,12 @@ def main(
     except ValueError:
         new_limit = limit
 
+    load_dotenv()
+
     if local_wandb:
         clean_local_wandb(new_limit, force_clean)
     else:
-        clean_logging_data(new_limit, dummy_only, target, force_clean)
+        clean_logging_data(new_limit, task, mode, dummy_only, force_clean)
 
 
 if __name__ == "__main__":

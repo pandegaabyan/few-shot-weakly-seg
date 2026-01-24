@@ -1,7 +1,6 @@
 import os
 
 import optuna
-from dotenv import load_dotenv
 
 from config.constants import FILENAMES
 from utils.logging import check_mkdir
@@ -16,7 +15,6 @@ def get_optuna_storage(
         check_mkdir(log_dir)
         db_url = f"sqlite:///{log_dir}/optuna_dummy.sqlite3"
     else:
-        load_dotenv()
         db_url = os.getenv("OPTUNA_DB_URL")
         if not db_url:
             raise ValueError("OPTUNA_DB_URL is not set")
@@ -35,15 +33,6 @@ def load_study(study_id: str, dummy: bool = False) -> optuna.Study | None:
         return None
     finally:
         storage.engine.dispose()  # type: ignore
-
-
-def get_study_best_name(
-    study_id: str, dummy: bool = False
-) -> tuple[str | None, str | None]:
-    study = load_study(study_id, dummy)
-    if study is None or len(study.trials) == 0:
-        return None, None
-    return study.best_trial.user_attrs.get("run_name"), study.user_attrs.get("exp_name")
 
 
 def parse_hyperparams(hparams: str) -> dict[str, bool | int | float | str]:

@@ -13,7 +13,7 @@ import wandb
 import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
-from config.config_type import ConfigUnion, LearnerType, RunMode
+from config.config_type import ConfigUnion, LearnerType, RunMode, TaskType
 from config.constants import FILENAMES
 from config.optuna import (
     OptunaConfig,
@@ -32,7 +32,7 @@ from utils.logging import (
     get_short_git_hash,
     read_from_csv,
 )
-from utils.optuna import get_optuna_storage, get_study_best_name
+from utils.optuna import get_optuna_storage, load_study
 from utils.utils import mean
 from utils.wandb import (
     get_wandb_project,
@@ -54,6 +54,7 @@ class Runner(ABC):
         self,
         config: ConfigUnion,
         mode: RunMode,
+        task: TaskType,
         learner_type: LearnerType,
         dummy: bool,
         dataset: str = "all",
@@ -61,6 +62,7 @@ class Runner(ABC):
     ):
         self.config = config
         self.mode = mode
+        self.task: TaskType = task
         self.learner_type = learner_type
         self.dummy = dummy
         self.dataset = dataset
@@ -73,6 +75,14 @@ class Runner(ABC):
 
         self.optuna_config = self.make_optuna_config()
         self.git_hash = get_short_git_hash()
+        self.study_id = self.resolve_study_id()
+
+        if self.study_id and mode != "study":
+            study = load_study(self.study_id, self.dummy)
+            if study is None or len(study.trials) == 0:
+                raise ValueError(f"Study {self.study_id} not found or has no trials")
+            self.study = study
+            self.optuna_config["hyperparams"] = study.best_trial.params
 
         self.curr_dataset_fold = -1
         self.curr_trial_number = -1
@@ -144,15 +154,16 @@ class Runner(ABC):
             self.update_attr(run_name=new_run_name)
 
         important_config = self.update_config()
-        ref_ckpt = self.config["learn"].get("ref_ckpt")
 
-        if test_only and ref_ckpt is None:
+        if test_only and self.config["learn"].get("ref_ckpt") is None:
             self.resume = True
 
         if self.use_wandb:
             wandb_login()
             if self.resume:
-                run_id = wandb_get_run_id_by_name(self.run_name, dummy=self.dummy)
+                run_id = wandb_get_run_id_by_name(
+                    self.task, self.run_name, dummy=self.dummy
+                )
             else:
                 run_id = wandb.util.generate_id()
             assert "wandb" in self.config
@@ -173,11 +184,8 @@ class Runner(ABC):
             additional_config: dict = {
                 "git": self.git_hash,
             }
-            study_id = self.config["learn"].get("optuna_study")
-            if study_id is None and ref_ckpt is not None and "study:" in ref_ckpt:
-                study_id = ref_ckpt.split(":")[1].replace("-study-ckpt", "")
-            if study_id is not None:
-                additional_config["study"] = study_id
+            if self.study_id:
+                additional_config["study"] = self.study_id
             dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
             wandb.config.update(
                 {**additional_config, **dataset_names, **important_config}
@@ -233,8 +241,6 @@ class Runner(ABC):
             scores = []
             base_run_name = make_run_name()
             self.update_attr(run_name=base_run_name)
-            study_id = self.optuna_config["study_name"].split(" ")[-1]
-            self.config["learn"]["optuna_study"] = study_id
 
             trial.set_user_attr("run_name", base_run_name)
             self.curr_trial_number = trial.number
@@ -326,10 +332,9 @@ class Runner(ABC):
         )
         learner = learner_class(**learner_kwargs)
 
-        study_id = self.optuna_config["study_name"].split(" ")[-1]
         additional_config: dict = {
             "git": self.git_hash,
-            "study": study_id,
+            "study": self.study_id,
         }
         dataset_names = self.get_dataset_names_from_kwargs(learner_kwargs)
 
@@ -337,13 +342,14 @@ class Runner(ABC):
             self.use_wandb
             and self.curr_trial_number == 0
             and self.curr_dataset_fold == 0
+            and self.study_id
         ):
             wandb_login()
             wandb.init(
                 tags=["helper"],
-                project=get_wandb_project(self.dummy),
+                project=get_wandb_project(self.task, self.dummy),
                 group=self.exp_name,
-                name=f"log study-ref {study_id}",
+                name=f"log study-ref {self.study_id}",
                 job_type="study",
                 settings=wandb.Settings(_disable_stats=True),
             )
@@ -353,12 +359,12 @@ class Runner(ABC):
             ref_configuration["optuna"] = self.optuna_config
             exp_path = os.path.join(FILENAMES["log_folder"], self.exp_name)
             check_mkdir(exp_path)
-            ref_conf_path = os.path.join(exp_path, f"{study_id} study-ref.json")
+            ref_conf_path = os.path.join(exp_path, f"{self.study_id} study-ref.json")
             dump_json(ref_conf_path, ref_configuration)
 
             wandb_log_file(
                 wandb.run,
-                prepare_study_ref_artifact_name(study_id),
+                prepare_study_ref_artifact_name(self.study_id),
                 ref_conf_path,
                 "study-reference",
             )
@@ -487,7 +493,7 @@ class Runner(ABC):
         wandb.init(
             id=run_id,
             tags=self.config["wandb"].get("tags", []),
-            project=get_wandb_project(self.dummy),
+            project=get_wandb_project(self.task, self.dummy),
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
@@ -520,12 +526,13 @@ class Runner(ABC):
             wandb.finish()
             return
 
-        study_id = self.optuna_config["study_name"].split(" ")[-1]
-        artifact_name = prepare_study_ckpt_artifact_name(study_id)
+        assert self.study_id
+        artifact_name = prepare_study_ckpt_artifact_name(self.study_id)
         try:
             wandb_delete_files(
                 artifact_name,
                 "study-checkpoint",
+                task=self.task,
                 dummy=self.config["learn"].get("dummy") is True,
             )
         except (TypeError, wandb.errors.CommError):
@@ -581,6 +588,24 @@ class Runner(ABC):
             )
             wandb_log_file(wandb.run, artifact_name, filepath, "profile")
 
+    def resolve_study_id(self) -> str | None:
+        study_id = self.config["learn"].get("optuna_study")
+        if study_id:
+            return study_id
+
+        ref_ckpt = self.config["learn"].get("ref_ckpt")
+
+        if "study_name" in self.optuna_config:
+            study_id = self.optuna_config["study_name"].split(" ")[-1]
+        elif ref_ckpt is not None and "study:" in ref_ckpt:
+            study_id = ref_ckpt.split(":")[1].replace("-study-ckpt", "")
+
+        if study_id:
+            self.config["learn"]["optuna_study"] = study_id
+            return study_id
+
+        return None
+
     def resolve_ckpt(self) -> str | None:
         # ref_ckpt:
         # "{exp}/{run}" | "{exp}/{run}:{direction}" | "{exp}/{run}/{file}.ckpt"
@@ -603,9 +628,11 @@ class Runner(ABC):
             if ref_ckpt.startswith("wandb_study"):
                 study = True
                 study_id = ckpt_art.split("-")[0]
-                run_name, exp_name = get_study_best_name(study_id, self.dummy)
-                exp_name = exp_name or self.exp_name
-                run_name = run_name or f"best {study_id}"
+                exp_name = self.study.user_attrs.get("exp_name") or self.exp_name
+                run_name = (
+                    self.study.best_trial.user_attrs.get("run_name")
+                    or f"best {study_id}"
+                )
             else:
                 study = False
                 exp_name, run_date, run_time, run_id, _ = ckpt_art.rsplit(
@@ -615,6 +642,7 @@ class Runner(ABC):
                 run_time = run_time[:2] + "-" + run_time[2:]
                 run_name = f"{run_date} {run_time} {run_id}"
             return wandb_download_ckpt(
+                self.task,
                 ckpt_art,
                 os.path.join(log, exp_name, run_name),
                 alias,
@@ -629,10 +657,10 @@ class Runner(ABC):
             else:
                 fold = None
             index = -1 if direction == "max" else 0
-            base_run_name, exp_name = get_study_best_name(study_id, self.dummy)
+            base_run_name = self.study.best_trial.user_attrs.get("run_name")
             if base_run_name is None:
                 raise ValueError(f"Name of the best run for study {study_id} not found")
-            exp_name = exp_name or self.exp_name
+            exp_name = self.study.user_attrs.get("exp_name") or self.exp_name
             if fold is not None:
                 run_name = f"{base_run_name} F{int(fold)}"
                 ckpt = get_ckpt_file(self.exp_name, run_name, index)

@@ -78,11 +78,8 @@ def create_dataset_classes(
 
 
 ISIC16SimpleDataset, ISIC16FSDataset = create_dataset_classes("ISIC16")
-ISIC17SimpleDataset, ISIC17FSDataset = create_dataset_classes("ISIC17")
-ISIC18SimpleDataset, ISIC18FSDataset = create_dataset_classes("ISIC18")
-PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
-
 ISIC18TrainSimpleDataset, ISIC18TrainFSDataset = create_dataset_classes("ISIC18-train")
+PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
 
 ISIC1617NVSimpleDataset, ISIC1617NVFSDataset = create_dataset_classes("ISIC1617-NV")
 ISIC16MELSimpleDataset, ISIC16MELFSDataset = create_dataset_classes("ISIC16-MEL")
