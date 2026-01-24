@@ -2,6 +2,7 @@ import os
 import time
 from typing import Literal
 
+from config.config_type import TaskType
 from config.constants import FILENAMES, WANDB_DIR
 from utils.logging import check_rmtree, get_run_paths
 from utils.time import convert_iso_timestamp_to_epoch
@@ -10,8 +11,9 @@ from utils.wandb import wandb_get_runs
 
 def clean_logging_data(
     after: str | int,
+    task: TaskType,
+    mode: Literal["local", "wandb", "both"] = "both",
     dummy_only: bool = True,
-    target: Literal["local", "wandb", "both"] = "both",
     force_clean: bool = False,
 ):
     if isinstance(after, int):
@@ -21,15 +23,15 @@ def clean_logging_data(
         start_time = after
 
     local_run_paths = []
-    if target in ["local", "both"]:
+    if mode in ["local", "both"]:
         local_run_paths = get_run_paths(start_time=start_time, dummy_only=dummy_only)
 
     wandb_runs = []
     wandb_runs_dummy = []
-    if target in ["wandb", "both"]:
-        wandb_runs_dummy = wandb_get_runs(start_time=start_time, dummy=True)
+    if mode in ["wandb", "both"]:
+        wandb_runs_dummy = wandb_get_runs(task, start_time=start_time, dummy=True)
         if not dummy_only:
-            wandb_runs = wandb_get_runs(start_time=start_time, dummy=False)
+            wandb_runs = wandb_get_runs(task, start_time=start_time, dummy=False)
     wandb_run_paths = [(run.group or "") + "/" + run.name for run in wandb_runs]
     wandb_run_paths_dummy = [
         (run.group or "") + "/" + run.name for run in wandb_runs_dummy

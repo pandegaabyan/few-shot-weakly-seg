@@ -2,44 +2,55 @@ import os
 from contextlib import contextmanager
 
 import optuna
-from dotenv import load_dotenv
 
 import wandb
-from config.constants import FILENAMES, WANDB_ENTITY
+from config.config_type import TaskType
+from config.constants import FILENAMES
 from utils.time import convert_epoch_to_iso_timestamp, convert_local_iso_to_utc_iso
 from wandb.sdk.wandb_run import Run
 
 
 def wandb_login():
-    load_dotenv()
     wandb_api_key = os.getenv("WANDB_API_KEY")
     if not wandb_api_key:
         raise ValueError("WANDB_API_KEY is not set")
     wandb.login(key=wandb_api_key)
 
 
-def get_wandb_project(dummy: bool = False) -> str:
+def get_wandb_entity() -> str:
+    wandb_entity = os.getenv("WANDB_ENTITY")
+    if not wandb_entity:
+        raise ValueError("WANDB_ENTITY is not set")
+    return wandb_entity
+
+
+def get_wandb_project(task: TaskType, dummy: bool = False) -> str:
     if dummy:
         return "few-shot-weakly-seg-dummy"
-    load_dotenv()
-    wandb_api_key = os.getenv("WANDB_PROJECT")
-    if not wandb_api_key:
-        raise ValueError("WANDB_PROJECT is not set")
-    return wandb_api_key
+    if task == "optic":
+        project = os.getenv("WANDB_PROJECT_OPTIC")
+    elif task == "skin":
+        project = os.getenv("WANDB_PROJECT_SKIN")
+    else:
+        project = None
+    if project:
+        return project
+    raise ValueError(f"Unknown task: {task}")
 
 
-def wandb_path(dummy: bool) -> str:
-    return WANDB_ENTITY + "/" + get_wandb_project(dummy)
+def wandb_path(task: TaskType, dummy: bool = False) -> str:
+    return get_wandb_entity() + "/" + get_wandb_project(task, dummy)
 
 
-def wandb_get_run_id_by_name(run_name: str, dummy: bool = False) -> str:
-    run = wandb.Api().runs(wandb_path(dummy), {"display_name": run_name})
+def wandb_get_run_id_by_name(task: TaskType, run_name: str, dummy: bool = False) -> str:
+    run = wandb.Api().runs(wandb_path(task, dummy), {"display_name": run_name})
     if len(run) == 0:
         raise ValueError(f"Run {run_name} not found")
     return run[0].id
 
 
 def wandb_get_runs(
+    task: TaskType,
     start_time: float | str | None = None,
     end_time: float | str | None = None,
     dummy: bool = False,
@@ -57,7 +68,7 @@ def wandb_get_runs(
         elif isinstance(end_time, str):
             end_time = convert_local_iso_to_utc_iso(end_time)
         filter_dict.update({"created_at": {"$lte": end_time}})
-    return wandb.Api().runs(wandb_path(dummy), filters=filter_dict)
+    return wandb.Api().runs(wandb_path(task, dummy), filters=filter_dict)
 
 
 def prepare_artifact_name(exp_name: str, run_name: str, suffix: str) -> str:
@@ -85,10 +96,20 @@ def prepare_study_ckpt_artifact_name(study_id: str) -> str:
 def wandb_delete_files(
     name: str,
     type: str,
+    project: str | None = None,
+    task: TaskType | None = None,
     excluded_aliases: list[str] | None = None,
     dummy: bool = False,
 ):
-    arts = wandb.Api().artifacts(type, f"{wandb_path(dummy)}/{name}")
+    if (project is None and task is None) or (project is not None and task is not None):
+        raise ValueError(
+            "Either project or task must be provided, not both, and not neither"
+        )
+    if task is not None:
+        path = wandb_path(task, dummy)
+    else:
+        path = f"{get_wandb_entity()}/{project}"
+    arts = wandb.Api().artifacts(type, f"{path}/{name}")
     for art in arts:
         art: wandb.Artifact = art
         if len(art.aliases) == 0:
@@ -114,9 +135,11 @@ def wandb_log_file(
     return artifact
 
 
-def wandb_download_file(name: str, root: str, type: str, dummy: bool = False) -> str:
+def wandb_download_file(
+    task: TaskType, name: str, root: str, type: str, dummy: bool = False
+) -> str:
     artifact: wandb.Artifact = wandb.Api().artifact(
-        f"{wandb_path(dummy)}/{name}", type=type
+        f"{wandb_path(task, dummy)}/{name}", type=type
     )
     return str(artifact.file(root))
 
@@ -131,6 +154,7 @@ def wandb_use_and_download_file(
 
 
 def wandb_download_ckpt(
+    task: TaskType,
     name: str,
     log_path: str,
     alias: str | None = None,
@@ -138,7 +162,7 @@ def wandb_download_ckpt(
     dummy: bool = False,
 ) -> str:
     type_name = "study-checkpoint" if study else "checkpoint"
-    artifact_path = f"{wandb_path(dummy)}/{name}"
+    artifact_path = f"{wandb_path(task, dummy)}/{name}"
     if alias is None:
         alias = "latest"
     if alias in ["max", "min"]:
@@ -157,7 +181,7 @@ def wandb_download_ckpt(
                 log_path += f" F{fold}"
     artifact = f"{name}:{alias}"
     if wandb.run is None:
-        return wandb_download_file(artifact, log_path, type_name, dummy)
+        return wandb_download_file(task, artifact, log_path, type_name, dummy)
     return wandb_use_and_download_file(wandb.run, artifact, log_path, type_name)
 
 
@@ -187,11 +211,13 @@ def wandb_download_config(exp_name: str, run_name: str) -> tuple[str, str]:
     return base_config_path, latest_config_path
 
 
-def wandb_log_dataset_ref(dataset_path: str, dataset_name: str, dummy: bool = False):
+def wandb_log_dataset_ref(
+    task: TaskType, dataset_path: str, dataset_name: str, dummy: bool = False
+):
     wandb_login()
     wandb.init(
         tags=["helper"],
-        project=get_wandb_project(dummy),
+        project=get_wandb_project(task, dummy),
         name=f"log dataset {dataset_name}",
         settings=wandb.Settings(_disable_stats=True),
     )

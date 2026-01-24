@@ -486,6 +486,7 @@ class BaseLearner(
                 wandb_delete_files(
                     artifact_name,
                     "configuration",
+                    project=wandb.run.project if wandb.run else None,
                     excluded_aliases=["base"],
                     dummy=dummy,
                 )
@@ -580,6 +581,7 @@ class BaseLearner(
             wandb_delete_files(
                 artifact_name,
                 "checkpoint",
+                project=wandb.run.project if wandb.run else None,
                 dummy=self.config["learn"].get("dummy") is True,
             )
 

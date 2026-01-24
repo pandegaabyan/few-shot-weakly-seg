@@ -20,4 +20,3 @@ FILENAMES: FilenamesDict = {
 }
 
 WANDB_DIR = "wandb"
-WANDB_ENTITY = "pandegaaz"

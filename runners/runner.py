@@ -13,7 +13,7 @@ import wandb
 import wandb.errors
 import wandb.util
 from config.config_maker import make_run_name
-from config.config_type import ConfigUnion, LearnerType, RunMode
+from config.config_type import ConfigUnion, LearnerType, RunMode, TaskType
 from config.constants import FILENAMES
 from config.optuna import (
     OptunaConfig,
@@ -54,6 +54,7 @@ class Runner(ABC):
         self,
         config: ConfigUnion,
         mode: RunMode,
+        task: TaskType,
         learner_type: LearnerType,
         dummy: bool,
         dataset: str = "all",
@@ -61,6 +62,7 @@ class Runner(ABC):
     ):
         self.config = config
         self.mode = mode
+        self.task: TaskType = task
         self.learner_type = learner_type
         self.dummy = dummy
         self.dataset = dataset
@@ -152,7 +154,9 @@ class Runner(ABC):
         if self.use_wandb:
             wandb_login()
             if self.resume:
-                run_id = wandb_get_run_id_by_name(self.run_name, dummy=self.dummy)
+                run_id = wandb_get_run_id_by_name(
+                    self.task, self.run_name, dummy=self.dummy
+                )
             else:
                 run_id = wandb.util.generate_id()
             assert "wandb" in self.config
@@ -341,7 +345,7 @@ class Runner(ABC):
             wandb_login()
             wandb.init(
                 tags=["helper"],
-                project=get_wandb_project(self.dummy),
+                project=get_wandb_project(self.task, self.dummy),
                 group=self.exp_name,
                 name=f"log study-ref {study_id}",
                 job_type="study",
@@ -487,7 +491,7 @@ class Runner(ABC):
         wandb.init(
             id=run_id,
             tags=self.config["wandb"].get("tags", []),
-            project=get_wandb_project(self.dummy),
+            project=get_wandb_project(self.task, self.dummy),
             group=self.config["learn"]["exp_name"],
             name=self.config["learn"]["run_name"],
             job_type=self.config["wandb"].get("job_type"),
@@ -526,6 +530,7 @@ class Runner(ABC):
             wandb_delete_files(
                 artifact_name,
                 "study-checkpoint",
+                task=self.task,
                 dummy=self.config["learn"].get("dummy") is True,
             )
         except (TypeError, wandb.errors.CommError):
@@ -615,6 +620,7 @@ class Runner(ABC):
                 run_time = run_time[:2] + "-" + run_time[2:]
                 run_name = f"{run_date} {run_time} {run_id}"
             return wandb_download_ckpt(
+                self.task,
                 ckpt_art,
                 os.path.join(log, exp_name, run_name),
                 alias,

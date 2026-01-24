@@ -1,9 +1,19 @@
 import click
+from dotenv import load_dotenv
 
 from config.config_maker import make_config
-from config.config_type import LearnerType, RunMode, learner_types, run_modes
-from tasks.optic_disc_cup.datasets import NUM_CLASSES
-from tasks.optic_disc_cup.runners import get_runner_class
+from config.config_type import (
+    LearnerType,
+    RunMode,
+    TaskType,
+    learner_types,
+    run_modes,
+    task_types,
+)
+from tasks.optic_disc_cup.datasets import NUM_CLASSES as NUM_CLASSES_OPTIC
+from tasks.optic_disc_cup.runners import get_runner_class as get_runner_class_optic
+from tasks.skin_lesion.datasets import NUM_CLASSES as NUM_CLASSES_SKIN
+from tasks.skin_lesion.runners import get_runner_class as get_runner_class_skin
 from utils.logging import (
     check_git_clean,
 )
@@ -16,6 +26,12 @@ from utils.wandb import wandb_use_alert
 @click.option("--dummy", "-d", is_flag=True)
 @click.option("--resume", "-r", is_flag=True)
 @click.option("--no_wandb", "-nw", is_flag=True)
+@click.option(
+    "--task",
+    "-t",
+    type=click.Choice(task_types),
+    default="optic",
+)
 @click.option(
     "--learner",
     "-l",
@@ -62,6 +78,7 @@ from utils.wandb import wandb_use_alert
     help="(key, value) for overriding optuna config",
 )
 def main(
+    task: TaskType,
     learner: LearnerType,
     mode: RunMode,
     dataset: str,
@@ -74,6 +91,17 @@ def main(
 ):
     if not dummy and not check_git_clean():
         raise Exception("Git is not clean, please commit your changes first")
+
+    if task == "optic":
+        get_runner_class = get_runner_class_optic
+        NUM_CLASSES = NUM_CLASSES_OPTIC
+    elif task == "skin":
+        get_runner_class = get_runner_class_skin
+        NUM_CLASSES = NUM_CLASSES_SKIN
+    else:
+        raise ValueError(f"Unknown task: {task}")
+
+    load_dotenv()
 
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
@@ -93,7 +121,9 @@ def main(
 
     runner_class = get_runner_class(learner)
 
-    runner = runner_class(config, mode, learner, dummy, dataset=dataset, resume=resume)
+    runner = runner_class(
+        config, mode, task, learner, dummy, dataset=dataset, resume=resume
+    )
 
     for key, value in optuna_configs:
         if key == "hyperparams":

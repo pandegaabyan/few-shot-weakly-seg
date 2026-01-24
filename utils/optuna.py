@@ -1,7 +1,6 @@
 import os
 
 import optuna
-from dotenv import load_dotenv
 
 from config.constants import FILENAMES
 from utils.logging import check_mkdir
@@ -16,7 +15,6 @@ def get_optuna_storage(
         check_mkdir(log_dir)
         db_url = f"sqlite:///{log_dir}/optuna_dummy.sqlite3"
     else:
-        load_dotenv()
         db_url = os.getenv("OPTUNA_DB_URL")
         if not db_url:
             raise ValueError("OPTUNA_DB_URL is not set")
