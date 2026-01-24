@@ -78,8 +78,7 @@ def create_dataset_classes(
 
 
 ISIC16SimpleDataset, ISIC16FSDataset = create_dataset_classes("ISIC16")
-ISIC17SimpleDataset, ISIC17FSDataset = create_dataset_classes("ISIC17")
-ISIC18SimpleDataset, ISIC18FSDataset = create_dataset_classes("ISIC18")
+ISIC18TrainSimpleDataset, ISIC18TrainFSDataset = create_dataset_classes("ISIC18-train")
 PH2SimpleDataset, PH2FSDataset = create_dataset_classes("PH2")
 
 ISIC1617NVSimpleDataset, ISIC1617NVFSDataset = create_dataset_classes("ISIC1617-NV")
@@ -91,6 +90,8 @@ ISIC18NVSimpleDataset, ISIC18NVFSDataset = create_dataset_classes("ISIC18-NV")
 ISIC18MELSimpleDataset, ISIC18MELFSDataset = create_dataset_classes("ISIC18-MEL")
 ISIC18BKLSimpleDataset, ISIC18BKLFSDataset = create_dataset_classes("ISIC18-BKL")
 PH2NVSimpleDataset, PH2NVFSDataset = create_dataset_classes("PH2-NV")
+PH2NVCSimpleDataset, PH2NVCFSDataset = create_dataset_classes("PH2-NVC")
+PH2NVASimpleDataset, PH2NVAFSDataset = create_dataset_classes("PH2-NVA")
 PH2MELSimpleDataset, PH2MELFSDataset = create_dataset_classes("PH2-MEL")
 
 isic_sparsity_params = {
