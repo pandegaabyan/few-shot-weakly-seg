@@ -24,7 +24,9 @@ def get_optuna_storage(
 
 
 def load_study(study_id: str, dummy: bool = False) -> optuna.Study | None:
-    storage = get_optuna_storage(dummy, engine_kwargs={"pool_size": 1})
+    storage = get_optuna_storage(
+        dummy, engine_kwargs={"pool_size": 1} if not dummy else None
+    )
     try:
         study_names = optuna.get_all_study_names(storage)
         study_name = next(filter(lambda x: x.endswith(study_id), study_names))

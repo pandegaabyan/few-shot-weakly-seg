@@ -155,9 +155,6 @@ class Runner(ABC):
 
         important_config = self.update_config()
 
-        if test_only and self.config["learn"].get("ref_ckpt") is None:
-            self.resume = True
-
         if self.use_wandb:
             wandb_login()
             if self.resume:

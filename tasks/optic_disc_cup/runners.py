@@ -229,7 +229,7 @@ class SimpleRunner(Runner):
             "cache_data": True,
         }
         if dummy:
-            base_kwargs["size"] = 6
+            base_kwargs["size"] = 10
 
         rim_one_3_train_kwargs: SimpleDatasetKwargs = {  # noqa: F841
             **base_kwargs,
