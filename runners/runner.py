@@ -498,7 +498,7 @@ class Runner(ABC):
             _disable_stats=not self.config["wandb"].get("log_system_metrics", False)
         )
         if resume:
-            wandb.init(id=run_id, resume="must", settings=wandb_settings)
+            wandb.init(id=run_id, resume="allow", settings=wandb_settings)
             return
         wandb.init(
             id=run_id,
