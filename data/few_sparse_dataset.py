@@ -686,8 +686,9 @@ class FewSparseDataset(BaseDataset, ABC):
         else:
             sparsity_mode, sparsity_value = None, None
 
+        support_batches_sum = sum(self.support_batches[:index])
         for i in range(support_batch_size):
-            item_index = sum(self.support_batches[:index]) + i
+            item_index = support_batches_sum + i
             img, msk, img_idx, mode, value = self.get_support_data(
                 item_index, sparsity_mode, sparsity_value
             )
