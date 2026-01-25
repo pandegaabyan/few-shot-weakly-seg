@@ -1,24 +1,24 @@
 from typing import Any, Literal, Type
 
 import optuna
-from typing_extensions import NotRequired, TypedDict
+from typing_extensions import TypedDict
 
 OptunaSampler = Literal["random", "tpe", "cmaes", "qmc", "gp", "botorch"]
 OptunaPruner = Literal["none", "median", "percentile", "asha", "hyperband", "threshold"]
 
 
-class OptunaConfig(TypedDict):
+class OptunaConfig(TypedDict, total=False):
     study_name: str
     direction: Literal["minimize", "maximize"]
     sampler: OptunaSampler
     pruner: OptunaPruner
-    num_folds: NotRequired[int]
-    num_trials: NotRequired[int]
-    timeout_sec: NotRequired[int]
-    sampler_params: NotRequired[dict[str, Any]]
-    pruner_params: NotRequired[dict[str, Any]]
-    pruner_patience: NotRequired[int]
-    hyperparams: NotRequired[dict[str, bool | int | float | str]]
+    num_folds: int
+    num_trials: int
+    timeout_sec: int
+    sampler_params: dict[str, Any]
+    pruner_params: dict[str, Any]
+    pruner_patience: int
+    hyperparams: dict[str, bool | int | float | str]
 
 
 sampler_classes: dict[OptunaSampler, Type[optuna.samplers.BaseSampler]] = {

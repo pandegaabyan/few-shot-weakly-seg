@@ -73,7 +73,10 @@ class Runner(ABC):
         self.run_name = self.config["learn"]["run_name"]
         self.seed = self.config["learn"].get("seed", 0)
 
-        self.optuna_config = self.make_optuna_config()
+        if mode == "study":
+            self.optuna_config = self.make_optuna_config()
+        else:
+            self.optuna_config: OptunaConfig = {}
         self.git_hash = get_short_git_hash()
         self.study_id = self.resolve_study_id()
 
@@ -154,9 +157,6 @@ class Runner(ABC):
             self.update_attr(run_name=new_run_name)
 
         important_config = self.update_config()
-
-        if test_only and self.config["learn"].get("ref_ckpt") is None:
-            self.resume = True
 
         if self.use_wandb:
             wandb_login()
@@ -270,6 +270,16 @@ class Runner(ABC):
             self.clean_log_on_end()
 
             return new_score
+
+        if (
+            "sampler" not in self.optuna_config
+            or "pruner" not in self.optuna_config
+            or "study_name" not in self.optuna_config
+            or "direction" not in self.optuna_config
+        ):
+            raise ValueError(
+                "Optuna config must have 'sampler', 'pruner', 'study_name', and 'direction' fields"
+            )
 
         sampler_class = sampler_classes[self.optuna_config["sampler"]]
         pruner_class = pruner_classes[self.optuna_config["pruner"]]
@@ -515,6 +525,8 @@ class Runner(ABC):
             wandb.finish()
             return
 
+        if "direction" not in self.optuna_config:
+            raise ValueError("Optuna config must have 'direction' field")
         minimize = self.optuna_config["direction"] == "minimize"
         try:
             best_score = trial.study.best_value

@@ -4,6 +4,7 @@ from torch import nn
 
 from config.config_type import ModelConfig
 from models.deeplabv3.models import load_deeplabv3
+from models.dummy_model import DummyModel
 from models.unetmini import UNetMini
 
 
@@ -21,6 +22,12 @@ def make_segmentation_model(
         k: v for k, v in config.items() if k not in ["arch", "backbone"]
     }
 
+    if arch == "dummy":
+        return DummyModel(
+            in_channels=input_channels,
+            out_channels=output_channels,
+            **kwargs,
+        )
     if arch == "unetmini":
         if backbone is not None:
             raise ValueError(
