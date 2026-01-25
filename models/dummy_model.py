@@ -2,14 +2,12 @@ from torchmeta import modules
 
 
 class DummyModel(modules.MetaModule):
-    def __init__(self, in_channels=3, out_channels=1):
+    def __init__(self, in_channels=3, out_channels=1, **kwargs):
         super().__init__()
 
-        # Simple encoder block: keeps input size with padding
-        self.encoder = modules.MetaConv2d(in_channels, 4, kernel_size=3, padding=1)
+        self.encoder = modules.MetaConv2d(in_channels, 2, kernel_size=1)
 
-        # Simple decoder block: also keeps the input size with padding
-        self.decoder = modules.MetaConv2d(4, out_channels, kernel_size=3, padding=1)
+        self.decoder = modules.MetaConv2d(2, out_channels, kernel_size=1)
 
     def forward(self, x, params=None):
         # Encode and Decode
