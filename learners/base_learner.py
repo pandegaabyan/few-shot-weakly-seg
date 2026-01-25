@@ -206,6 +206,8 @@ class BaseLearner(
     def on_test_start(self) -> None:
         super().on_test_start()
 
+        self.prepare_test_datasets()
+
         self.log_configuration()
 
     def on_test_end(self) -> None:
@@ -338,6 +340,13 @@ class BaseLearner(
             ds.fill_cached_items_data()
         end_time = time.perf_counter()
         self.print(f"val datasets prep done in {(end_time - inter_time):.2f} s")
+
+    def prepare_test_datasets(self):
+        start_time = time.perf_counter()
+        for ds in self.test_datasets:
+            ds.fill_cached_items_data()
+        end_time = time.perf_counter()
+        self.print(f"test datasets prep done in {(end_time - start_time):.2f} s")
 
     def get_dataset_item(
         self, type: Literal["TR", "VL", "TS"], dataset_name: str, index: int
