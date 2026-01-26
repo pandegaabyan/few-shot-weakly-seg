@@ -15,6 +15,7 @@ class OptunaConfig(TypedDict, total=False):
     num_folds: int
     num_trials: int
     timeout_sec: int
+    seed: int
     sampler_params: dict[str, Any]
     pruner_params: dict[str, Any]
     pruner_patience: int
@@ -45,6 +46,7 @@ default_optuna_config: OptunaConfig = {
     "sampler": "tpe",
     "pruner": "hyperband",
     "num_folds": 1,
+    "seed": 99,
     "sampler_params": {},
     "pruner_params": {},
     "hyperparams": {},
