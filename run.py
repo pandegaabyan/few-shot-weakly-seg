@@ -10,6 +10,7 @@ from config.config_type import (
     run_modes,
     task_types,
 )
+from config.optuna import OptunaConfig
 from tasks.optic_disc_cup.datasets import NUM_CLASSES as NUM_CLASSES_OPTIC
 from tasks.optic_disc_cup.runners import get_runner_class as get_runner_class_optic
 from tasks.skin_lesion.datasets import NUM_CLASSES as NUM_CLASSES_SKIN
@@ -119,19 +120,27 @@ def main(
         int(options_dict["optuna_seed"]) if "optuna_seed" in options_dict else None
     )
 
+    optuna_config: OptunaConfig = {}
+    for key, value in optuna_configs:
+        if key == "hyperparams":
+            optuna_config[key] = parse_hyperparams(value)
+            continue
+        optuna_config[key] = parse_string(value)
+    if optuna_seed is not None:
+        optuna_config["seed"] = optuna_seed
+
     runner_class = get_runner_class(learner)
 
     runner = runner_class(
-        config, mode, task, learner, dummy, dataset=dataset, resume=resume
+        config,
+        optuna_config,
+        mode,
+        task,
+        learner,
+        dummy,
+        dataset=dataset,
+        resume=resume,
     )
-
-    for key, value in optuna_configs:
-        if key == "hyperparams":
-            runner.optuna_config[key] = parse_hyperparams(value)
-            continue
-        runner.optuna_config[key] = parse_string(value)
-    if "sampler_params" in runner.optuna_config and optuna_seed is not None:
-        runner.optuna_config["sampler_params"]["seed"] = optuna_seed
 
     if number_of_multi > 0:
         runner.number_of_multi = number_of_multi

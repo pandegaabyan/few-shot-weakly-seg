@@ -53,6 +53,7 @@ class Runner(ABC):
     def __init__(
         self,
         config: ConfigUnion,
+        optuna_config: OptunaConfig,
         mode: RunMode,
         task: TaskType,
         learner_type: LearnerType,
@@ -73,11 +74,8 @@ class Runner(ABC):
         self.run_name = self.config["learn"]["run_name"]
         self.seed = self.config["learn"].get("seed", 0)
 
-        if mode == "study":
-            self.optuna_config = self.make_optuna_config()
-        else:
-            self.optuna_config: OptunaConfig = {}
         self.git_hash = get_short_git_hash()
+        self.optuna_config = self.resolve_optuna_config(optuna_config)
         self.study_id = self.resolve_study_id()
 
         if self.study_id and mode != "study":
@@ -117,6 +115,20 @@ class Runner(ABC):
 
     def make_optuna_config(self) -> OptunaConfig:
         return default_optuna_config
+
+    def resolve_optuna_config(self, optuna_config: OptunaConfig) -> OptunaConfig:
+        if self.mode == "study":
+            original_optuna_config = self.make_optuna_config()
+        else:
+            original_optuna_config: OptunaConfig = {}
+        original_optuna_config.update(optuna_config)
+        if "seed" in original_optuna_config:
+            optuna_seed = original_optuna_config.pop("seed")
+            if "sampler_params" in original_optuna_config:
+                original_optuna_config["sampler_params"]["seed"] = optuna_seed
+            else:
+                original_optuna_config["sampler_params"] = {"seed": optuna_seed}
+        return original_optuna_config
 
     def make_trainer(self, **kwargs) -> Trainer:
         reload_dataloaders = (
