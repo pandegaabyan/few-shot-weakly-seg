@@ -12,7 +12,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 import wandb
 import wandb.errors
 import wandb.util
-from config.config_maker import make_run_name
+from config.config_maker import gen_id, make_run_name
 from config.config_type import ConfigUnion, LearnerType, RunMode, TaskType
 from config.constants import FILENAMES
 from config.optuna import (
@@ -118,17 +118,27 @@ class Runner(ABC):
 
     def resolve_optuna_config(self, optuna_config: OptunaConfig) -> OptunaConfig:
         if self.mode == "study":
-            original_optuna_config = self.make_optuna_config()
+            ori_optuna_config = self.make_optuna_config()
         else:
-            original_optuna_config: OptunaConfig = {}
-        original_optuna_config.update(optuna_config)
-        if "seed" in original_optuna_config:
-            optuna_seed = original_optuna_config.pop("seed")
-            if "sampler_params" in original_optuna_config:
-                original_optuna_config["sampler_params"]["seed"] = optuna_seed
+            ori_optuna_config: OptunaConfig = {}
+        ori_optuna_config.update(optuna_config)
+
+        if "study_name" in ori_optuna_config:
+            splitted_name = ori_optuna_config["study_name"].strip().split(" ")
+            if len(splitted_name) == 1:
+                splitted_name.insert(0, self.learner_type)
+            if len(splitted_name) == 2:
+                splitted_name.append(gen_id(5))
+            ori_optuna_config["study_name"] = " ".join(splitted_name)
+
+        if "seed" in ori_optuna_config:
+            optuna_seed = ori_optuna_config.pop("seed")
+            if "sampler_params" in ori_optuna_config:
+                ori_optuna_config["sampler_params"]["seed"] = optuna_seed
             else:
-                original_optuna_config["sampler_params"] = {"seed": optuna_seed}
-        return original_optuna_config
+                ori_optuna_config["sampler_params"] = {"seed": optuna_seed}
+
+        return ori_optuna_config
 
     def make_trainer(self, **kwargs) -> Trainer:
         reload_dataloaders = (

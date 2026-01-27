@@ -3,7 +3,6 @@ from typing import Type
 import albumentations as A
 import optuna
 
-from config.config_maker import gen_id
 from config.config_type import (
     ConfigMetaLearner,
     ConfigPANet,
@@ -198,7 +197,6 @@ class SimpleRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = self.learner_type + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
@@ -391,7 +389,6 @@ class MetaRunner(Runner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["study_name"] = self.learner_type + " " + gen_id(5)
         config["sampler_params"] = {
             "n_startup_trials": 20,
             "n_ei_candidates": 30,
