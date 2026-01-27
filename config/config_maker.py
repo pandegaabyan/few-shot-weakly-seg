@@ -68,8 +68,6 @@ scheduler_config: SchedulerConfig = {"step_size": 10, "gamma": 0.1}
 log_config: LogConfig = {
     "configuration": True,
     "table": True,
-    # "model_onnx": True,
-    # "tensorboard_graph": True,
     "model_onnx": False,
     "tensorboard_graph": False,
     "clean_on_end": False,
@@ -93,8 +91,8 @@ wandb_config: WandbConfig = {
     "job_type": None,
     "log_metrics": True,
     "log_system_metrics": False,
-    "watch_model": True,
-    "save_model": True,
+    "watch_model": False,
+    "save_model": False,
     "push_table_freq": 5,
     "save_mask_only": False,
     "save_train_preds": 0,
@@ -180,6 +178,7 @@ def make_config(
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False
         config_ref["log"]["tensorboard_graph"] = False
+        config_ref["log"]["clean_on_end"] = True
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
         config_ref["callbacks"]["ckpt_top_k"] = 0
@@ -206,6 +205,7 @@ def make_config(
         config_ref["log"]["table"] = False
         config_ref["log"]["model_onnx"] = False
         config_ref["log"]["tensorboard_graph"] = False
+        config_ref["log"]["clean_on_end"] = True
         config_ref["log"]["optuna_step_report"] = True
         config_ref["callbacks"]["progress"] = False
         config_ref["callbacks"]["ckpt_last"] = False
