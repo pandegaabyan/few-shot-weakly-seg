@@ -45,7 +45,6 @@ from tasks.skin_lesion.datasets import (
     ISIC18MELFSDataset,
     ISIC18MELSimpleDataset,
     ISIC18NVFSDataset,
-    ISIC18TrainFSDataset,
     ISIC18NVSimpleDataset,
     ISIC18TrainFSDataset,
     ISIC1617NVFSDataset,
