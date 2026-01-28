@@ -24,6 +24,8 @@ def make_batch_sample_indices(
 
     if sample_size == 0:
         return None
+    if sample_size >= population_size:
+        sample_size = population_size
     rng = random.Random(seed)
     samples = sorted(rng.sample(range(population_size), sample_size))
     population_batch_size = population_size // batch_size + 1
