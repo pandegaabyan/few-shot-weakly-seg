@@ -284,34 +284,51 @@ class SimpleRunner(Runner):
             }
             return {"dataset_list": [(dataset_class, dataset_kwargs)]}
 
-        dataset_name, test_name = self.dataset.split(":")
-        if dataset_name == "all":
-            dataset_list = all_dataset_lists["dataset_list"]
-        else:
-            dataset_kwargs: SimpleDatasetKwargs = {
+        splitted_dataset = self.dataset.split(":")
+
+        if len(splitted_dataset) == 2:
+            dataset_name, test_name = splitted_dataset
+            if dataset_name == "all":
+                dataset_list = all_dataset_lists["dataset_list"]
+            else:
+                dataset_kwargs: SimpleDatasetKwargs = {
+                    **base_kwargs,
+                    "split_val_size": 0.2,
+                    "dataset_name": dataset_name,
+                }
+                dataset_class = dataset_class_map[dataset_name]
+                dataset_list = [(dataset_class, dataset_kwargs)]
+            dataset_lists: DatasetLists = {"dataset_list": dataset_list}
+        elif len(splitted_dataset) == 3:
+            train_name, val_name, test_name = splitted_dataset
+            train_kwargs: SimpleDatasetKwargs = {
                 **base_kwargs,
-                "split_val_size": 0.2,
-                "dataset_name": dataset_name,
+                "split_val_size": 0,
+                "dataset_name": train_name,
             }
-            dataset_class = dataset_class_map[dataset_name]
-            dataset_list = [(dataset_class, dataset_kwargs)]
+            val_kwargs: SimpleDatasetKwargs = {
+                **base_kwargs,
+                "split_val_size": 1,
+                "dataset_name": val_name,
+            }
+            train_class = dataset_class_map[train_name]
+            val_class = dataset_class_map[val_name]
+            dataset_lists: DatasetLists = {
+                "dataset_list": [(train_class, train_kwargs)],
+                "val_dataset_list": [(val_class, val_kwargs)],
+            }
 
         if test_name == "":
-            return {
-                "dataset_list": dataset_list,
-                "test_dataset_list": [],
-            }
-
+            dataset_lists["test_dataset_list"] = []
+            return dataset_lists
         test_kwargs: SimpleDatasetKwargs = {
             **base_kwargs,
             "split_test_size": 1,
             "dataset_name": test_name,
         }
         test_class = dataset_class_map[test_name]
-        return {
-            "dataset_list": dataset_list,
-            "test_dataset_list": [(test_class, test_kwargs)],
-        }
+        dataset_lists["test_dataset_list"] = [(test_class, test_kwargs)]
+        return dataset_lists
 
 
 class MetaRunner(Runner):
