@@ -62,6 +62,8 @@ class BinaryIoUMetric(BaseMetric):
         input_size = inputs.size()
         if len(input_size) == 4 and input_size[1] == 1:
             inputs = inputs[:, 0]
+        elif len(input_size) == 3 and input_size[1] == 1:
+            inputs = inputs[0]
         return {"iou": binary_jaccard_index(inputs, targets)}
 
 
