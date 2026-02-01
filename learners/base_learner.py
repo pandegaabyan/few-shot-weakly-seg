@@ -716,13 +716,16 @@ class BaseLearner(
     def wandb_add_preds(self):
         for type, pred_data in self.best_prediction_data.items():
             for pred, index, dataset, aux_data in pred_data:
-                self.wandb_add_mask(
-                    type,  # type: ignore
-                    pred,
-                    index,
-                    dataset,
-                    aux_data,
-                )
+                try:
+                    self.wandb_add_mask(
+                        type,  # type: ignore
+                        pred,
+                        index,
+                        dataset,
+                        aux_data,
+                    )
+                except Exception as e:
+                    print(f"Failed to log prediction for {type} {dataset} {index}: {e}")
         self.best_prediction_data = {}
 
     def optuna_log_and_prune(self, value: float):
