@@ -6,12 +6,17 @@ import numpy as np
 from numpy.typing import NDArray
 from skimage import io
 
+from config.config_type import DataConfigOptional
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
 from data.typings import DataPathList, SparsityMode, SparsityValue
 
-NUM_CLASSES = 2
+data_config: DataConfigOptional = {
+    "num_classes": 2,
+    "num_channels": 3,
+    "resize_to": (256, 256),
+}
 
 
 def get_all_data_path(dir: str) -> DataPathList:

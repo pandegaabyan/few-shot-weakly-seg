@@ -37,6 +37,12 @@ class DataConfig(TypedDict):
     resize_to: tuple[int, int]
 
 
+class DataConfigOptional(TypedDict, total=False):
+    num_classes: int
+    num_channels: int
+    resize_to: tuple[int, int]
+
+
 class LearnConfig(TypedDict):
     exp_name: str
     run_name: str

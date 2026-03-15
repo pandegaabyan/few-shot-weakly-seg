@@ -11,11 +11,11 @@ from config.config_type import (
     task_types,
 )
 from config.optuna import OptunaConfig
-from tasks.optic_disc_cup.datasets import NUM_CLASSES as NUM_CLASSES_OPTIC
+from tasks.optic_disc_cup.datasets import data_config as data_config_optic
 from tasks.optic_disc_cup.runners import get_runner_class as get_runner_class_optic
-from tasks.skin_lesion.datasets import NUM_CLASSES as NUM_CLASSES_SKIN
+from tasks.skin_lesion.datasets import data_config as data_config_skin
 from tasks.skin_lesion.runners import get_runner_class as get_runner_class_skin
-from tasks.teeth.datasets import NUM_CLASSES as NUM_CLASSES_TEETH
+from tasks.teeth.datasets import data_config as data_config_teeth
 from tasks.teeth.runners import get_runner_class as get_runner_class_teeth
 from utils.logging import (
     check_git_clean,
@@ -97,13 +97,13 @@ def main(
 
     if task == "optic":
         get_runner_class = get_runner_class_optic
-        NUM_CLASSES = NUM_CLASSES_OPTIC
+        data_config = data_config_optic
     elif task == "skin":
         get_runner_class = get_runner_class_skin
-        NUM_CLASSES = NUM_CLASSES_SKIN
+        data_config = data_config_skin
     elif task == "teeth":
         get_runner_class = get_runner_class_teeth
-        NUM_CLASSES = NUM_CLASSES_TEETH
+        data_config = data_config_teeth
     else:
         raise ValueError(f"Unknown task: {task}")
 
@@ -112,7 +112,7 @@ def main(
     config = make_config(
         mode=mode, dummy=dummy, use_wandb=not no_wandb, learner=learner
     )
-    config["data"]["num_classes"] = NUM_CLASSES
+    config["data"].update(data_config)  # type: ignore
 
     for key, value in configs:
         [parent_key, child_key] = key.split("/")
