@@ -118,5 +118,6 @@ class DiceMetric(BaseMetric):
                 include_background=False,
                 average=self.average,  # type: ignore
                 aggregation_level="global",
+                input_format="index",
             )
         }
