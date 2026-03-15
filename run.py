@@ -15,6 +15,8 @@ from tasks.optic_disc_cup.datasets import NUM_CLASSES as NUM_CLASSES_OPTIC
 from tasks.optic_disc_cup.runners import get_runner_class as get_runner_class_optic
 from tasks.skin_lesion.datasets import NUM_CLASSES as NUM_CLASSES_SKIN
 from tasks.skin_lesion.runners import get_runner_class as get_runner_class_skin
+from tasks.teeth.datasets import NUM_CLASSES as NUM_CLASSES_TEETH
+from tasks.teeth.runners import get_runner_class as get_runner_class_teeth
 from utils.logging import (
     check_git_clean,
 )
@@ -99,6 +101,9 @@ def main(
     elif task == "skin":
         get_runner_class = get_runner_class_skin
         NUM_CLASSES = NUM_CLASSES_SKIN
+    elif task == "teeth":
+        get_runner_class = get_runner_class_teeth
+        NUM_CLASSES = NUM_CLASSES_TEETH
     else:
         raise ValueError(f"Unknown task: {task}")
 

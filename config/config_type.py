@@ -3,7 +3,7 @@ from typing import Literal, Union, get_args
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
-TaskType = Literal["optic", "skin"]
+TaskType = Literal["optic", "skin", "teeth"]
 LearnerType = Literal[
     "SL",
     "WS",
