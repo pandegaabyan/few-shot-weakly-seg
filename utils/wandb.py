@@ -31,6 +31,8 @@ def get_wandb_project(task: TaskType, dummy: bool = False) -> str:
         project = os.getenv("WANDB_PROJECT_OPTIC")
     elif task == "skin":
         project = os.getenv("WANDB_PROJECT_SKIN")
+    elif task == "teeth":
+        project = os.getenv("WANDB_PROJECT_TEETH")
     else:
         project = None
     if project:

@@ -104,6 +104,12 @@ class DiceMetric(BaseMetric):
         self.add_state("dice", default=torch.tensor(0), dist_reduce_fx="mean")
 
     def measure(self, inputs: Tensor, targets: Tensor) -> dict[str, Tensor]:
+        if inputs.is_floating_point():
+            inputs = inputs.argmax(dim=1)
+        if inputs.ndim == 2:
+            inputs = inputs.unsqueeze(0)
+        if targets.ndim == 2:
+            targets = targets.unsqueeze(0)
         return {
             "dice": dice_score(
                 inputs,
@@ -111,5 +117,6 @@ class DiceMetric(BaseMetric):
                 num_classes=self.num_classes,
                 include_background=False,
                 average=self.average,  # type: ignore
+                aggregation_level="global",
             )
         }

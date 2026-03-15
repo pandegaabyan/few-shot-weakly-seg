@@ -3,7 +3,7 @@ from typing import Literal, Union, get_args
 from typing_extensions import NotRequired, Required, TypedDict
 
 RunMode = Literal["fit-test", "fit", "test", "study", "profile-fit", "profile-test"]
-TaskType = Literal["optic", "skin"]
+TaskType = Literal["optic", "skin", "teeth"]
 LearnerType = Literal[
     "SL",
     "WS",
@@ -34,6 +34,12 @@ class DataConfig(TypedDict):
     num_channels: int
     num_workers: int
     batch_size: int
+    resize_to: tuple[int, int]
+
+
+class DataConfigOptional(TypedDict, total=False):
+    num_classes: int
+    num_channels: int
     resize_to: tuple[int, int]
 
 
