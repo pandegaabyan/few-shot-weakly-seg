@@ -286,19 +286,28 @@ class SimpleRunner(Runner):
 
         splitted_dataset = self.dataset.split(":")
 
+        if splitted_dataset[0] == "all":
+            _, test_name = splitted_dataset
+            test_dataset_list = list(
+                filter(
+                    lambda x: x[1].get("dataset_name") == test_name,
+                    all_dataset_lists["test_dataset_list"],
+                )
+            )
+            all_dataset_lists["test_dataset_list"] = test_dataset_list
+            return all_dataset_lists
+
         if len(splitted_dataset) == 2:
             dataset_name, test_name = splitted_dataset
-            if dataset_name == "all":
-                dataset_list = all_dataset_lists["dataset_list"]
-            else:
-                dataset_kwargs: SimpleDatasetKwargs = {
-                    **base_kwargs,
-                    "split_val_size": 0.2,
-                    "dataset_name": dataset_name,
-                }
-                dataset_class = dataset_class_map[dataset_name]
-                dataset_list = [(dataset_class, dataset_kwargs)]
-            dataset_lists: DatasetLists = {"dataset_list": dataset_list}
+            dataset_kwargs: SimpleDatasetKwargs = {
+                **base_kwargs,
+                "split_val_size": 0.2,
+                "dataset_name": dataset_name,
+            }
+            dataset_class = dataset_class_map[dataset_name]
+            dataset_lists: DatasetLists = {
+                "dataset_list": [(dataset_class, dataset_kwargs)]
+            }
         elif len(splitted_dataset) == 3:
             train_name, val_name, test_name = splitted_dataset
             train_kwargs: SimpleDatasetKwargs = {
@@ -473,9 +482,6 @@ class MetaRunner(Runner):
             TuftsFSDataset,
             UFBA425FSDataset,
         ]
-        dataset_class_map = {
-            name: clas for name, clas in zip(dataset_names, dataset_classes)
-        }
 
         if self.dataset.split(":")[0] != "all":
             raise ValueError(
@@ -526,23 +532,14 @@ class MetaRunner(Runner):
             return all_dataset_lists
 
         _, test_name = self.dataset.split(":")
-        if test_name == "":
-            return {
-                **all_dataset_lists,
-                "test_dataset_list": [],
-            }
-        test_kwargs_specific: FewSparseDatasetKwargs = {
-            **base_kwargs,
-            **test_kwargs,
-            "dataset_name": test_name,
-            "split_test_size": 1,
-            **dummy_kwargs,
-        }
-        test_class = dataset_class_map[test_name]
-        return {
-            **all_dataset_lists,
-            "test_dataset_list": [(test_class, test_kwargs_specific)],
-        }
+        test_dataset_list = list(
+            filter(
+                lambda x: x[1].get("dataset_name") == test_name,
+                all_dataset_lists["test_dataset_list"],
+            )
+        )
+        all_dataset_lists["test_dataset_list"] = test_dataset_list
+        return all_dataset_lists
 
 
 class WeaselRunner(MetaRunner):
