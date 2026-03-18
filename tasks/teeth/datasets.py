@@ -17,7 +17,7 @@ NUM_CLASSES = 33
 data_config: DataConfigOptional = {
     "num_classes": NUM_CLASSES,
     "num_channels": 1,
-    "resize_to": (512, 512),
+    "resize_to": (256, 256),
 }
 
 

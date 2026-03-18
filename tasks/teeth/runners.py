@@ -196,13 +196,13 @@ class SimpleRunner(Runner):
             "constant_liar": True,
             "seed": self.seed,
         }
+        config["pruner"] = "median"
         config["pruner_params"] = {
-            "min_resource": 10,
-            "max_resource": self.config["learn"]["num_epochs"],
-            "reduction_factor": 2,
-            "bootstrap_count": 2,
+            "n_warmup_steps": 21,
+            "interval_steps": 2,
+            "n_min_trials": 3,
         }
-        config["pruner_patience"] = 5
+        config["pruner_patience"] = 0
         if not self.dummy:
             config["num_folds"] = 3
             config["timeout_sec"] = 8 * 3600
@@ -373,12 +373,13 @@ class MetaRunner(Runner):
             "constant_liar": True,
             "seed": self.seed,
         }
+        config["pruner"] = "median"
         config["pruner_params"] = {
-            "min_resource": 5,
-            "max_resource": self.config["learn"]["num_epochs"],
-            "reduction_factor": 2,
-            "bootstrap_count": 2,
+            "n_warmup_steps": 21,
+            "interval_steps": 2,
+            "n_min_trials": 3,
         }
+        config["pruner_patience"] = 0
         if not self.dummy:
             config["num_folds"] = 2
             config["timeout_sec"] = 3 * 24 * 3600
@@ -588,7 +589,6 @@ class WeaselRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner_patience"] = 1
         return config
 
 
@@ -634,7 +634,6 @@ class ProtosegRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner_patience"] = 3
         return config
 
 
@@ -684,7 +683,6 @@ class PANetRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner_patience"] = 3
         return config
 
 
@@ -778,7 +776,6 @@ class PASNetRunner(MetaRunner):
 
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
-        config["pruner_patience"] = 3
         return config
 
 
