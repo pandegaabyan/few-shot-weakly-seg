@@ -489,6 +489,15 @@ class MetaRunner(Runner):
                 f"Meta-learners only support dataset with 'all', got {self.dataset}"
             )
 
+        tufts_splits: FewSparseDatasetKwargs = {
+            "split_val_size": 0.1,
+            "split_test_size": 0.9,
+        }
+        dual_splits: FewSparseDatasetKwargs = {
+            "split_val_size": 0.2,
+            "split_test_size": 0.8,
+        }
+
         dataset_list, val_dataset_list, test_dataset_list = [], [], []
         for clas, name in zip(dataset_classes, dataset_names):
             if name in ["HITL"]:
@@ -504,16 +513,15 @@ class MetaRunner(Runner):
                     **base_kwargs,
                     **val_kwargs,
                     "dataset_name": name,
-                    "split_val_size": 0.2,
-                    "split_test_size": 0.8,
+                    "split_val_size": 1,
                     **dummy_kwargs,
                 }
                 if name == "Tufts":
-                    val_kwargs_specific["split_val_size"] = 0.1
-                    val_kwargs_specific["split_test_size"] = 0.9
+                    val_kwargs_specific.update(tufts_splits)
+                elif name == "Dual-Labeled":
+                    val_kwargs_specific.update(dual_splits)
                 val_dataset_list.append((clas, val_kwargs_specific))
-                test_dataset_list.append((clas, val_kwargs_specific))
-            else:
+            if name not in ["HITL"]:
                 test_kwargs_specific: FewSparseDatasetKwargs = {
                     **base_kwargs,
                     **test_kwargs,
@@ -521,6 +529,10 @@ class MetaRunner(Runner):
                     "split_test_size": 1,
                     **dummy_kwargs,
                 }
+                if name == "Tufts":
+                    test_kwargs_specific.update(tufts_splits)
+                elif name == "Dual-Labeled":
+                    test_kwargs_specific.update(dual_splits)
                 test_dataset_list.append((clas, test_kwargs_specific))
 
         all_dataset_lists: DatasetLists[FewSparseDataset, FewSparseDatasetKwargs] = {
