@@ -55,8 +55,12 @@ class CoordConv(nn.Module):
         Returns:
             Tuple of two tensors representing the coordinate channels
         """
-        y_coords = torch.linspace(-1, 1, height).view(height, 1).expand(height, width)
-        x_coords = torch.linspace(-1, 1, width).view(1, width).expand(height, width)
+        y_coords = (
+            torch.linspace(-1, 1, height).view(height, 1).expand(height, width).clone()
+        )
+        x_coords = (
+            torch.linspace(-1, 1, width).view(1, width).expand(height, width).clone()
+        )
 
         if coord_type == "cartesian":
             return x_coords, y_coords
