@@ -189,7 +189,7 @@ class SimpleRunner(Runner):
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
         config["sampler_params"] = {
-            "n_startup_trials": 20,
+            "n_startup_trials": 10,
             "n_ei_candidates": 30,
             "multivariate": True,
             "group": True,
@@ -366,7 +366,7 @@ class MetaRunner(Runner):
     def make_optuna_config(self) -> OptunaConfig:
         config = super().make_optuna_config()
         config["sampler_params"] = {
-            "n_startup_trials": 20,
+            "n_startup_trials": 10,
             "n_ei_candidates": 30,
             "multivariate": True,
             "group": True,
