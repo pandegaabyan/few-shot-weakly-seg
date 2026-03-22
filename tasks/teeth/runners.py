@@ -241,13 +241,17 @@ class SimpleRunner(Runner):
 
         splitted_dataset = self.dataset.split(":")
 
-        if splitted_dataset[0] in ["all", "all2"]:
+        if splitted_dataset[0] in ["all", "all2", "all3"]:
             if splitted_dataset[0] == "all":
                 train_names = ["HITL"]
                 val_names = ["Tufts", "Dual-Labeled"]
                 val_splits = {"Tufts": 0.1, "Dual-Labeled": 0.2}
-            else:
+            elif splitted_dataset[0] == "all2":
                 train_names = ["Dual-Labeled"]
+                val_names = ["Tufts", "HITL"]
+                val_splits = {"Tufts": 0.1, "HITL": 0.2}
+            elif splitted_dataset[0] == "all3":
+                train_names = ["Adnan-Umer"]
                 val_names = ["Tufts", "HITL"]
                 val_splits = {"Tufts": 0.1, "HITL": 0.2}
             dataset_list, val_dataset_list, test_dataset_list = [], [], []
@@ -279,7 +283,7 @@ class SimpleRunner(Runner):
                 "test_dataset_list": test_dataset_list,
             }
 
-        if self.dataset in ["all", "all2"]:
+        if self.dataset in ["all", "all2", "all3"]:
             return all_dataset_lists
 
         if ":" not in self.dataset:
@@ -292,7 +296,7 @@ class SimpleRunner(Runner):
             }
             return {"dataset_list": [(dataset_class, dataset_kwargs)]}
 
-        if splitted_dataset[0] in ["all", "all2"]:
+        if splitted_dataset[0] in ["all", "all2", "all3"]:
             _, test_name = splitted_dataset
             test_dataset_list = list(
                 filter(
@@ -492,17 +496,21 @@ class MetaRunner(Runner):
 
         splitted_dataset = self.dataset.split(":")
 
-        if splitted_dataset[0] not in ["all", "all2"]:
+        if splitted_dataset[0] not in ["all", "all2", "all3"]:
             raise ValueError(
-                f"Meta-learners only support dataset with 'all' or 'all2, got {self.dataset}"
+                f"Meta-learners only support dataset with 'all', got {self.dataset}"
             )
 
         if splitted_dataset[0] == "all":
             train_names = ["HITL"]
             val_names = ["Tufts", "Dual-Labeled"]
             val_splits = {"Tufts": 0.1, "Dual-Labeled": 0.2}
-        else:
+        elif splitted_dataset[0] == "all2":
             train_names = ["Dual-Labeled"]
+            val_names = ["Tufts", "HITL"]
+            val_splits = {"Tufts": 0.1, "HITL": 0.2}
+        elif splitted_dataset[0] == "all3":
+            train_names = ["Adnan-Umer"]
             val_names = ["Tufts", "HITL"]
             val_splits = {"Tufts": 0.1, "HITL": 0.2}
 
@@ -547,7 +555,7 @@ class MetaRunner(Runner):
             "test_dataset_list": test_dataset_list,
         }
 
-        if self.dataset in ["all", "all2"]:
+        if self.dataset in ["all", "all2", "all3"]:
             return all_dataset_lists
 
         _, test_name = splitted_dataset
