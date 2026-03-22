@@ -93,7 +93,7 @@ class MetaLearner(
             batch.support,
         )
 
-        self.handle_preds("TS", batch, batch_idx, pred)
+        self.handle_preds("TR", batch, batch_idx, pred)
 
         return loss
 
