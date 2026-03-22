@@ -239,24 +239,32 @@ class SimpleRunner(Runner):
             name: clas for name, clas in zip(dataset_names, dataset_classes)
         }
 
-        if self.dataset.split(":")[0] == "all":
+        splitted_dataset = self.dataset.split(":")
+
+        if splitted_dataset[0] in ["all", "all2"]:
+            if splitted_dataset[0] == "all":
+                train_names = ["HITL"]
+                val_names = ["Tufts", "Dual-Labeled"]
+                val_splits = {"Tufts": 0.1, "Dual-Labeled": 0.2}
+            else:
+                train_names = ["Dual-Labeled"]
+                val_names = ["Tufts", "HITL"]
+                val_splits = {"Tufts": 0.1, "HITL": 0.2}
             dataset_list, val_dataset_list, test_dataset_list = [], [], []
             for clas, name in zip(dataset_classes, dataset_names):
                 dataset_kwargs: SimpleDatasetKwargs = {
                     **base_kwargs,
                     "dataset_name": name,
                 }
-                if name in ["HITL"]:
+                if name in train_names:
                     dataset_list.append((clas, dataset_kwargs))
-                elif name in ["Tufts", "Dual-Labeled"]:
+                elif name in val_names:
+                    val_split = val_splits[name]
                     val_kwargs: SimpleDatasetKwargs = {
                         **dataset_kwargs,
-                        "split_val_size": 0.2,
-                        "split_test_size": 0.8,
+                        "split_val_size": val_split,
+                        "split_test_size": 1 - val_split,
                     }
-                    if name == "Tufts":
-                        val_kwargs["split_val_size"] = 0.1
-                        val_kwargs["split_test_size"] = 0.9
                     val_dataset_list.append((clas, val_kwargs))
                     test_dataset_list.append((clas, val_kwargs))
                 else:
@@ -271,7 +279,7 @@ class SimpleRunner(Runner):
                 "test_dataset_list": test_dataset_list,
             }
 
-        if self.dataset == "all":
+        if self.dataset in ["all", "all2"]:
             return all_dataset_lists
 
         if ":" not in self.dataset:
@@ -284,9 +292,7 @@ class SimpleRunner(Runner):
             }
             return {"dataset_list": [(dataset_class, dataset_kwargs)]}
 
-        splitted_dataset = self.dataset.split(":")
-
-        if splitted_dataset[0] == "all":
+        if splitted_dataset[0] in ["all", "all2"]:
             _, test_name = splitted_dataset
             test_dataset_list = list(
                 filter(
@@ -484,23 +490,25 @@ class MetaRunner(Runner):
             UFBA425FSDataset,
         ]
 
-        if self.dataset.split(":")[0] != "all":
+        splitted_dataset = self.dataset.split(":")
+
+        if splitted_dataset[0] not in ["all", "all2"]:
             raise ValueError(
-                f"Meta-learners only support dataset with 'all', got {self.dataset}"
+                f"Meta-learners only support dataset with 'all' or 'all2, got {self.dataset}"
             )
 
-        tufts_splits: FewSparseDatasetKwargs = {
-            "split_val_size": 0.1,
-            "split_test_size": 0.9,
-        }
-        dual_splits: FewSparseDatasetKwargs = {
-            "split_val_size": 0.2,
-            "split_test_size": 0.8,
-        }
+        if splitted_dataset[0] == "all":
+            train_names = ["HITL"]
+            val_names = ["Tufts", "Dual-Labeled"]
+            val_splits = {"Tufts": 0.1, "Dual-Labeled": 0.2}
+        else:
+            train_names = ["Dual-Labeled"]
+            val_names = ["Tufts", "HITL"]
+            val_splits = {"Tufts": 0.1, "HITL": 0.2}
 
         dataset_list, val_dataset_list, test_dataset_list = [], [], []
         for clas, name in zip(dataset_classes, dataset_names):
-            if name in ["HITL"]:
+            if name in train_names:
                 hitl_kwargs: FewSparseDatasetKwargs = {
                     **base_kwargs,
                     **train_kwargs,
@@ -508,20 +516,18 @@ class MetaRunner(Runner):
                     **dummy_kwargs,
                 }
                 dataset_list.append((clas, hitl_kwargs))
-            elif name in ["Tufts", "Dual-Labeled"]:
+            elif name in val_names:
+                val_split = val_splits[name]
                 val_kwargs_specific: FewSparseDatasetKwargs = {
                     **base_kwargs,
                     **val_kwargs,
                     "dataset_name": name,
-                    "split_val_size": 1,
+                    "split_val_size": val_split,
+                    "split_test_size": 1 - val_split,
                     **dummy_kwargs,
                 }
-                if name == "Tufts":
-                    val_kwargs_specific.update(tufts_splits)
-                elif name == "Dual-Labeled":
-                    val_kwargs_specific.update(dual_splits)
                 val_dataset_list.append((clas, val_kwargs_specific))
-            if name not in ["HITL"]:
+            if name not in train_names:
                 test_kwargs_specific: FewSparseDatasetKwargs = {
                     **base_kwargs,
                     **test_kwargs,
@@ -529,10 +535,10 @@ class MetaRunner(Runner):
                     "split_test_size": 1,
                     **dummy_kwargs,
                 }
-                if name == "Tufts":
-                    test_kwargs_specific.update(tufts_splits)
-                elif name == "Dual-Labeled":
-                    test_kwargs_specific.update(dual_splits)
+                if name in val_names:
+                    val_split = val_splits[name]
+                    test_kwargs_specific["split_val_size"] = val_split
+                    test_kwargs_specific["split_test_size"] = 1 - val_split
                 test_dataset_list.append((clas, test_kwargs_specific))
 
         all_dataset_lists: DatasetLists[FewSparseDataset, FewSparseDatasetKwargs] = {
@@ -541,10 +547,10 @@ class MetaRunner(Runner):
             "test_dataset_list": test_dataset_list,
         }
 
-        if self.dataset == "all":
+        if self.dataset in ["all", "all2"]:
             return all_dataset_lists
 
-        _, test_name = self.dataset.split(":")
+        _, test_name = splitted_dataset
         test_dataset_list = list(
             filter(
                 lambda x: x[1].get("dataset_name") == test_name,
