@@ -310,9 +310,12 @@ class Runner(ABC):
         pruner_patience = self.optuna_config.get("pruner_patience")
         if pruner_patience:
             pruner = optuna.pruners.PatientPruner(pruner, pruner_patience)
+        engine_kwargs = {
+            "pool_pre_ping": True,
+        }
         study_kwargs = {
             "study_name": self.optuna_config["study_name"],
-            "storage": get_optuna_storage(self.dummy),
+            "storage": get_optuna_storage(self.dummy, engine_kwargs=engine_kwargs),
             "sampler": sampler_class(**self.optuna_config.get("sampler_params", {})),
             "pruner": pruner,
         }
