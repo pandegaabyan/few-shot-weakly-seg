@@ -457,23 +457,23 @@ class MetaRunner(Runner):
             }
 
         val_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": [5, 10, 15],
+            "shot_options": [15, 10, 5],
             "sparsity_options": [
-                ("point", [13, 25, 37]),
-                ("grid", [0.25, 0.5, 0.75]),
-                ("contour", [0.25, 0.5, 0.75]),
-                ("skeleton", [0.25, 0.5, 0.75]),
+                ("grid", [0.75, 0.5, 0.25]),
+                ("contour", [0.75, 0.5, 0.25]),
+                ("skeleton", [0.75, 0.5, 0.25]),
+                ("point", [37, 25, 13]),
             ],
             "support_batch_mode": "permutation",
         }
 
         test_kwargs: FewSparseDatasetKwargs = {
-            "shot_options": [1, 5, 10, 15, 20],
+            "shot_options": [20, 15, 10, 5, 1],
             "sparsity_options": [
-                ("point", [5, 13, 25, 37, 50]),
-                ("grid", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ("contour", [0.1, 0.25, 0.5, 0.75, 1.0]),
-                ("skeleton", [0.1, 0.25, 0.5, 0.75, 1.0]),
+                ("grid", [1.0, 0.75, 0.5, 0.25, 0.1]),
+                ("contour", [1.0, 0.75, 0.5, 0.25, 0.1]),
+                ("skeleton", [1.0, 0.75, 0.5, 0.25, 0.1]),
+                ("point", [50, 37, 25, 13, 5]),
             ],
             "support_query_data": "mixed",
             "support_batch_mode": "full_permutation",
