@@ -10,7 +10,7 @@ from config.config_type import DataConfigOptional
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import DataPathList, SparsityMode, SparsityValue
+from data.typings import DataPathList, SparsityMode
 
 NUM_CLASSES = 33
 
@@ -89,18 +89,8 @@ class TeethFSDataset(TeethBaseDataset, FewSparseDataset, ABC):
     def sparse_region(*args, **kwargs) -> NDArray:
         raise NotImplementedError
 
-    def set_additional_sparse_mode(self) -> list[SparsityMode]:
-        return []
-
-    def get_additional_sparse_mask(
-        self,
-        sparsity_mode: SparsityMode,
-        msk: NDArray,
-        img: NDArray | None = None,
-        sparsity_value: SparsityValue = "random",
-        seed=0,
-    ) -> NDArray:
-        return msk
+    def get_sparse_modes(self) -> list[SparsityMode]:
+        return ["point", "grid", "contour", "skeleton"]
 
 
 class TeethSimpleDataset(TeethBaseDataset, SimpleDataset, ABC): ...

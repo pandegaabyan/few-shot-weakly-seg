@@ -1,5 +1,5 @@
 import random
-from abc import ABC, abstractmethod
+from abc import ABC
 from math import floor
 
 import numpy as np
@@ -41,15 +41,7 @@ class FewSparseDataset(BaseDataset, ABC):
         self.split_query_size = kwargs.get("split_query_size", 0)
         self.split_query_fold = kwargs.get("split_query_fold", 0)
         self.num_iterations = kwargs.get("num_iterations", 1.0)
-
-        self.sparsity_mode_default: list[SparsityMode] = [
-            "point",
-            "grid",
-            "contour",
-            "skeleton",
-            "region",
-        ]
-        self.sparsity_mode_additional = self.set_additional_sparse_mode()
+        self.sparsity_modes: list[SparsityMode] = self.get_sparse_modes()
 
         (
             self.num_iterations_int,
@@ -59,11 +51,15 @@ class FewSparseDataset(BaseDataset, ABC):
             self.query_indices,
         ) = self.compose_support_query()
 
-    @abstractmethod
-    def set_additional_sparse_mode(self) -> list[SparsityMode]:
-        pass
+    def get_sparse_modes(self) -> list[SparsityMode]:
+        return [
+            "point",
+            "grid",
+            "contour",
+            "skeleton",
+            "region",
+        ]
 
-    @abstractmethod
     def get_additional_sparse_mask(
         self,
         sparsity_mode: SparsityMode,
@@ -72,7 +68,9 @@ class FewSparseDataset(BaseDataset, ABC):
         sparsity_value: SparsityValue = "random",
         seed=0,
     ) -> NDArray:
-        pass
+        raise NotImplementedError(
+            "get_additional_sparse_mask must be implemented if there are additional sparse modes"
+        )
 
     def refresh(self, reseed: bool = False) -> None:
         self.cached_items_data = []
@@ -569,20 +567,13 @@ class FewSparseDataset(BaseDataset, ABC):
             )
 
         if sparsity_mode == "random":
-            selected_sparsity_mode = self.rng.choice(
-                self.sparsity_mode_default + self.sparsity_mode_additional
-            )
+            selected_sparsity_mode = self.rng.choice(self.sparsity_modes)
             selected_sparsity_value = "random"
         else:
             selected_sparsity_mode = sparsity_mode
             selected_sparsity_value = sparsity_value
 
-        if selected_sparsity_mode in self.sparsity_mode_additional:
-            sparse_msk = self.get_additional_sparse_mask(
-                selected_sparsity_mode, msk, img, selected_sparsity_value, seed
-            )
-
-        elif selected_sparsity_mode == "point":
+        if selected_sparsity_mode == "point":
             sparse_msk = self.sparse_point(
                 msk,
                 sparsity=selected_sparsity_value,
@@ -621,6 +612,10 @@ class FewSparseDataset(BaseDataset, ABC):
                 segments=self.sparsity_params.get("region_segments"),
                 compactness=self.sparsity_params.get("region_compactness"),
             )
+        else:
+            sparse_msk = self.get_additional_sparse_mask(
+                selected_sparsity_mode, msk, img, selected_sparsity_value, seed
+            )
 
         return sparse_msk
 
@@ -633,7 +628,7 @@ class FewSparseDataset(BaseDataset, ABC):
 
         all_sparse_msk = {}
 
-        for sparsity_mode in self.sparsity_mode_default + self.sparsity_mode_additional:
+        for sparsity_mode in self.sparsity_modes:
             sparsity_value = (
                 sparsity_values.get(sparsity_mode, "random")
                 if sparsity_values is not None

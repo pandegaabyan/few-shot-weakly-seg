@@ -31,14 +31,7 @@ class DummyBaseDataset(BaseDataset, ABC):
         return img, msk
 
 
-class DummyFSDataset(DummyBaseDataset, FewSparseDataset):
-    def set_additional_sparse_mode(self):
-        return []
-
-    def get_additional_sparse_mask(
-        self, sparsity_mode, msk, img=None, sparsity_value="random", seed=0
-    ) -> NDArray:
-        return msk
+class DummyFSDataset(DummyBaseDataset, FewSparseDataset): ...
 
 
 class DummySimpleDataset(DummyBaseDataset, SimpleDataset): ...

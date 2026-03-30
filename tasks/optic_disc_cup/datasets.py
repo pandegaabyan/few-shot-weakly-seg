@@ -10,7 +10,7 @@ from config.config_type import DataConfigOptional
 from data.base_dataset import BaseDataset
 from data.few_sparse_dataset import FewSparseDataset
 from data.simple_dataset import SimpleDataset
-from data.typings import DataPathList, SparsityMode, SparsityValue
+from data.typings import DataPathList
 
 data_config: DataConfigOptional = {
     "num_classes": 3,
@@ -55,19 +55,7 @@ class OpticDiscCupBaseDataset(BaseDataset, ABC):
         return {0: "background", 1: "optic_disc", 2: "optic_cup"}
 
 
-class OpticDiscCupFSDataset(OpticDiscCupBaseDataset, FewSparseDataset, ABC):
-    def set_additional_sparse_mode(self) -> list[SparsityMode]:
-        return []
-
-    def get_additional_sparse_mask(
-        self,
-        sparsity_mode: SparsityMode,
-        msk: NDArray,
-        img: NDArray | None = None,
-        sparsity_value: SparsityValue = "random",
-        seed=0,
-    ) -> NDArray:
-        return msk
+class OpticDiscCupFSDataset(OpticDiscCupBaseDataset, FewSparseDataset, ABC): ...
 
 
 class OpticDiscCupSimpleDataset(OpticDiscCupBaseDataset, SimpleDataset, ABC): ...
